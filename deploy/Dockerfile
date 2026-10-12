@@ -6,34 +6,34 @@ ARG POSTGRES_IMAGE=postgres:18-bookworm@sha256:d9c83446333daec3f0588cc709adb80c2
 
 FROM node:26-bookworm-slim@sha256:86f07bc9c5dce4578cf37e5a418b7bfc7f817cda25cde66e2b66e95ed86c4567 AS frontend-builder
 
-WORKDIR /app/frontend
-COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
+WORKDIR /app/webui
+COPY webui/package.json webui/pnpm-lock.yaml webui/pnpm-workspace.yaml ./
 RUN npm install --global "$(node -p 'require("./package.json").packageManager')" \
     && pnpm install --frozen-lockfile
-COPY frontend ./
+COPY webui ./
 RUN pnpm build
 
 FROM rust:1.98-bookworm@sha256:93ce27a88655056a51dbdd8f5f2d7ddc071c7b0070fb288a37b5a285fc83971e AS backend-builder
 
-WORKDIR /app/backend
+WORKDIR /app/agent_teams
 ARG TARGETARCH
 ARG AICODEX_AGENT_TEAMS_VERSION=
 ARG AICODEX_AGENT_TEAMS_GIT_SHA=unknown
 ARG AICODEX_AGENT_TEAMS_BUILD_TIME=unknown
 ARG AICODEX_AGENT_TEAMS_BUILD_TYPE=release
-ENV CARGO_TARGET_DIR=/app/backend/target/${TARGETARCH}
+ENV CARGO_TARGET_DIR=/app/agent_teams/target/${TARGETARCH}
 ENV AICODEX_AGENT_TEAMS_VERSION=${AICODEX_AGENT_TEAMS_VERSION}
 ENV AICODEX_AGENT_TEAMS_GIT_SHA=${AICODEX_AGENT_TEAMS_GIT_SHA}
 ENV AICODEX_AGENT_TEAMS_BUILD_TIME=${AICODEX_AGENT_TEAMS_BUILD_TIME}
 ENV AICODEX_AGENT_TEAMS_BUILD_TYPE=${AICODEX_AGENT_TEAMS_BUILD_TYPE}
-COPY backend/Cargo.toml backend/Cargo.lock ./
-COPY backend/apps ./apps
-COPY backend/crates ./crates
-COPY backend/migrations ./migrations
+COPY agent_teams/Cargo.toml agent_teams/Cargo.lock ./
+COPY agent_teams/apps ./apps
+COPY agent_teams/crates ./crates
+COPY agent_teams/migrations ./migrations
 COPY release/version.yaml /app/release/version.yaml
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
-    --mount=type=cache,target=/app/backend/target \
+    --mount=type=cache,target=/app/agent_teams/target \
     cargo build --release --locked --bin AICodexAgentTeams \
     && cp "${CARGO_TARGET_DIR}/release/AICodexAgentTeams" /tmp/AICodexAgentTeams
 
@@ -79,7 +79,7 @@ CMD ["/app/bin/AICodexAgentTeams"]
 FROM runtime-base AS runtime
 
 COPY --from=backend-builder --chown=aicodex-agent-teams:aicodex-agent-teams /tmp/AICodexAgentTeams /app/bin/AICodexAgentTeams
-COPY --from=frontend-builder --chown=aicodex-agent-teams:aicodex-agent-teams /app/frontend/dist ./web/dist
+COPY --from=frontend-builder --chown=aicodex-agent-teams:aicodex-agent-teams /app/webui/dist ./web/dist
 USER aicodex-agent-teams
 
 FROM runtime-base AS runtime-prebuilt

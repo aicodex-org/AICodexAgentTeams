@@ -68,7 +68,7 @@ client:
 
 api:
   # Docker 内由 AICODEX_AGENT_TEAMS_WEB_DIST_DIR 覆盖。
-  asset_directory: '../frontend/dist'
+  asset_directory: '../webui/dist'
   cors_allowed_origins: []
   request_timeout_seconds: null
   request_id_header: 'x-request-id'

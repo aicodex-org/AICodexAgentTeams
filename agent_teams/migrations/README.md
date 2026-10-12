@@ -18,7 +18,7 @@ sqlx 在服务启动、监听请求之前按编号执行迁移，并把文件 ch
 从迁移目录检查已登记文件：
 
 ```bash
-cd backend/migrations
+cd agent_teams/migrations
 sha256sum --check --strict .frozen-sha256
 ```
 

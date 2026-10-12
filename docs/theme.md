@@ -1,7 +1,7 @@
 <!-- prettier-ignore -->
 <div align="center">
 
-<img src="../frontend/public/favicon.svg" alt="AICodexAgentTeams" width="72" height="72" />
+<img src="../webui/public/favicon.svg" alt="AICodexAgentTeams" width="72" height="72" />
 
 # 管理端主题系统
 
@@ -59,10 +59,10 @@
 
 | 场景 | 参考入口 | 关注点 |
 | --- | --- | --- |
-| 页面头部 | `@codex-proxy/ui` 的 `BasePageHeader`、[系统概览](../frontend/src/views/dashboard/components/DashboardContent.vue) | 简短标题、必要的统计范围或状态、就近操作 |
-| 内容与指标 | `@codex-proxy/ui` 的 `BaseCard`、[用量概览卡片](../frontend/src/views/usage/components/UsageSummaryCards.vue) | 可选说明、紧凑摘要、数值与辅助信息的主次 |
-| 表单帮助 | [API Key 账号字段](../frontend/src/views/accounts/components/AccountApiKeyFields.vue) | 直接命名字段，在对应位置提供短提示和示例 |
-| 账号与用量展示 | [账号额度窗口](../frontend/src/components/account/account-usage-window/index.vue)、[共用用量表格](../frontend/src/components/usage/UsageRecordsTable.vue) | 复用后端展示字段和共享 presenter，管理端与 Key 页保持同一展示口径 |
+| 页面头部 | `@codex-proxy/ui` 的 `BasePageHeader`、[系统概览](../webui/src/views/dashboard/components/DashboardContent.vue) | 简短标题、必要的统计范围或状态、就近操作 |
+| 内容与指标 | `@codex-proxy/ui` 的 `BaseCard`、[用量概览卡片](../webui/src/views/usage/components/UsageSummaryCards.vue) | 可选说明、紧凑摘要、数值与辅助信息的主次 |
+| 表单帮助 | [API Key 账号字段](../webui/src/views/accounts/components/AccountApiKeyFields.vue) | 直接命名字段，在对应位置提供短提示和示例 |
+| 账号与用量展示 | [账号额度窗口](../webui/src/components/account/account-usage-window/index.vue)、[共用用量表格](../webui/src/components/usage/UsageRecordsTable.vue) | 复用后端展示字段和共享 presenter，管理端与 Key 页保持同一展示口径 |
 
 页面查询、表单状态与纯展示逻辑的归属见 [前端模块职责](architecture.md#34-前端模块职责)
 
@@ -91,12 +91,12 @@ flowchart LR
 | 主题算法 | `@codex-proxy/ui/theme` | 规范化配置，派生 Seed → Map → Alias → Component，生成并提交 CSS Variables |
 | 样式 | `@codex-proxy/ui/styles.css` | 基线、组件样式与完整工具类样式 |
 | Tailwind 合同 | `@codex-proxy/ui/tailwind.css` | 公开 Token 名称，供应用自己的 Tailwind 构建使用 |
-| 状态 | [`stores/modules/theme.ts`](../frontend/src/stores/modules/theme.ts) | 持久化配置、系统明暗偏好、切换动作与动画 |
-| 编辑器状态 | [`useThemeEditor.ts`](../frontend/src/views/theme/composables/useThemeEditor.ts) | 草稿、修改计数、恢复与保存 |
+| 状态 | [`stores/modules/theme.ts`](../webui/src/stores/modules/theme.ts) | 持久化配置、系统明暗偏好、切换动作与动画 |
+| 编辑器状态 | [`useThemeEditor.ts`](../webui/src/views/theme/composables/useThemeEditor.ts) | 草稿、修改计数、恢复与保存 |
 
 `codex-proxy-ui` 的组件与主题不依赖宿主 Store、路由或 API。应用通过上述公开入口消费；插件页面把 UI、Vue 和 Tailwind CSS 4 样式编译进包内静态资源，不借用宿主运行时模块。
 插件页面的标题与副标题由宿主呈现，内容区只渲染业务；主题变化通过宿主桥同步，接入方式见
-[SDK 页面与宿主桥](../backend/crates/gateway-plugin/sdk/docs/capabilities.md#页面宿主桥-v2)。
+[SDK 页面与宿主桥](../agent_teams/crates/gateway-plugin/sdk/docs/capabilities.md#页面宿主桥-v2)。
 `theme/` 根目录只保留公开入口 `index.ts` 和唯一类型文件 `types.ts`；内部实现按 `core/`、`derive/`、`runtime/` 分层，不增加嵌套 barrel。
 纯派生模块不访问 DOM，`theme/runtime/browser.ts` 不包含派生规则，Theme Store 不复制算法。
 普通 Map 字段按 camelCase → kebab-case 统一生成 `--cp-*`；Semantic 与 Preset Color 仅维护各自的短角色表。
@@ -244,9 +244,9 @@ Token 直接覆盖时不会自动重算同组件的其他状态；需要保持�
 
 可编辑字段与覆盖限制见[主题编辑器](#编辑能力)
 
-应用内品牌图标使用 [`AppBrandMark.vue`](../frontend/src/components/AppBrandMark.vue)：浅色模式取
+应用内品牌图标使用 [`AppBrandMark.vue`](../webui/src/components/AppBrandMark.vue)：浅色模式取
 `colorBgSpotlight`，深色模式取 `colorBgElevated`，保持中性暗面与白色图形；浏览器 favicon 继续使用固定黑白
-图标，不随主题改变，由 `frontend/public/favicon.svg` 提供，页面通过 `/favicon.svg` 引用
+图标，不随主题改变，由 `webui/public/favicon.svg` 提供，页面通过 `/favicon.svg` 引用
 
 ### 通用颜色消费
 
@@ -272,7 +272,7 @@ Purple Strong Container 或 Purple Solid；同一组颜色仍由运行时色板�
 
 ### 启动顺序
 
-[`main.ts`](../frontend/src/main.ts) 在 Vue 挂载前初始化主题：
+[`main.ts`](../webui/src/main.ts) 在 Vue 挂载前初始化主题：
 
 ```text
 createApp
@@ -347,7 +347,7 @@ Store 在其他入口发生变化时更新保存基线；没有未保存修改�
 
 ### 隔离预览
 
-[`ThemePreviewScope.vue`](../frontend/src/views/theme/components/ThemePreviewScope.vue) 创建开放 Shadow Root，复制应用
+[`ThemePreviewScope.vue`](../webui/src/views/theme/components/ThemePreviewScope.vue) 创建开放 Shadow Root，复制应用
 样式，并把预览内容 Teleport 到影子根中。预览可独立切换浅色和深色，不受外层主题影响
 
 - **首页画板**复用真实 `DashboardContent` 和固定 fixture，不请求接口，也不启动自动刷新

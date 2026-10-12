@@ -47,7 +47,7 @@ flowchart TB
   Store --> Object[(S3 / R2)]
 ```
 
-图中表示运行时协作，不是 crate 的直接依赖。`backend/apps/gateway` 是网关的唯一组合根，
+图中表示运行时协作，不是 crate 的直接依赖。`agent_teams/apps/gateway` 是网关的唯一组合根，
 按 Host → Store → Provider → Core → Admin → API → Worker 的顺序
 初始化具体实现。其余 crate 只暴露自己的配置、端口和 Bundle，不自行定位别的实现
 
@@ -55,8 +55,8 @@ flowchart TB
 
 | 路径 | 责任 |
 | --- | --- |
-| `backend/apps/gateway` | 读取顶层配置、连接 Bundle、注册 Provider 与 Worker |
-| `backend/apps/plugin-cli`（包名 `aicodex-agent-teams-plugin-cli`） | `AICodexAgentTeams-plugin package` 校验作者清单并生成平台元数据、资源摘要与归档；内部仅依赖 SDK，不参与网关运行时加载 |
+| `agent_teams/apps/gateway` | 读取顶层配置、连接 Bundle、注册 Provider 与 Worker |
+| `agent_teams/apps/plugin-cli`（包名 `aicodex-agent-teams-plugin-cli`） | `AICodexAgentTeams-plugin package` 校验作者清单并生成平台元数据、资源摘要与归档；内部仅依赖 SDK，不参与网关运行时加载 |
 | `gateway-protocol` | 跨层共享的 OpenAI wire contract、SSE 编解码与无业务 owner 的解析事实，不依赖其他 workspace crate |
 | `gateway-core` | operation、canonical event、请求快照、路由、admission、attempt 协调、交付边界和计量 |
 | `gateway-admin` | 管理领域、Key 用量查询、Provider/Store 端口、审计语义、备份与历史保留策略 |
@@ -67,7 +67,7 @@ flowchart TB
 | `gateway-plugin/runtime`（包名 `gateway-plugin-runtime`） | 插件包校验、能力适配、双向 RPC 与发布集合；通过 Host 管理子进程和受管 HTTP |
 | `providers/openai` | OpenAI OAuth、账号选择、目录、额度、Responses/Images/Search transport |
 | `providers/xai` | xAI OAuth session、账号选择、目录、额度和 Grok/Responses 转换 |
-| `frontend` | Vue 管理端与 Key 用量页，仅通过各自身份允许的控制面 API 访问状态 |
+| `webui` | Vue 管理端与 Key 用量页，仅通过各自身份允许的控制面 API 访问状态 |
 | 独立仓库 `codex-proxy-ui` | 管理端与插件页面共用的 Vue 基础组件、纯主题算法和样式，不依赖宿主业务状态、路由或 API |
 | 独立仓库 `codex-proxy-plugins` | 官方维护综合示例，依赖公开 SDK，Rust 处理器和已构建页面合成一个可安装包，不随宿主构建发版 |
 
@@ -82,7 +82,7 @@ flowchart TB
 Store 按端口命令与实际提交结果选择操作、补齐稳定实体标识和物理差异，在同一事务写入配置 revision 与审计记录；
 适配器不另定义动作和实体分类字符串，也不为生成审计而在事务外重复读取旧值
 
-`frontend/` 独立管理 Node 依赖、锁文件和 ESLint，根目录不建立前端 workspace。
+`webui/` 独立管理 Node 依赖、锁文件和 ESLint，根目录不建立前端 workspace。
 `modules/ui` 与 `modules/plugins` 是两个独立仓库的可选子模块，不加入宿主 Cargo 或 pnpm workspace，也不参与宿主发行构建。
 固定依赖、安装许可与源码联调见[开发指南](development.md)；组件、主题和插件页面的消费边界见[主题架构](theme.md#架构概览)。
 Pinia 持久化、登录、路由和业务请求由各应用持有
@@ -97,7 +97,7 @@ API 的时间 presenter 负责页面及事件展示文本，前端消费投影�
 
 `gateway-plugin/` 只是目录分组，包含独立 SDK 和宿主 Runtime，不存在聚合 crate。
 SDK 定义双方通信合同；Runtime 把插件能力接入既有 Core / Admin 端口，不另建请求引擎或持久化体系。
-宿主对包结构、平台和 RPC 封装执行加载校验；宿主范围及能力版本不匹配只提供兼容性风险提示，不统一禁用插件。合同见 [SDK](../backend/crates/gateway-plugin/sdk/README.md)
+宿主对包结构、平台和 RPC 封装执行加载校验；宿主范围及能力版本不匹配只提供兼容性风险提示，不统一禁用插件。合同见 [SDK](../agent_teams/crates/gateway-plugin/sdk/README.md)
 
 下图表示运行时协作，不表示 crate 直接依赖；具体实现由组合根注入：
 
@@ -117,12 +117,12 @@ flowchart LR
 
 | 模块 | 负责什么 | 不负责什么 |
 | --- | --- | --- |
-| [SDK](../backend/crates/gateway-plugin/sdk/README.md) | 清单、调用数据、消息与帧；可选 `io` 会话辅助 | 不依赖其他 workspace crate，不启动宿主 |
-| [Runtime](../backend/crates/gateway-plugin/runtime/src/lib.rs) | 校验包与声明、准备能力集合、RPC 与资源回收 | 不持久化安装选择，不重新决定账号资格或费用 |
+| [SDK](../agent_teams/crates/gateway-plugin/sdk/README.md) | 清单、调用数据、消息与帧；可选 `io` 会话辅助 | 不依赖其他 workspace crate，不启动宿主 |
+| [Runtime](../agent_teams/crates/gateway-plugin/runtime/src/lib.rs) | 校验包与声明、准备能力集合、RPC 与资源回收 | 不持久化安装选择，不重新决定账号资格或费用 |
 | Core | 发布不可变扩展快照；准入、路由、租约、请求交付与计费 | 不解释插件私有协议与存储格式 |
 | Admin / Store | 制品接受与配置用例 / 事务、版本校验、加密存储与审计 | 缓存目录和进程内状态不能替代数据库事实 |
 | Host | 下载、受管 HTTP、子进程容量与生命周期、维护任务监督 | 不解释插件业务协议 |
-| [Plugin CLI](../backend/apps/plugin-cli/README.md) | 校验作者清单，生成平台包与摘要 | workspace 内仅依赖 SDK，不构建源码、不安装或启用插件 |
+| [Plugin CLI](../agent_teams/apps/plugin-cli/README.md) | 校验作者清单，生成平台包与摘要 | workspace 内仅依赖 SDK，不构建源码、不安装或启用插件 |
 
 #### 发布与执行边界
 
@@ -143,7 +143,7 @@ flowchart LR
 - **持久化投影与包校验分离**：Admin 定义已校验制品的读取投影，Store 忽略未知字段，可选字段缺失时使用清单默认值；身份、摘要和执行所需事实必填，已知字段类型错误须报错。
   读取和重复安装不重写 JSON，结构与语义变更由数据库迁移管理。包清单和 RPC 封装按 SDK 校验；能力版本及宿主范围用于兼容性提示，实例能否运行由实际调用结果确定
 - **兼容转换停留在插件边界**：Runtime 的 `compatibility` 模块集中适配接口字段与设置来源，Core 与持久化模型只表达当前业务事实。
-  Admin 透传发行物中的弃用提示，不持久化倒计时或根据实际字段使用猜测兼容性；`release/publish` 维护[兼容窗口](../backend/crates/gateway-plugin/sdk/docs/manifest.md#接口弃用)，到期时要求移除适配和支持声明
+  Admin 透传发行物中的弃用提示，不持久化倒计时或根据实际字段使用猜测兼容性；`release/publish` 维护[兼容窗口](../agent_teams/crates/gateway-plugin/sdk/docs/manifest.md#接口弃用)，到期时要求移除适配和支持声明
 - **一份发布快照**：数据面和管理页面使用同一不可变扩展集合；CLI 复用准备与调用合同，按次读取持久化配置。
   新配置准备成功后才提交发布，在途请求持有旧集合直到结束；管理目标和回调另按当前身份与版本复验
 - **集合与实例分别保活**：实例 ID、制品、实例 revision、信任、配置、密钥与绑定均相同且进程就绪时，不同发布集合共享该实例及其注册贡献。
@@ -178,7 +178,7 @@ flowchart LR
 - **主动服务调用在注册表统一组合**：Admin 按类型登记操作，Core 组合器只负责续体，Runtime 搬运跨进程调用。
   插件与 CLI 主动调用公开服务时进入 `service` 中间件一次；原生 HTTP 接口由总入口包裹，业务方法及其内部调用不重复组合。
   主动子调用继承冻结计划、父子关联和取消信号，无 service 绑定时也保留空计划快照；调用结束回收资源。
-  各入口复用原用例，运行设置的整体替换仍使用读取版本做事务内比较，冲突不写入。公开范围见 [SDK 服务合同](../backend/crates/gateway-plugin/sdk/docs/capabilities.md#公开服务)
+  各入口复用原用例，运行设置的整体替换仍使用读取版本做事务内比较，冲突不写入。公开范围见 [SDK 服务合同](../agent_teams/crates/gateway-plugin/sdk/docs/capabilities.md#公开服务)
 - **上游适配器是洋葱链终端**：`upstream_adapter` 只扩展内置 OpenAI / xAI，沿原 Provider 的选号、租约及 attempt 中间件进入冷流。
   Provider 解释凭据、恢复账号状态和计算价格；Runtime 绑定账号版本并解析标准事件，Host 负责真实出站。
   普通 HTTP 与账号 HTTP 共用发送、背压、取消和正文回收，账号鉴权先提供默认值，插件可显式覆盖。
@@ -192,14 +192,14 @@ flowchart LR
 - **模型设置按请求重算**：Key 自身的画像、Fast 和限额默认值独立保留；`RequestSettings` 统一按宿主默认、当前 Key 默认、插件显式覆盖的顺序解析。
   认证、插件使用的 `ExecutionSettings` 视图和执行终端共用该规则。设置改写经过编译后由终端复用结果，截止时间仍相对请求开始时刻计算，不发布全局配置。
   子调用保留显式改写，在目标 Key 作用域重算默认值；Key 限额、Fast 和模型超时的覆盖绑定原 Key，同级调用互不改写。
-  原生 Responses WebSocket 每轮从当前快照重新认证，保留握手的显式改写；已经开始的执行不随全局发布改变。具体字段与来源合同见 [SDK 中间件](../backend/crates/gateway-plugin/sdk/docs/capabilities.md#http-入口)
+  原生 Responses WebSocket 每轮从当前快照重新认证，保留握手的显式改写；已经开始的执行不随全局发布改变。具体字段与来源合同见 [SDK 中间件](../agent_teams/crates/gateway-plugin/sdk/docs/capabilities.md#http-入口)
 
 #### 调用资源与状态
 
 - **资源跟随调用**：账号、HTTP、模型、状态和日志回调绑定有效父调用，取消随调用传播。受管流建立后不沿用握手的绝对期限，网络操作与模型执行各自计时。
   Runtime 与 SDK 的中间件处理预算在宿主 `next` 等待期间暂停，返回后恢复剩余预算；调用等待与回调有效期共用各端的预算状态，请求总期限独立生效。
   显式 Key 的身份快照随调用保留，每个模型执行拥有独立子调用图与结算；省略 Key 时继承现有模型父请求。页面 Responses 桥复核精确实例目标和 revision
-  `frontend_authentication` 使用 principal 到 Key 的映射；公开登录回调的一次性票据用于关联流程，不限制插件回调能力。接口合同见 [SDK 回调](../backend/crates/gateway-plugin/sdk/docs/capabilities.md#宿主资源回调)
+  `frontend_authentication` 使用 principal 到 Key 的映射；公开登录回调的一次性票据用于关联流程，不限制插件回调能力。接口合同见 [SDK 回调](../agent_teams/crates/gateway-plugin/sdk/docs/capabilities.md#宿主资源回调)
 - **观察合同统一**：`observer` 通过一个类型化 RPC 入口接收完成与实际上游 WebSocket 事件，发布时按事件类型编译独立作用域。完成事件直接携带终态、用量、费用和耗时，不按能力声明裁剪字段；异步投递的并发、队列和载荷有界，观察失败不改变业务结果
 - **维护只作用于已发布实例**：`maintenance` 由 Host 监督的 Runtime worker 调用，启用、恢复、配置发布和周期补偿共用对账入口。
   发布通知只用于唤醒，事实始终来自当前快照与数据库；同实例串行，通知合并，停用与版本替换取消旧任务。
@@ -221,7 +221,7 @@ flowchart LR
 官方插件身份仅来自受信宿主发行物内的封口清单，普通安装不能指定 `builtin`；封口标记不是密码学签名。
 宿主更新与回滚校验发行身份，重启前展示启用插件的兼容风险，确认不改变插件启用配置或制品接受事实
 
-安装到使用见 [插件使用](plugins.md)，清单与能力合同见 [SDK](../backend/crates/gateway-plugin/sdk/README.md)，
+安装到使用见 [插件使用](plugins.md)，清单与能力合同见 [SDK](../agent_teams/crates/gateway-plugin/sdk/README.md)，
 HTTP 字段见 [插件 API](api.md#12-插件管理)，更新与数据恢复见 [部署说明](../deploy/README.md#插件兼容与发行目录)
 
 组合根的 workspace architecture tests 冻结成员清单、依赖 DAG、公开模块面、源码纪律以及生产/测试模块
@@ -314,7 +314,7 @@ Client Key 费用账本独立累计各次 attempt 的实际费用，不能因请
 
 ### 3.4 前端模块职责
 
-`frontend/src` 持有应用状态和业务交互，基础组件与主题算法由 `@codex-proxy/ui` 提供，组件目录与合同见 [UI 组件架构](../modules/ui/playground/guide/architecture.md)：
+`webui/src` 持有应用状态和业务交互，基础组件与主题算法由 `@codex-proxy/ui` 提供，组件目录与合同见 [UI 组件架构](../modules/ui/playground/guide/architecture.md)：
 
 | 入口 | 职责 |
 | --- | --- |
@@ -726,7 +726,7 @@ Admin 的手动重置复用同一账本与 Key 行锁，在一个事务中清零
 插件预算回调通过 `PluginClientKeyAccess` 进入同一 `ClientKeyService` 和 `ClientKeyStore`，存储事务先复核插件实例版本，
 再执行原生预算操作；不建立另一份预算状态。查询复用账本投影，不触发准入。局部更新金额上限不改用量或窗口，
 仅在值变化时提交配置 revision、审计并发布；重置仍不推进配置版本。重复调用及结果未知的合同见
-[SDK 预算接口](../backend/crates/gateway-plugin/sdk/docs/capabilities.md#client-key-预算)。插件的外部周期和截止时间属于插件私有状态，展示在插件页面；
+[SDK 预算接口](../agent_teams/crates/gateway-plugin/sdk/docs/capabilities.md#client-key-预算)。插件的外部周期和截止时间属于插件私有状态，展示在插件页面；
 宿主预算接口和管理页面只表达原生窗口事实，不为插件周期修改滚动规则或重置语义
 
 - 日窗口按部署时区自然日划分；七天窗口从首次准入当天日界开始，按七个本地日历日续期，不固定为周一。
@@ -822,7 +822,7 @@ PostgreSQL 周期对账才是正确性基础
 容量冻结与上游限流共用冷却投影，探测恢复与持久化并发调整由 Admin 负责，详见[Worker 与账号冻结](#worker-与账号冻结)
 
 PostgreSQL schema 由迁移目录按编号管理。已应用迁移按字节冻结，后续 schema 变化只能新增编号迁移，
-详见 [迁移规则](../backend/migrations/README.md)
+详见 [迁移规则](../agent_teams/migrations/README.md)
 
 ## 9. Credential、额度与主动重置
 
@@ -1040,16 +1040,16 @@ PostgreSQL 备份恢复属于人工维护操作。当前没有部署级维护模
 
 ### 验证命令
 
-后端验证从 `backend/Cargo.toml` 执行，仓库根目录没有 Cargo manifest：
+后端验证从 `agent_teams/Cargo.toml` 执行，仓库根目录没有 Cargo manifest：
 
 ```bash
-cargo +1.97.0 fmt --all --manifest-path backend/Cargo.toml -- --check
-RUST_MIN_STACK=16777216 cargo +1.97.0 clippy --manifest-path backend/Cargo.toml --all-targets --all-features --locked -- -D warnings
-RUST_MIN_STACK=16777216 cargo +1.97.0 test --manifest-path backend/Cargo.toml --test main --locked
+cargo +1.97.0 fmt --all --manifest-path agent_teams/Cargo.toml -- --check
+RUST_MIN_STACK=16777216 cargo +1.97.0 clippy --manifest-path agent_teams/Cargo.toml --all-targets --all-features --locked -- -D warnings
+RUST_MIN_STACK=16777216 cargo +1.97.0 test --manifest-path agent_teams/Cargo.toml --test main --locked
 ```
 
 测试线程栈设置为 16 MiB。PostgreSQL/Redis 集成测试需按
-[迁移文档](../backend/migrations/README.md#本地测试库) 配置专用测试库；未设置环境变量时，本地相关测试会跳过。
+[迁移文档](../agent_teams/migrations/README.md#本地测试库) 配置专用测试库；未设置环境变量时，本地相关测试会跳过。
 其他检查与界面验证按 [贡献与审查](../CONTRIBUTING.md#验证) 执行
 
 插件 Runtime 的真实子进程与持久化测试使用 `AICODEX_AGENT_TEAMS_PLUGIN_TEST_DATABASE_URL` 和

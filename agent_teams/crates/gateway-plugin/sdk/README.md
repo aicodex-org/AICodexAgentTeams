@@ -103,16 +103,16 @@ sequenceDiagram
 修改宿主合同后，在仓库根目录更新生成文件；Admin 合同测试会检查生成结果是否同步：
 
 ```bash
-AICODEX_AGENT_TEAMS_UPDATE_SERVICE_CONTRACT=1 RUST_MIN_STACK=16777216 cargo +1.97.0 test --manifest-path backend/Cargo.toml -p gateway-admin --test main sdk_settings_contract_matches_host_declarations --locked
-cargo +1.97.0 fmt --all --manifest-path backend/Cargo.toml
+AICODEX_AGENT_TEAMS_UPDATE_SERVICE_CONTRACT=1 RUST_MIN_STACK=16777216 cargo +1.97.0 test --manifest-path agent_teams/Cargo.toml -p gateway-admin --test main sdk_settings_contract_matches_host_declarations --locked
+cargo +1.97.0 fmt --all --manifest-path agent_teams/Cargo.toml
 ```
 
 SDK 自身的验证命令：
 
 ```bash
-RUST_MIN_STACK=16777216 cargo +1.97.0 test --manifest-path backend/Cargo.toml -p gateway-plugin-sdk --no-default-features --locked
-RUST_MIN_STACK=16777216 cargo +1.97.0 test --manifest-path backend/Cargo.toml -p gateway-plugin-sdk --all-features --locked
-RUST_MIN_STACK=16777216 RUSTDOCFLAGS='-D warnings' cargo +1.97.0 doc --manifest-path backend/Cargo.toml -p gateway-plugin-sdk --all-features --no-deps --locked
+RUST_MIN_STACK=16777216 cargo +1.97.0 test --manifest-path agent_teams/Cargo.toml -p gateway-plugin-sdk --no-default-features --locked
+RUST_MIN_STACK=16777216 cargo +1.97.0 test --manifest-path agent_teams/Cargo.toml -p gateway-plugin-sdk --all-features --locked
+RUST_MIN_STACK=16777216 RUSTDOCFLAGS='-D warnings' cargo +1.97.0 doc --manifest-path agent_teams/Cargo.toml -p gateway-plugin-sdk --all-features --no-deps --locked
 ```
 
 源码中的类型和字段是当前合同；宿主接入、目录边界、内置 Provider 与 Runtime 集成验证见

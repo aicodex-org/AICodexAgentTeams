@@ -111,12 +111,12 @@ flowchart LR
 设置恢复不等于私有数据恢复。私有数据迁移仍由插件声明的迁移能力处理，不兼容且无迁移路径时不能切换；迁移失败会尝试
 恢复原版本，若恢复会覆盖并发修改则保持停用并提示处理。配置检查或候选准备失败不会覆盖当前设置
 
-接口弃用提示展示兼容窗口与作者说明，不改变插件启停状态；规则见 [接口弃用](../backend/crates/gateway-plugin/sdk/docs/manifest.md#接口弃用)
+接口弃用提示展示兼容窗口与作者说明，不改变插件启停状态；规则见 [接口弃用](../agent_teams/crates/gateway-plugin/sdk/docs/manifest.md#接口弃用)
 
 ### 故障处理
 
 宿主版本范围或能力版本不匹配时，管理页持续显示黄色兼容性提醒，允许手动启动和随宿主自动启动。
-启动成功不代表语义兼容，警告不会自动消失。需由作者使用匹配的 [SDK](../backend/crates/gateway-plugin/sdk/README.md) 与 CLI 重新构建，不能只修改包内版本字段；宿主更新和回滚的重启检查见[部署说明](../deploy/README.md#插件兼容与发行目录)
+启动成功不代表语义兼容，警告不会自动消失。需由作者使用匹配的 [SDK](../agent_teams/crates/gateway-plugin/sdk/README.md) 与 CLI 重新构建，不能只修改包内版本字段；宿主更新和回滚的重启检查见[部署说明](../deploy/README.md#插件兼容与发行目录)
 
 包无法解析、平台不符或 RPC 握手失败时，只有对应插件无法启动。运行中进程崩溃、协议错误或无效响应会停止该实例，
 显示红色感叹号及脱敏错误详情，保留启用配置，可在详情中重新启动或切换版本。连续故障受重启次数限制
@@ -137,5 +137,5 @@ flowchart LR
 完整卸载后重新安装可重新选择来源。独立创建但未被删除版本使用的下载认证不会被顺带删除。
 需要保留数据时，删除前按[部署、备份与恢复](../deploy/README.md)保存备份
 
-开发插件见 [SDK](../backend/crates/gateway-plugin/sdk/README.md) 与 [插件 CLI](../backend/apps/plugin-cli/README.md)；
+开发插件见 [SDK](../agent_teams/crates/gateway-plugin/sdk/README.md) 与 [插件 CLI](../agent_teams/apps/plugin-cli/README.md)；
 完整示例在独立的 `codex-proxy-plugins` 仓库维护。HTTP 字段与限制见 [API 参考](api.md#12-插件管理)

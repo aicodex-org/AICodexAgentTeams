@@ -1,6 +1,6 @@
 # AICodexAgentTeams 接口
 
-本文描述当前源码的公开 HTTP 合同，路由以 `backend/crates/gateway-api/src` 中的 router 为准
+本文描述当前源码的公开 HTTP 合同，路由以 `agent_teams/crates/gateway-api/src` 中的 router 为准
 
 配置客户端见[部署文档](../deploy/README.md#客户端配置)，内部职责见[系统架构](architecture.md)，部署实例的功能以实际运行版本和 revision 为准
 
@@ -16,7 +16,7 @@
 
 下文描述宿主路由的默认行为。已启用的 `http` 中间件在路由匹配、认证和正文解析前统一进入，
 可改写请求、覆盖本次请求设置、直接返回响应或接管 WebSocket 升级；管理、模型、健康检查和静态资源使用同一入口。
-挂载与覆盖合同见 [SDK 洋葱中间件](../backend/crates/gateway-plugin/sdk/docs/capabilities.md#洋葱中间件)
+挂载与覆盖合同见 [SDK 洋葱中间件](../agent_teams/crates/gateway-plugin/sdk/docs/capabilities.md#洋葱中间件)
 
 ### OpenAI 数据面客户端接口
 
@@ -29,7 +29,7 @@ Authorization: Bearer sk_...
 自动生成的 Key 保持 `sk_` 格式；迁入的自定义 Key 使用保存时的原值，不限制前缀或固定长度。
 无论格式如何，只有已保存且启用的 Client Key 能通过鉴权
 
-启用[入口认证插件](../backend/crates/gateway-plugin/sdk/docs/capabilities.md#数据面入口认证)时，
+启用[入口认证插件](../agent_teams/crates/gateway-plugin/sdk/docs/capabilities.md#数据面入口认证)时，
 `Authorization` 可按插件协议校验，并由宿主将外部身份映射到明确绑定的 Client Key。
 账号范围、模型权限、并发和预算仍由该 Key 决定；插件认证不接管管理员或 Key 自助页登录
 
@@ -229,7 +229,7 @@ Codex 的 review 等子代理请求仍使用 `/v1/responses`，并通过 `x-open
 
 模型请求默认不限制总执行时长。排队受[并发等待设置](#8-运行设置)约束，上游传输仍有独立的连接、空闲与心跳超时；
 持续有输出的请求不会仅因总时长达到固定值而结束。插件可以对单次模型执行设置显式总时限，
-从该次请求开始计算，见 [SDK 请求设置](../backend/crates/gateway-plugin/sdk/docs/capabilities.md#模型请求与-attempt)
+从该次请求开始计算，见 [SDK 请求设置](../agent_teams/crates/gateway-plugin/sdk/docs/capabilities.md#模型请求与-attempt)
 
 `api.request_timeout_seconds` 控制 HTTP 路由处理到返回响应的等待，默认 `null`；不限制已返回响应的流式正文寿命，
 也不是 WebSocket 每轮模型执行的总时限。客户端断开或取消仍会结束所属执行，反向代理和客户端可另设超时
@@ -259,7 +259,7 @@ API Key 与 OAuth 共用模拟客户端画像（`User-Agent`、`originator`、`v
 下游的 `x-openai-account-routing-override`、`x-openai-fedramp` 也不透传，
 工作区路由与合规属性不能从原账号继承。
 上述过滤描述原生转发；已信任插件的显式 header 改写可以覆盖账号与画像生成的默认头，
-不按认证或会话字段名称拦截，边界见 [SDK 请求中间件](../backend/crates/gateway-plugin/sdk/docs/capabilities.md#模型请求与-attempt)
+不按认证或会话字段名称拦截，边界见 [SDK 请求中间件](../agent_teams/crates/gateway-plugin/sdk/docs/capabilities.md#模型请求与-attempt)
 
 Responses 也不透传 `x-stainless-*`、`Origin`、`Referer`、`sec-ch-ua*` 和 `sec-fetch-*`
 携带的下游 SDK/浏览器环境或页面来源。过滤规则适用于所有下游客户端，与 User-Agent 无关；
@@ -307,7 +307,7 @@ turn metadata 的 `workspaces` 也会保留仓库绝对路径、Git 远端地址
 
 公开 HTTP 请求在路由匹配前经过已绑定的 `http` 中间件；插件可以改写握手路径和请求参数。
 已升级的 Responses 连接在入站解析前和出站写入前经过 `websocket` 中间件，完整消息与主动发送接口见
-[SDK 洋葱中间件](../backend/crates/gateway-plugin/sdk/docs/capabilities.md#洋葱中间件)。下述规则描述默认协议处理
+[SDK 洋葱中间件](../agent_teams/crates/gateway-plugin/sdk/docs/capabilities.md#洋葱中间件)。下述规则描述默认协议处理
 
 Responses WebSocket 接受文本消息，`response.create` 在同一连接串行执行。当前响应期间收到的后续创建请求
 留在有界接收队列中，待当前响应完成终结和写出后再逐条校验、准入与执行，不因请求提前到达而断开。
@@ -2028,7 +2028,7 @@ Host 关闭或任务取消会记录失败终态；状态查询会收敛无执行
 除明确标注的公开入口外，以下接口需要管理身份。图标读取及 12.2 中标注的原始响应接口直接返回资源、插件响应
 或模型响应，其余接口使用统一管理响应信封。制品按摘要记录用户的完整信任决定；首次安装某个插件时会尝试创建默认配置，
 配置完整则启用，缺少必填项则保留为待配置。操作流程见 [插件使用](plugins.md)，开发合同见
-[SDK](../backend/crates/gateway-plugin/sdk/README.md)。不提供官方商店或第三方市场订阅接口
+[SDK](../agent_teams/crates/gateway-plugin/sdk/README.md)。不提供官方商店或第三方市场订阅接口
 
 ### 安装包与来源
 
@@ -2054,7 +2054,7 @@ Host 关闭或任务取消会记录失败终态；状态查询会收敛无执行
 
 #### 包信息
 
-安装包使用的版本与字段规则见 [SDK 清单](../backend/crates/gateway-plugin/sdk/docs/manifest.md)。
+安装包使用的版本与字段规则见 [SDK 清单](../agent_teams/crates/gateway-plugin/sdk/docs/manifest.md)。
 插件 ID 由 `publisher + "." + name` 派生；`displayName` 和可选 `author` 仅用于展示
 
 制品 `metadata` 返回 `pluginId`、`name`、`displayName`、`publisher`、可为 `null` 的 `author`、`version`、
@@ -2066,7 +2066,7 @@ Host 关闭或任务取消会记录失败终态；状态查询会收敛无执行
 #### 图标读取
 
 `metadata.icon` 为清单中的包内路径或 `{ "light": "...", "dark": "..." }` 对象；未声明时为 `null`。
-配置示例、支持格式与文件限制见 [SDK 插件图标](../backend/crates/gateway-plugin/sdk/docs/manifest.md#插件图标)
+配置示例、支持格式与文件限制见 [SDK 插件图标](../agent_teams/crates/gateway-plugin/sdk/docs/manifest.md#插件图标)
 
 读取浅色主题图标使用 `GET /api/admin/plugins/artifacts/{sha256}/icon?theme=light`：
 
@@ -2213,7 +2213,7 @@ GitHub 的 `location` 使用 `kind: "github"`、`repository: "owner/repo"`、`ta
 
 #### 版本切换与私有状态
 
-私有状态通过 [SDK 回调](../backend/crates/gateway-plugin/sdk/docs/capabilities.md#状态日志与迁移)访问，不提供任意读写的管理 HTTP 接口。
+私有状态通过 [SDK 回调](../agent_teams/crates/gateway-plugin/sdk/docs/capabilities.md#状态日志与迁移)访问，不提供任意读写的管理 HTTP 接口。
 升级若需要迁移，实例可能暂时停用；迁移失败且发生并发配置变更时保持停用，不覆盖管理员的新配置。
 版本切换只接受同一插件已安装且已接受的制品，`expectedRevision` 必须等于实例列表中的 `revision`，过期请求返回 409。
 `version-plan` 返回 `instanceRevision`、`artifactSha256`、`configuration`、`secretFields`、`bindings` 和 `restored`，
@@ -2330,7 +2330,7 @@ GET/HEAD 不接受正文。响应状态码为 200–599，内容类型元数据�
 两类响应默认设置 nosniff、no-referrer 与限制性 CSP，动态处理器可显式覆盖默认响应头。管理端页面使用隔离 iframe，
 仅允许脚本，不具有父页面同源权限；联网、弹窗、表单、嵌套页面和顶层导航均不开放。
 页面访问已声明管理路由须经过固定目标的宿主桥，不能指定其他实例或版本。插件页面作者合同见
-[SDK 管理 API 与页面](../backend/crates/gateway-plugin/sdk/docs/capabilities.md#管理页面公开入口与-cli)
+[SDK 管理 API 与页面](../agent_teams/crates/gateway-plugin/sdk/docs/capabilities.md#管理页面公开入口与-cli)
 
 模型桥只接受严格的 `clientKeyId` 查询参数和 Responses JSON 正文；传输正文与解压后的正文均最多 8 MiB。
 服务端先复核固定目标与实例 revision，再按 ID 查询当前 Client Key，并使用普通 Responses HTTP/SSE 执行链；

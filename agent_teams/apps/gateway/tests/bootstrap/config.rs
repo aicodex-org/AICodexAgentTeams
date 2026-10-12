@@ -22,7 +22,7 @@ fn config_loader_should_resolve_paths_relative_to_config_file() {
     let debug = format!("{config:?}");
     assert!(debug.contains(".runtime/data"));
     assert!(debug.contains(".runtime/logs"));
-    assert!(debug.contains("frontend/dist"));
+    assert!(debug.contains("webui/dist"));
 }
 
 #[test]

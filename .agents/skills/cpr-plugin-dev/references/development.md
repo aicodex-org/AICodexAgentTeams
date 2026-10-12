@@ -7,8 +7,8 @@
 
 | 位置 | 用途 |
 | --- | --- |
-| 主仓 `backend/crates/gateway-plugin/sdk/` | Rust 公开合同、会话辅助与能力文档 |
-| 主仓 `backend/apps/plugin-cli/` | `AICodexAgentTeams-plugin package`，只校验与打包，不编译插件源码 |
+| 主仓 `agent_teams/crates/gateway-plugin/sdk/` | Rust 公开合同、会话辅助与能力文档 |
+| 主仓 `agent_teams/apps/plugin-cli/` | `AICodexAgentTeams-plugin package`，只校验与打包，不编译插件源码 |
 | [codex-proxy-plugins](https://github.com/zyycn/codex-proxy-plugins) 的 `examples/workbench/` | 基础能力体验与文本工作流示例，按需选择功能，不整体复制 |
 | [codex-proxy-ui](https://github.com/zyycn/codex-proxy-ui) | 可选的 Vue UI 库、组件文档与 playground |
 
@@ -58,7 +58,7 @@ cargo build --manifest-path /path/to/plugin/Cargo.toml --release --locked --targ
 需要从目标宿主源码构建工具时，在主仓根目录运行以下命令，把 `--help` 换成实际参数即可，不必全局安装：
 
 ```bash
-cargo +1.97.0 run --manifest-path backend/Cargo.toml -p aicodex-agent-teams-plugin-cli --locked -- package --help
+cargo +1.97.0 run --manifest-path agent_teams/Cargo.toml -p aicodex-agent-teams-plugin-cli --locked -- package --help
 ```
 
 直接打包的示意命令：
@@ -73,7 +73,7 @@ AICodexAgentTeams-plugin package \
 ```
 
 没有 `web` 资源时去掉 `--resource-map`。映射源相对于作者清单目录，而非命令执行目录；资源必须留在插件工程内。
-目标平台指运行宿主的服务器／容器，不是访问管理端的浏览器所在电脑；平台与二进制必须匹配，不能只改 target 参数伪装交叉编译。支持平台以 [CLI 文档](../../../../backend/apps/plugin-cli/README.md)及实际 `--help` 为准。
+目标平台指运行宿主的服务器／容器，不是访问管理端的浏览器所在电脑；平台与二进制必须匹配，不能只改 target 参数伪装交叉编译。支持平台以 [CLI 文档](../../../../agent_teams/apps/plugin-cli/README.md)及实际 `--help` 为准。
 
 输出为 `.tar.gz` 与 `.sha256`，不是源码 zip、npm 包或页面目录。归档根目录应有生成后的 `plugin.json`、可执行文件和声明资源。
 安装时以本次输出的包摘要为准，核对包内版本、平台、能力和 `engines` 与实际运行宿主匹配；

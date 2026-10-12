@@ -1,13 +1,13 @@
 # Rust
-/backend/**/target/
+/agent_teams/**/target/
 *.profraw
 *.profdata
 
 # Frontend
-/frontend/node_modules/
-/frontend/dist/
-/frontend/.pnpm-store/
-/frontend/.pnpm-cache/
+/webui/node_modules/
+/webui/dist/
+/webui/.pnpm-store/
+/webui/.pnpm-cache/
 *.tsbuildinfo
 
 # Release artifacts

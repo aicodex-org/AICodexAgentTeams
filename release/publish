@@ -4,8 +4,8 @@ set -euo pipefail
 APP_NAME="AICodexAgentTeams"
 VERSION_FILE="release/version.yaml"
 NOTES_FILE="release/notes.md"
-PLUGIN_DEPRECATIONS_FILE="backend/crates/gateway-plugin/runtime/plugin-api-deprecations.json"
-PLUGIN_COMPATIBILITY_FILE="backend/crates/gateway-plugin/runtime/plugin-host-compatibility.json"
+PLUGIN_DEPRECATIONS_FILE="agent_teams/crates/gateway-plugin/runtime/plugin-api-deprecations.json"
+PLUGIN_COMPATIBILITY_FILE="agent_teams/crates/gateway-plugin/runtime/plugin-host-compatibility.json"
 TAG_PREFIX="v"
 SEMVER='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(alpha|beta|rc|exp)\.[1-9][0-9]*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
 SIGNATURE="Co-authored-by: Codex <noreply@openai.com>"

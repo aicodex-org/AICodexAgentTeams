@@ -3,8 +3,8 @@
 **/node_modules/
 **/.pnpm-store/
 **/.pnpm-cache/
-frontend/dist/
-frontend/.vite/
+webui/dist/
+webui/.vite/
 dist/*
 !dist/docker/
 !dist/docker/**

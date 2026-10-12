@@ -16,22 +16,22 @@
 
 需要 Node.js 24、pnpm、[Rust 工具链](architecture.md#验证命令)、PostgreSQL 和 Redis
 
-各前端的 `packageManager` 固定 pnpm 版本，Docker 从 `frontend/package.json` 读取
+各前端的 `packageManager` 固定 pnpm 版本，Docker 从 `webui/package.json` 读取
 
-Rust 工具链声明位于 `backend/rust-toolchain.toml`，从仓库根目录运行 Cargo 时显式选择该工具链；
+Rust 工具链声明位于 `agent_teams/rust-toolchain.toml`，从仓库根目录运行 Cargo 时显式选择该工具链；
 `--manifest-path` 只选择 manifest，不切换 rustup 按当前目录选定的工具链
 
 ```bash
 git clone https://github.com/aicodex-org/AICodexAgentTeams.git
 cd AICodexAgentTeams
-pnpm --dir frontend install --frozen-lockfile
+pnpm --dir webui install --frozen-lockfile
 ```
 
-前端依赖、锁文件与 ESLint 配置由 `frontend/` 管理，根目录不维护 Node 包
+前端依赖、锁文件与 ESLint 配置由 `webui/` 管理，根目录不维护 Node 包
 
 - **版本固定**：`@codex-proxy/ui` 使用固定 GitHub 标签或提交，锁文件记录实际提交、源码归档地址及完整性摘要
 - **安装与构建**：pnpm 按 UI 自身锁文件准备依赖，执行 `prepack` 生成 JS、CSS 和类型声明，普通 `dev`、`build` 和 Docker 使用编译产物，无需初始化子模块
-- **构建许可**：`frontend/pnpm-workspace.yaml` 的 `allowBuilds` 按仓库放行自有 UI 包脚本，升级时核对源码并更新锁文件，无需逐次修改许可，不开放全部依赖脚本
+- **构建许可**：`webui/pnpm-workspace.yaml` 的 `allowBuilds` 按仓库放行自有 UI 包脚本，升级时核对源码并更新锁文件，无需逐次修改许可，不开放全部依赖脚本
 
 ## 启动宿主
 
@@ -41,7 +41,7 @@ pnpm --dir frontend install --frozen-lockfile
 
 ```bash
 docker compose -f deploy/compose.yaml up -d postgres redis
-cargo +1.97.0 run --manifest-path backend/Cargo.toml -p aicodex-agent-teams --locked
+cargo +1.97.0 run --manifest-path agent_teams/Cargo.toml -p aicodex-agent-teams --locked
 ```
 
 后端从当前目录向上查找 `deploy/config.yaml`，本机运行时数据库与 Redis 地址应指向可访问的本机端口
@@ -51,12 +51,12 @@ cargo +1.97.0 run --manifest-path backend/Cargo.toml -p aicodex-agent-teams --lo
 另开终端启动管理端：
 
 ```bash
-pnpm --dir frontend dev
+pnpm --dir webui dev
 ```
 
-后端代理由 `frontend/vite.config.ts` 配置，验证 WebSocket 时直接连接后端
+后端代理由 `webui/vite.config.ts` 配置，验证 WebSocket 时直接连接后端
 
-前后端检查见 [贡献与审查](../CONTRIBUTING.md#验证)，数据库集成测试使用[专用测试库](../backend/migrations/README.md#本地测试库)
+前后端检查见 [贡献与审查](../CONTRIBUTING.md#验证)，数据库集成测试使用[专用测试库](../agent_teams/migrations/README.md#本地测试库)
 
 ## 源码入口
 
@@ -71,7 +71,7 @@ pnpm --dir frontend dev
 
 | 目录 | 仓库与职责 |
 | --- | --- |
-| `frontend` / `backend` | 宿主管理端与 Rust 网关 |
+| `webui` / `agent_teams` | 宿主管理端与 Rust 网关 |
 | `modules/ui` | `codex-proxy-ui`，共用组件与主题 |
 | `modules/plugins` | `codex-proxy-plugins`，官方插件示例 |
 
@@ -90,7 +90,7 @@ cd AICodexAgentTeams
 
 ```bash
 pnpm --dir modules/ui install --frozen-lockfile
-pnpm --dir frontend install --frozen-lockfile
+pnpm --dir webui install --frozen-lockfile
 pnpm --dir modules/plugins/examples/workbench/frontend install --frozen-lockfile
 ```
 
@@ -99,7 +99,7 @@ pnpm --dir modules/plugins/examples/workbench/frontend install --frozen-lockfile
 在各自终端启动所需服务：
 
 ```bash
-pnpm --dir frontend dev:source                            # 管理端，引用本地 UI
+pnpm --dir webui dev:source                            # 管理端，引用本地 UI
 pnpm --dir modules/plugins/examples/workbench/frontend dev:source  # 插件页面，引用本地 UI
 pnpm --dir modules/ui dev                                 # 组件库交互示例
 ```
@@ -109,11 +109,11 @@ pnpm --dir modules/ui dev                                 # 组件库交互示�
 `dev:source` 使用 Vite 的 `source` 模式，由 `@codex-proxy/ui/vite` 的 `CodexProxyUI` 适配器将公开入口解析到 `modules/ui`，并统一处理共享依赖、源码预构建排除与开发服务的文件访问范围。入口映射以 UI 包 `exports` 中的 `codex-proxy-source` 条件为准，由 Vite 热更新。插件单独检出时仍用普通 `dev`；`source` 模式需要上述子模块目录结构
 
 ```bash
-pnpm --dir frontend build:source
+pnpm --dir webui build:source
 pnpm --dir modules/plugins/examples/workbench/frontend build:source
 ```
 
-`build:source` 用各项目的 `tsconfig.source.json` 检查源码类型，管理端构建到 `frontend/node_modules/.vite/source-dist`，示例构建到其前端项目的 `.vite/source-dist`，不改写正式依赖、锁文件或 `dist`。
+`build:source` 用各项目的 `tsconfig.source.json` 检查源码类型，管理端构建到 `webui/node_modules/.vite/source-dist`，示例构建到其前端项目的 `.vite/source-dist`，不改写正式依赖、锁文件或 `dist`。
 源码联调需显式检出子模块、核对 UI 提交锁定并验证这两个命令
 
 ### 本地 SDK 验证
@@ -129,9 +129,9 @@ pnpm --dir modules/plugins/examples/workbench/frontend build:source
   cp modules/plugins/examples/workbench/backend/Cargo.{toml,lock} "$aicodex_sdk_check_dir/backend/"
   cp -R modules/plugins/examples/workbench/backend/{src,tests} "$aicodex_sdk_check_dir/backend/"
   cp modules/plugins/examples/workbench/plugin.json "$aicodex_sdk_check_dir/"
-  RUST_MIN_STACK=16777216 CARGO_TARGET_DIR="$PWD/backend/target/plugin-development" \
+  RUST_MIN_STACK=16777216 CARGO_TARGET_DIR="$PWD/agent_teams/target/plugin-development" \
     cargo +1.97.0 test --manifest-path "$aicodex_sdk_check_dir/backend/Cargo.toml" \
-    --config "patch.\"https://github.com/zyycn/codex-proxy-rs.git\".gateway-plugin-sdk.path=\"$PWD/backend/crates/gateway-plugin/sdk\""
+    --config "patch.\"https://github.com/zyycn/codex-proxy-rs.git\".gateway-plugin-sdk.path=\"$PWD/agent_teams/crates/gateway-plugin/sdk\""
 )
 ```
 

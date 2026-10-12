@@ -1,7 +1,7 @@
 <!-- prettier-ignore -->
 <div align="center">
 
-<img src="frontend/public/favicon.svg" alt="AICodexAgentTeams" width="80" height="80" />
+<img src="webui/public/favicon.svg" alt="AICodexAgentTeams" width="80" height="80" />
 
 # AICodexAgentTeams
 
@@ -107,8 +107,8 @@ curl http://127.0.0.1:8080/v1/models \
 | 部署与使用 | [部署、备份与恢复](deploy/README.md) · [客户端接入与生图](deploy/README.md#客户端配置) |
 | 接口集成 | [API 参考](docs/api.md) · [模型定价](docs/api.md#模型定价) |
 | 使用插件 | [安装、配置与使用](docs/plugins.md) |
-| 开发插件 | [SDK 与合同](backend/crates/gateway-plugin/sdk/README.md) · [打包工具](backend/apps/plugin-cli/README.md) |
-| 开发宿主 | [开发与源码联调](docs/development.md) · [系统架构](docs/architecture.md) · [管理端主题](docs/theme.md) · [数据库迁移](backend/migrations/README.md) |
+| 开发插件 | [SDK 与合同](agent_teams/crates/gateway-plugin/sdk/README.md) · [打包工具](agent_teams/apps/plugin-cli/README.md) |
+| 开发宿主 | [开发与源码联调](docs/development.md) · [系统架构](docs/architecture.md) · [管理端主题](docs/theme.md) · [数据库迁移](agent_teams/migrations/README.md) |
 | 参与协作 | [贡献、审查与验证](CONTRIBUTING.md) |
 
 ## 社区
