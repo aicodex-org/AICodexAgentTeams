@@ -889,6 +889,14 @@ impl CodexProvider {
             lease.authentication(),
             crate::credential::CodexRuntimeAuthentication::OAuth(_)
         );
+        if matches!(
+            lease.authentication(),
+            crate::credential::CodexRuntimeAuthentication::ChatGpt(_)
+        ) {
+            upstream_request
+                .body_mut()
+                .insert("store".into(), serde_json::Value::Bool(false));
+        }
         if codex_oauth {
             normalize_selected_codex_downstream_body(
                 upstream_request.body_mut(),
@@ -1002,6 +1010,7 @@ impl CodexProvider {
                 credential_revision: matches!(
                     lease.authentication(),
                     crate::credential::CodexRuntimeAuthentication::ApiKey(_)
+                        | crate::credential::CodexRuntimeAuthentication::ChatGpt(_)
                 )
                 .then_some(lease.account().revision().get()),
                 conversation_id: upstream_request.local_conversation_id.clone(),

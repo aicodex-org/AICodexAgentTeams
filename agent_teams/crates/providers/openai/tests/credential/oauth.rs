@@ -46,6 +46,7 @@ impl CodexOAuthPendingStore for PendingStore {
             return Err(CodexOAuthPendingStoreError::Conflict);
         }
         *stored = Some(StoredCodexPendingAuthorization {
+            chatgpt_client_id: None,
             flow_id: pending.flow_id().to_owned(),
             owner_ref: pending.owner_ref().to_owned(),
             started_request_ref: pending.started_request_ref().to_owned(),
@@ -199,6 +200,35 @@ async fn complete(
         })
         .await?;
     Ok((completed.credential, installation_id, surface_stable_id))
+}
+
+#[tokio::test]
+async fn chatgpt_authorization_starts_with_default_service_without_network_configuration() {
+    let pending = Arc::new(PendingStore::default());
+    let service = CodexOAuthAdminService::new(
+        pending.clone(),
+        Arc::new(Exchanger {
+            id_token: "unused".into(),
+        }),
+        Arc::new(MemoryAccountStore::default()),
+        CodexCredentialAdmin,
+        profile(),
+    );
+    let started = service
+        .start_authorization(StartCodexOAuthAuthorization {
+            mutation: mutation().with_authentication_kind(Some("chatgpt_oauth".into())),
+        })
+        .await
+        .expect("default ChatGPT authorization");
+    let url = Url::parse(&started.authorization_url).unwrap();
+    assert_eq!(url.path(), "/api/accounts/authorize");
+    let query = url.query_pairs().into_owned().collect::<BTreeMap<_, _>>();
+    assert_eq!(query["client_id"], "dynamic_agent_client");
+    let stored = pending.pending.lock().unwrap();
+    let stored = stored.as_ref().expect("persisted authorization");
+    assert_eq!(stored.flow_id, started.flow_id);
+    assert_eq!(stored.mutation.authentication_kind(), Some("chatgpt_oauth"));
+    assert!(stored.expires_at > chrono::Utc::now());
 }
 
 #[tokio::test]

@@ -43,7 +43,7 @@ pub struct CodexCatalogScope(ProviderCatalogScope);
 impl CodexCatalogScope {
     /// 从账号已验证的套餐事实构造目录作用域
     pub fn for_account(account: &ProviderAccount) -> Result<Self, CodexCredentialCatalogError> {
-        if account.authentication_kind() == super::CODEX_AUTHENTICATION_KIND_API_KEY {
+        if account.authentication_kind() != super::CODEX_AUTHENTICATION_KIND_OAUTH {
             return ProviderCatalogScope::new(format!(
                 "account:{}:{}",
                 account.id(),
@@ -314,7 +314,7 @@ impl CodexCredentialCatalogService {
         let mut api_catalogs = BTreeMap::new();
         let (api_accounts, mut accounts): (Vec<_>, Vec<_>) =
             accounts.into_iter().partition(|account| {
-                account.authentication_kind() == super::CODEX_AUTHENTICATION_KIND_API_KEY
+                account.authentication_kind() != super::CODEX_AUTHENTICATION_KIND_OAUTH
             });
         let mut catalogs = stream::iter(api_accounts)
             .map(|account| {

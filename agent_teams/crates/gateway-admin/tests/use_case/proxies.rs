@@ -152,6 +152,7 @@ async fn authorization_uses_selected_proxy_regardless_of_probe_status() {
                 .build()
                 .await;
             let command = StartAuthorization {
+                authentication_kind: None,
                 outbound_proxy: Some(AccountProxySelection::Saved("proxy_oauth".to_owned())),
                 context: context("oauth-proxy-status"),
                 name: "授权账号".to_owned(),

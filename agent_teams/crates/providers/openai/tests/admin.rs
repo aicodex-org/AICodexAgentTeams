@@ -120,7 +120,7 @@ async fn account_capabilities_distinguish_oauth_from_api_key_and_unknown_credent
             && oauth.reset_credits
             && oauth.consume_reset_credit
     );
-    for kind in ["api_key", "unknown"] {
+    for kind in ["api_key", "chatgpt_oauth", "unknown"] {
         assert_eq!(provider.account_capabilities(&id, kind), Default::default());
     }
 }
@@ -2519,7 +2519,7 @@ mod errors {
         (bundle, store, config)
     }
 
-    fn refresh_ports(store: Arc<MemoryAccountStore>, busy: bool) -> ProviderStorePorts {
+    pub(super) fn refresh_ports(store: Arc<MemoryAccountStore>, busy: bool) -> ProviderStorePorts {
         ProviderStorePorts::new(
             store,
             Arc::new(RefreshLeases { busy }),
@@ -2754,5 +2754,42 @@ impl gateway_core::diagnostics::OperationalDiagnostics for RecordingDiagnostics 
     ) -> Result<(), gateway_core::error::StoreError> {
         self.0.lock().unwrap().push(failure);
         Ok(())
+    }
+}
+
+#[tokio::test]
+async fn chatgpt_manual_refresh_projects_verified_state_after_checkpoint() {
+    for sharing in [true, false] {
+        let accounts = Arc::new(MemoryAccountStore::default());
+        let mut data = crate::credential::chatgpt::data(true);
+        let now = Utc::now().timestamp_millis();
+        data.chatgpt_connection["pendingRefresh"] = json!({
+            "credentials":{"accessToken":"successor-access","refreshToken":"successor-refresh","expiresAt":now+3600000},
+            "scopes":if sharing { vec!["openid", "chatgpt.tokens.use.direct"] } else {vec!["openid"]},
+            "receivedAt":now
+        });
+        let prepared = data.prepare_create("ChatGPT refresh".into()).unwrap();
+        let account = account_record(&prepared.account);
+        accounts.create_account(prepared).await.unwrap();
+        let config = valid_config();
+        let bundle = provider_openai::initialize(
+            config.config.clone(),
+            errors::refresh_ports(accounts, false),
+        )
+        .await
+        .unwrap();
+        let rotation = bundle
+            .admin_provider()
+            .prepare_refresh(PrepareCredentialRefresh { account })
+            .await
+            .unwrap();
+        assert_eq!(
+            rotation.facts().credential_state,
+            Some(if sharing {
+                CredentialState::Ready
+            } else {
+                CredentialState::Unknown
+            })
+        );
     }
 }

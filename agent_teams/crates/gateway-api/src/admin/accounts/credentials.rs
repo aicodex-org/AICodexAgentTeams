@@ -106,6 +106,7 @@ impl AccountImportRequest {
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct StartAccountAuthorizationRequest {
+    pub authentication_kind: Option<String>,
     pub outbound_proxy_id: Option<String>,
     pub provider: String,
     pub name: String,
@@ -137,6 +138,7 @@ impl StartAccountAuthorizationRequest {
         Ok((
             provider,
             StartAuthorization {
+                authentication_kind: self.authentication_kind,
                 context,
                 name: self.name,
                 reauthorization,

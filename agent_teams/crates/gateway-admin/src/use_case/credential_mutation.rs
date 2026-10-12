@@ -137,6 +137,7 @@ pub(super) async fn pending_authorization(
             &command.context,
         ),
     )
+    .with_authentication_kind(command.authentication_kind.clone())
     .with_outbound_proxy(proxy)
     .with_outbound_proxy_id(proxy_id))
 }

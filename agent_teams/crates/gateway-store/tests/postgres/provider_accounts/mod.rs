@@ -3119,6 +3119,7 @@ fn credential_update(account_id: &str, revision: u64, marker: &str) -> ProviderC
     ProviderCredentialUpdate {
         preserve_profile: false,
         preserve_credential_state: false,
+        credential_state: None,
         account_id: account_id.to_owned(),
         expected_revision: Revision::new(revision).expect("credential revision"),
         provider_credentials_json: credential_json(marker),

@@ -466,6 +466,7 @@ interface CreateAccountImportTaskParam {
 }
 
 interface AccountOAuthStartParam {
+  authenticationKind?: 'oauth' | 'chatgpt_oauth'
   outboundProxyUrl?: string
   outboundProxyId?: string
   provider: string

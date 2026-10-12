@@ -207,6 +207,7 @@ pub enum AuthorizationMutationTarget {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PendingAuthorizationMutation {
     provider_kind: ProviderKind,
+    authentication_kind: Option<String>,
     target: AuthorizationMutationTarget,
     owner_binding: AuthorizationOwnerBinding,
     outbound_proxy: Option<gateway_core::account::OutboundProxy>,
@@ -222,6 +223,7 @@ impl PendingAuthorizationMutation {
     ) -> Self {
         Self {
             provider_kind,
+            authentication_kind: None,
             target,
             owner_binding,
             outbound_proxy: None,
@@ -232,6 +234,16 @@ impl PendingAuthorizationMutation {
     #[must_use]
     pub const fn provider_kind(&self) -> &ProviderKind {
         &self.provider_kind
+    }
+
+    pub fn authentication_kind(&self) -> Option<&str> {
+        self.authentication_kind.as_deref()
+    }
+
+    #[must_use]
+    pub fn with_authentication_kind(mut self, kind: Option<String>) -> Self {
+        self.authentication_kind = kind;
+        self
     }
 
     #[must_use]
@@ -299,6 +311,9 @@ impl PendingAuthorizationMutation {
                 Value::String(self.owner_binding.started_request_id().to_owned()),
             ),
         ]);
+        if let Some(kind) = &self.authentication_kind {
+            document.insert("authentication_kind".into(), Value::String(kind.clone()));
+        }
         if let Some(proxy) = &self.outbound_proxy {
             document.insert(
                 "outbound_proxy_url".to_owned(),
@@ -352,6 +367,7 @@ impl PendingAuthorizationMutation {
                 started_request_id: document.started_request_id,
             },
         )
+        .with_authentication_kind(document.authentication_kind)
         .with_outbound_proxy(proxy)
         .with_outbound_proxy_id(document.outbound_proxy_id))
     }
@@ -360,6 +376,8 @@ impl PendingAuthorizationMutation {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct StoredAuthorizationMutationV1 {
+    #[serde(default)]
+    authentication_kind: Option<String>,
     provider_kind: String,
     target: StoredAuthorizationTargetV1,
     owner: StoredAuthorizationOwnerV1,
@@ -388,6 +406,7 @@ enum StoredAuthorizationOwnerV1 {
 /// Provider 授权请求
 #[derive(Debug, Clone, PartialEq)]
 pub struct StartAuthorization {
+    pub authentication_kind: Option<String>,
     pub context: MutationContext,
     pub name: String,
     pub reauthorization: Option<ProviderAccountId>,
@@ -687,6 +706,8 @@ pub struct PreparedCredentialRotationFacts {
     pub preserve_profile: bool,
     /// 连接配置变更保留当前凭据健康状态与错误事实
     pub preserve_credential_state: bool,
+    /// Provider 已验证的状态，与新凭据在同一事务提交；None 延续既有轮换规则
+    pub credential_state: Option<CredentialState>,
     pub provider_material: ProviderDocument,
     pub has_refresh_token: bool,
     pub access_token_expires_at: Option<DateTime<Utc>>,

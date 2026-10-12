@@ -62,9 +62,9 @@ const mode = computed({
   },
 })
 const importText = computed({
-  get: () => form.value.mode === 'oauth' || form.value.mode === 'api_key' ? '' : form.value.importTexts[form.value.mode],
+  get: () => (form.value.mode === 'oauth' || form.value.mode === 'chatgpt_oauth') || form.value.mode === 'api_key' ? '' : form.value.importTexts[form.value.mode],
   set: (value: string) => {
-    if (form.value.mode !== 'oauth' && form.value.mode !== 'api_key')
+    if ((form.value.mode !== 'oauth' && form.value.mode !== 'chatgpt_oauth') && form.value.mode !== 'api_key')
       form.value.importTexts[form.value.mode] = value
   },
 })
@@ -135,21 +135,24 @@ function continueToImport() {
         {{ scheduling.message }}
       </p>
       <template v-if="!view.configuring">
-        <ZSegmented
-          v-if="!reauthorizing && !view.isBatch"
-          v-model="mode"
-          aria-label="账号添加方式"
-          :options="view.modeOptions"
-          :disabled="busy"
-          class="w-full"
-        />
+        <div v-if="!reauthorizing && !view.isBatch" class="min-w-0 max-w-full overflow-x-auto">
+          <ZSegmented
+            v-model="mode"
+            aria-label="账号添加方式"
+            :size="view.provider === 'openai' ? 'small' : 'default'"
+            :options="view.modeOptions"
+            :disabled="busy"
+            class="w-full"
+            :class="view.provider === 'openai' ? 'min-w-[42rem]' : undefined"
+          />
+        </div>
         <AccountOAuthFields
-          v-if="mode === 'oauth'"
+          v-if="(mode === 'oauth' || mode === 'chatgpt_oauth')"
           v-model="callback"
           :auth-url="authorization.flow?.authorizationUrl ?? ''"
           :authorization="authorization"
           :can-start="true"
-          :panel-title="`${view.label} ${reauthorizing ? '重新授权' : '授权'}`"
+          :panel-title="view.oauth.title"
           :panel-description="view.oauth.description"
           :loading="oauthLoading"
           :callback-label="view.oauth.callbackLabel"

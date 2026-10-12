@@ -1,0 +1,37 @@
+[package]
+name = "sign-in-with-chatgpt"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+autotests = false
+description = "Unofficial Rust port of OpenAI's local Sign in with ChatGPT DevKit"
+license-file = "LICENSE"
+readme = "README.md"
+
+[features]
+upstream-parity = []
+
+[dependencies]
+async-trait = "0.1"
+base64 = "0.22"
+bytes = "1"
+chrono = { version = "0.4", features = ["serde"] }
+futures-util = "0.3"
+jsonwebtoken = { version = "9", default-features = false, features = ["use_pem"] }
+libc = "0.2"
+rand = "0.8"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+sha2 = "0.10"
+subtle = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "sync", "time", "process"] }
+tokio-util = "0.7"
+url = "2"
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["test-util"] }
+aes-gcm = "0.10"
+tempfile = "3"
+rsa = { version = "0.9", features = ["pem"] }

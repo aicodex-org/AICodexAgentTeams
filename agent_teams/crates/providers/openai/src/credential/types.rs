@@ -360,6 +360,7 @@ impl fmt::Debug for CodexOAuthCredentialData {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CodexCredentialData {
+    ChatGpt(super::chatgpt::ChatGptCredentialData),
     OAuth(CodexOAuthCredentialData),
     ApiKey(super::api_key::ApiKeyCredentialData),
 }
@@ -368,6 +369,7 @@ impl CodexCredentialData {
     #[must_use]
     pub const fn authentication_kind(&self) -> &'static str {
         match self {
+            Self::ChatGpt(_) => super::chatgpt::AUTHENTICATION_KIND,
             Self::OAuth(_) => CODEX_AUTHENTICATION_KIND_OAUTH,
             Self::ApiKey(_) => super::api_key::CODEX_AUTHENTICATION_KIND_API_KEY,
         }
@@ -376,6 +378,7 @@ impl CodexCredentialData {
     #[must_use]
     pub fn installation_id(&self) -> &str {
         match self {
+            Self::ChatGpt(data) => &data.installation_id,
             Self::OAuth(data) => &data.installation_id,
             Self::ApiKey(data) => &data.installation_id,
         }
@@ -385,14 +388,14 @@ impl CodexCredentialData {
     pub fn cookies(&self) -> &[CodexCookie] {
         match self {
             Self::OAuth(data) => &data.cookies,
-            Self::ApiKey(_) => &[],
+            Self::ApiKey(_) | Self::ChatGpt(_) => &[],
         }
     }
 
     pub fn cookies_mut(&mut self) -> Option<&mut Vec<CodexCookie>> {
         match self {
             Self::OAuth(data) => Some(&mut data.cookies),
-            Self::ApiKey(_) => None,
+            Self::ApiKey(_) | Self::ChatGpt(_) => None,
         }
     }
 
@@ -400,27 +403,32 @@ impl CodexCredentialData {
     pub fn oauth(&self) -> Option<&CodexOAuthCredentialData> {
         match self {
             Self::OAuth(data) => Some(data),
-            Self::ApiKey(_) => None,
+            Self::ApiKey(_) | Self::ChatGpt(_) => None,
         }
     }
 
     pub fn oauth_mut(&mut self) -> Option<&mut CodexOAuthCredentialData> {
         match self {
             Self::OAuth(data) => Some(data),
-            Self::ApiKey(_) => None,
+            Self::ApiKey(_) | Self::ChatGpt(_) => None,
         }
     }
 
     #[must_use]
     pub fn has_refresh_token(&self) -> bool {
-        self.oauth()
-            .is_some_and(|data| data.refresh_token.is_some())
+        match self {
+            Self::ChatGpt(data) => data.secret().refresh_token.is_some(),
+            _ => self
+                .oauth()
+                .is_some_and(|data| data.refresh_token.is_some()),
+        }
     }
 }
 
 impl fmt::Debug for CodexCredentialData {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::ChatGpt(data) => data.fmt(formatter),
             Self::OAuth(data) => data.fmt(formatter),
             Self::ApiKey(data) => data.fmt(formatter),
         }

@@ -2,6 +2,7 @@
 
 mod admin;
 mod catalog;
+pub(crate) mod chatgpt;
 mod contract;
 mod cookie;
 mod oauth;

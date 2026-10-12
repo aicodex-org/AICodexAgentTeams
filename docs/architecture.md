@@ -421,6 +421,12 @@ API Key 默认 HTTP/SSE，可选 WS 优先；选号先验证传输资格，WS po
 OAuth 与 API Key 共用业务请求、响应和能力透传链路，差异限定在上游地址、认证、传输配置及明确的上游请求合同适配。
 OpenAI 模型目录用于发现，不因目录缺项拒绝请求；管理员配置的模型权限仍由 Core 与选号链路执行
 
+ChatGPT OAuth 使用 `chatgpt_oauth` 凭据类型，与 Codex OAuth 的 `oauth` 独立。
+Provider 通过随仓库保存的 Rust SDK 源码快照完成动态注册、OIDC 验证与刷新，账号和授权事务仍使用网关的 PostgreSQL / Redis 存储。
+SDK 连接记录保存已签发的客户端 ID、身份、授权范围及令牌；刷新 successor 先写 checkpoint，身份验证完成后再恢复调度。
+ChatGPT 请求使用公共 `https://api.openai.com/v1`、HTTP/SSE 和 `store: false`，不查询 Codex backend-api 额度与个人资料。
+SDK 来源、校验摘要与许可证见 [SDK 说明](../agent_teams/vendor/sign-in-with-chatgpt/INTEGRATION.md)。
+
 - OpenAI 是透明边界。Responses 请求保留未知字段和字段顺序；SSE、WebSocket、Images 与 standalone
   Search 的业务正文按原始字节转发，原生续写额度恢复遵循下述 continuation 例外。
   canonical facts 从同一数据旁路提取，用于路由、恢复判断、观测和计费。

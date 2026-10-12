@@ -228,6 +228,7 @@ fn pending_mutation_v1_should_round_trip_all_targets_and_owners() {
                     expected.clone(),
                 );
                 let with_proxy = expected
+                    .with_authentication_kind(Some("chatgpt_oauth".to_owned()))
                     .with_outbound_proxy(Some(
                         gateway_core::account::OutboundProxy::parse(
                             "http://user:secret@proxy.example:8080",

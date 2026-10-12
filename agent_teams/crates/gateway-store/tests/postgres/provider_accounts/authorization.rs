@@ -160,6 +160,7 @@ async fn reauthorization_replay_keeps_the_committed_revision_and_later_profile_e
                 plan_type: None,
                 preserve_profile: true,
                 preserve_credential_state: false,
+                credential_state: None,
                 provider_material: ProviderDocument::new(OpaqueProviderData::new(
                     json!({"access_token":"rotated-test-only"})
                         .as_object()
@@ -218,5 +219,103 @@ async fn reauthorization_replay_keeps_the_committed_revision_and_later_profile_e
             .unwrap()
             .is_none()
     );
+    database.close().await;
+}
+
+#[tokio::test]
+async fn explicit_verified_state_commits_atomically_for_refresh_and_reauthorization() {
+    use gateway_admin::model::provider_credentials::CredentialRotationCommit;
+    let Some(database) = TestDatabase::create("verified_rotation_state").await else {
+        return;
+    };
+    let store = admin_account_store(&database.pool);
+    let (legacy, legacy_context) = command(credential("acct_legacy_identity", "verified-user"));
+    store
+        .commit_authorization(legacy, &legacy_context)
+        .await
+        .unwrap();
+    let mut initial = credential("acct_verified_state", "chatgpt:verified-user");
+    initial.authentication_kind = "chatgpt_oauth".into();
+    initial.credential_state = CredentialState::Unknown;
+    let (seed, context) = command(initial);
+    let receipt = store.commit_authorization(seed, &context).await.unwrap();
+    let id = receipt.result.account_id;
+    assert_eq!(id.as_str(), "acct_verified_state");
+    let count: i64 = sqlx::query_scalar("select count(*) from provider_accounts")
+        .fetch_one(&database.pool)
+        .await
+        .unwrap();
+    assert_eq!(count, 2);
+    for (index, state) in [CredentialState::Ready, CredentialState::Unknown]
+        .into_iter()
+        .enumerate()
+    {
+        let facts = PreparedCredentialRotationFacts {
+            account_id: id.clone(),
+            provider_kind: ProviderKind::new("openai").unwrap(),
+            expected_credential_revision: gateway_admin::model::Revision::new(index as u64 + 1)
+                .unwrap(),
+            replacement_identity: None,
+            name: "verified".into(),
+            email: None,
+            plan_type: None,
+            preserve_profile: true,
+            preserve_credential_state: false,
+            credential_state: Some(state),
+            provider_material: ProviderDocument::new(OpaqueProviderData::new(
+                json!({"access_token":"test-only-verified"})
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+            )),
+            has_refresh_token: true,
+            access_token_expires_at: Some(Utc::now() + TimeDelta::hours(1)),
+            next_refresh_at: None,
+        };
+        if index == 0 {
+            store
+                .commit_credential_refresh(
+                    CredentialRotationCommit {
+                        prepared: facts,
+                        settings: None,
+                    },
+                    &context,
+                )
+                .await
+                .unwrap();
+        } else {
+            store
+                .commit_authorization(
+                    AuthorizationCommit {
+                        key: AuthorizationReceiptKey::new(
+                            ProviderKind::new("openai").unwrap(),
+                            "verified-reauthorize",
+                            &context,
+                        )
+                        .unwrap(),
+                        pending: PendingAuthorizationMutation::new(
+                            ProviderKind::new("openai").unwrap(),
+                            AuthorizationMutationTarget::Reauthorize {
+                                account_id: id.clone(),
+                            },
+                            AuthorizationOwnerBinding::from_context(&context),
+                        ),
+                        settings: None,
+                        credential: AuthorizationCredentialCommit::Reauthorize(Box::new(facts)),
+                    },
+                    &context,
+                )
+                .await
+                .unwrap();
+        }
+        let stored: (String, i64) = sqlx::query_as(
+            "select credential_state, credential_revision from provider_accounts where id=$1",
+        )
+        .bind(id.as_str())
+        .fetch_one(&database.pool)
+        .await
+        .unwrap();
+        assert_eq!(stored, (state.as_str().into(), index as i64 + 2));
+    }
     database.close().await;
 }

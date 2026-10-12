@@ -41,6 +41,7 @@ impl std::fmt::Debug for CodexRuntimeCredential {
 }
 
 pub enum CodexRuntimeAuthentication {
+    ChatGpt(CodexOAuthSecret),
     OAuth(CodexOAuthSecret),
     ApiKey(ApiKeyAuthentication),
 }
@@ -50,6 +51,7 @@ impl CodexRuntimeAuthentication {
     pub(crate) fn responses_api_base_url(&self) -> Option<&str> {
         match self {
             Self::ApiKey(auth) => Some(&auth.configuration.base_url),
+            Self::ChatGpt(_) => Some(sign_in_with_chatgpt::hosted::API_BASE_URL),
             Self::OAuth(_) => None,
         }
     }
@@ -60,10 +62,17 @@ impl CodexRuntimeAuthentication {
                 "Bearer {}",
                 auth.secret.expose_secret()
             ))),
-            Self::OAuth(secret) => Ok(SecretString::from(format!(
+            Self::OAuth(secret) | Self::ChatGpt(secret) => Ok(SecretString::from(format!(
                 "Bearer {}",
                 secret.access_token.expose_secret()
             ))),
+        }
+    }
+
+    pub const fn refreshable_oauth(&self) -> Option<&CodexOAuthSecret> {
+        match self {
+            Self::OAuth(secret) | Self::ChatGpt(secret) => Some(secret),
+            Self::ApiKey(_) => None,
         }
     }
 
@@ -71,7 +80,7 @@ impl CodexRuntimeAuthentication {
     pub const fn oauth(&self) -> Option<&CodexOAuthSecret> {
         match self {
             Self::OAuth(secret) => Some(secret),
-            Self::ApiKey(_) => None,
+            Self::ApiKey(_) | Self::ChatGpt(_) => None,
         }
     }
 }
@@ -79,7 +88,7 @@ impl CodexRuntimeAuthentication {
 impl std::fmt::Debug for CodexRuntimeAuthentication {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::OAuth(secret) => secret.fmt(formatter),
+            Self::OAuth(secret) | Self::ChatGpt(secret) => secret.fmt(formatter),
             Self::ApiKey(auth) => auth.fmt(formatter),
         }
     }
@@ -183,11 +192,20 @@ impl CodexCredentialCodec {
             .map_err(|_| CodexCredentialDataError::Invalid)?;
         validate(&data)?;
         let transport = match &data {
+            CodexCredentialData::ChatGpt(_) => super::ResponsesTransport::Http,
             CodexCredentialData::OAuth(data) => data.transport,
             CodexCredentialData::ApiKey(data) => data.transport,
         };
         let (authentication, principal, installation_id, cookies, oauth_client_id, oauth_scope) =
             match data {
+                CodexCredentialData::ChatGpt(data) => (
+                    CodexRuntimeAuthentication::ChatGpt(data.secret()),
+                    None,
+                    data.installation_id,
+                    Vec::new(),
+                    None,
+                    None,
+                ),
                 CodexCredentialData::ApiKey(data) => (
                     CodexRuntimeAuthentication::ApiKey(ApiKeyAuthentication {
                         configuration: data.configuration(),
@@ -258,6 +276,9 @@ impl CodexCredentialCodec {
             (CodexCredentialData::ApiKey(incoming), CodexCredentialData::ApiKey(existing)) => {
                 incoming.installation_id = existing.installation_id;
             }
+            (CodexCredentialData::ChatGpt(incoming), CodexCredentialData::ChatGpt(existing)) => {
+                incoming.installation_id = existing.installation_id;
+            }
             _ => return Err(CodexCredentialDataError::Invalid),
         }
         Self::encode_complete(incoming)
@@ -265,6 +286,13 @@ impl CodexCredentialCodec {
 }
 
 fn validate(data: &CodexCredentialData) -> Result<(), CodexCredentialDataError> {
+    if let CodexCredentialData::ChatGpt(data) = data {
+        return if data.validate() && valid_installation_id(&data.installation_id) {
+            Ok(())
+        } else {
+            Err(CodexCredentialDataError::Invalid)
+        };
+    }
     if let CodexCredentialData::ApiKey(data) = data {
         return if data.validate() && valid_installation_id(&data.installation_id) {
             Ok(())
@@ -273,7 +301,9 @@ fn validate(data: &CodexCredentialData) -> Result<(), CodexCredentialDataError> 
         };
     }
     let (installation_id, cookies) = match data {
-        CodexCredentialData::ApiKey(_) => return Err(CodexCredentialDataError::Invalid),
+        CodexCredentialData::ApiKey(_) | CodexCredentialData::ChatGpt(_) => {
+            return Err(CodexCredentialDataError::Invalid);
+        }
         CodexCredentialData::OAuth(data) => {
             if data.schema_version != CODEX_CREDENTIAL_SCHEMA_VERSION {
                 return Err(CodexCredentialDataError::Invalid);

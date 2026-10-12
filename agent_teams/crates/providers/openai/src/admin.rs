@@ -475,8 +475,19 @@ impl ProviderAdmin for OpenAiAdminProvider {
         if pending.provider_kind() != &self.provider_kind {
             return Err(provider_admin_error(ProviderAdminErrorKind::Invalid));
         }
-        if let gateway_admin::model::provider_credentials::AuthorizationMutationTarget::Reauthorize { account_id } = pending.target()
-            && self.account(account_id).await?.authentication_kind() != crate::credential::CODEX_AUTHENTICATION_KIND_OAUTH {
+        let kind = pending
+            .authentication_kind()
+            .unwrap_or(crate::credential::CODEX_AUTHENTICATION_KIND_OAUTH);
+        if !matches!(
+            kind,
+            crate::credential::CODEX_AUTHENTICATION_KIND_OAUTH
+                | crate::credential::chatgpt::AUTHENTICATION_KIND
+        ) {
+            return Err(provider_admin_error(ProviderAdminErrorKind::Unsupported));
+        }
+        if let AuthorizationMutationTarget::Reauthorize { account_id } = pending.target()
+            && self.account(account_id).await?.authentication_kind() != kind
+        {
             return Err(provider_admin_error(ProviderAdminErrorKind::Unsupported));
         }
         let started = self
@@ -612,8 +623,11 @@ impl ProviderAdmin for OpenAiAdminProvider {
         &self,
         command: PrepareCredentialRefresh,
     ) -> Result<PreparedCredentialRotation, ProviderAdminError> {
-        if command.account.authentication_kind != crate::credential::CODEX_AUTHENTICATION_KIND_OAUTH
-        {
+        if !matches!(
+            command.account.authentication_kind.as_str(),
+            crate::credential::CODEX_AUTHENTICATION_KIND_OAUTH
+                | crate::credential::chatgpt::AUTHENTICATION_KIND
+        ) {
             return Err(provider_admin_error(ProviderAdminErrorKind::Unsupported));
         }
         validate_account_record(&command.account, &self.provider_kind)?;
@@ -649,6 +663,9 @@ impl ProviderAdmin for OpenAiAdminProvider {
         let data = CodexCredentialCodec::decode_complete(&current.credential)
             .map_err(|_| provider_admin_error(ProviderAdminErrorKind::Invalid))?;
         let value = match data {
+            crate::credential::CodexCredentialData::ChatGpt(_) => {
+                serde_json::json!({"transport": "http"})
+            }
             crate::credential::CodexCredentialData::ApiKey(data) => {
                 serde_json::to_value(data.configuration())
                     .map_err(|_| provider_admin_error(ProviderAdminErrorKind::Internal))?
@@ -676,7 +693,7 @@ impl ProviderAdmin for OpenAiAdminProvider {
             rolling_usage: _,
         } = request;
         let mut account = self.account(&account_id).await?;
-        if account.authentication_kind() == crate::credential::CODEX_AUTHENTICATION_KIND_API_KEY {
+        if account.authentication_kind() != crate::credential::CODEX_AUTHENTICATION_KIND_OAUTH {
             if refresh {
                 return Err(provider_admin_error(ProviderAdminErrorKind::Unsupported));
             }
@@ -978,6 +995,10 @@ fn prepared_rotation(
     provider_kind: ProviderKind,
 ) -> Result<PreparedCredentialRotation, ProviderAdminError> {
     let (profile, credential, replacement_identity, guard) = prepared.into_parts();
+    let chatgpt = matches!(
+        CodexCredentialCodec::decode_complete(credential.credential()),
+        Ok(crate::credential::CodexCredentialData::ChatGpt(_))
+    );
     let CredentialCasUpdateParts {
         account_id,
         expected_revision,
@@ -987,7 +1008,7 @@ fn prepared_rotation(
         has_refresh_token,
         access_token_expires_at,
         next_refresh_at,
-        account_state: _account_state,
+        account_state,
     } = credential.into_parts();
     if profile != credential_profile || profile.account_id != account_id {
         return Err(provider_admin_error(ProviderAdminErrorKind::Internal));
@@ -1005,6 +1026,11 @@ fn prepared_rotation(
             plan_type: profile.plan_type,
             preserve_profile,
             preserve_credential_state: false,
+            credential_state: if chatgpt {
+                account_state.map(|state| state.credential_state)
+            } else {
+                None
+            },
             provider_material: ProviderDocument::new(OpaqueProviderData::new(
                 credential.into_inner(),
             )),
@@ -1487,6 +1513,8 @@ impl CodexOAuthPendingStore for OpenAiOAuthPendingStore {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct PendingDocument {
+    #[serde(default)]
+    chatgpt_client_id: Option<String>,
     flow_id: String,
     owner_ref: String,
     started_request_ref: String,
@@ -1502,6 +1530,9 @@ struct PendingDocument {
 
 fn encode_pending(pending: &CodexPendingAuthorization) -> Map<String, Value> {
     let mut document = Map::new();
+    if let Some(client_id) = &pending.chatgpt_client_id {
+        document.insert("chatgpt_client_id".into(), Value::String(client_id.clone()));
+    }
     document.insert(
         "flow_id".to_owned(),
         Value::String(pending.flow_id().to_owned()),
@@ -1563,6 +1594,7 @@ fn decode_pending(
     let document: PendingDocument = serde_json::from_value(Value::Object(payload.into_inner()))
         .map_err(|_| CodexOAuthPendingStoreError::InvalidValue)?;
     CodexPendingAuthorization::from_stored(StoredCodexPendingAuthorization {
+        chatgpt_client_id: document.chatgpt_client_id,
         flow_id: document.flow_id,
         owner_ref: document.owner_ref,
         started_request_ref: document.started_request_ref,
@@ -1780,6 +1812,10 @@ fn map_oauth_error(error: CodexOAuthAdminError) -> ProviderAdminError {
         Error::InvalidInput => (Kind::Invalid, "OpenAI 授权参数不合法，请重新发起授权"),
         Error::CallbackRejected => (Kind::Invalid, "OpenAI 授权回调校验失败，请重新发起授权"),
         Error::TokenRejected => (Kind::Invalid, "OpenAI 拒绝了授权码，请重新发起授权"),
+        Error::AuthorizationRestartRequired => (
+            Kind::Invalid,
+            "授权码已换取令牌，但身份验证未完成，请重新发起授权",
+        ),
         Error::Credential => (Kind::Invalid, "OpenAI 授权返回的凭据不完整或无效"),
         Error::NotFound | Error::FlowExpired => (
             Kind::NotFound,
@@ -1814,6 +1850,7 @@ const fn oauth_error_code(error: &CodexOAuthAdminError) -> &'static str {
         CodexOAuthAdminError::Ambiguous => "ambiguous",
         CodexOAuthAdminError::StorageUnavailable => "storage_unavailable",
         CodexOAuthAdminError::Credential => "credential",
+        CodexOAuthAdminError::AuthorizationRestartRequired => "authorization_restart_required",
     }
 }
 

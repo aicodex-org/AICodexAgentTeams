@@ -363,6 +363,7 @@ pub struct ProviderCredentialUpdate {
     pub next_refresh_at: Option<DateTime<Utc>>,
     pub preserve_profile: bool,
     pub preserve_credential_state: bool,
+    pub credential_state: Option<CredentialState>,
 }
 
 impl fmt::Debug for ProviderCredentialUpdate {

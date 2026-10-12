@@ -1,0 +1,30 @@
+{
+  "source": "sign-in-with-chatgpt-rust",
+  "upstream": "0a36fefeb913055c8c7a1a29b63d82b96b2e841a",
+  "sha256": {
+    "Cargo.toml": "7fc743012ace383809f650a5d39c3f7eb709d0f9a3dc27b52c6f5e5dfd6a382f",
+    "LICENSE": "d12fe9f3c01626a133398d70e672b5591c38b1819f3da852b1e3ef8da606facd",
+    "NOTICE": "3e6e9289fd5c600c15726f92ba24d7ca38b7c2ddeec595b145fd96ee8af11735",
+    "README.md": "21f74c51a1a5f3984ff4f893f534057c62eea3d4499dd7df912689285a1cc70f",
+    "tests/support.rs": "dc0d870ef6359e6f675d7d1a002e2e959f4709d26884e2fe80b693d5a7789209",
+    "tests/transport.rs": "9108b5c226b74ccb8ed6be147c31c04699629ed52ed024cb6e4bf89266d19228",
+    "tests/responses.rs": "194ce41f5c321f0f9ead7166f7a4c53c39e2af7a252a98e42382941220a69e4e",
+    "tests/errors.rs": "48ae3be339d2ab0a1ca3a055118d76c558d7100968befbd6831855f997ac8541",
+    "tests/main.rs": "fb67421fec3b6985d0901f923eba897fb8269f49c54ffa8767203fd64921a563",
+    "tests/storage.rs": "cdad79de6a07671248c6342c33138721c342795b16f6a55e7c09f0664321bf6a",
+    "tests/refresh.rs": "afe13fdde0312fd8fe46cd1c3d1ba152081a2ce81fa393a174ac4b38fa36a644",
+    "tests/oracle.mjs": "57e3cb8b9164f3194b9378c1c09e12512bfe63ea32200eea3d12f5c24489dccc",
+    "tests/upstream.rs": "8f060d3729c310b647dd1b57c959de2e5ac949f16bc46bf32ab4d52f505fcf73",
+    "tests/restart.rs": "ff9fa6ea494095ee94919a3a028d648418f3794b3ed97934bedd674d68afe1fc",
+    "tests/authorization.rs": "94c096d821513159c3c51918a8d68b3f21b640d6fe5ecadeb42cb371c65595cf",
+    "docs/parity.md": "32d47190b519835c793baa21620c36e6191413584a1b60ef1f443c785fbcbd0a",
+    "src/types.rs": "7b2ba5f539afe3888bec7c5cae921bf37f1a6476eeb3668474cad4b2e1001320",
+    "src/client.rs": "a4c4403bcbcf5ef11a1ede23f7875649dacd0581c4552d04b6340c3a7c0392b7",
+    "src/transport.rs": "3f94f7d57e61dbf5eba9d36d34e8d212bc232cdabfc907ead474f8f20ef0d912",
+    "src/lib.rs": "3541a054eaf5fbaafcadfe5ad81df8b57255ab8afb97d6584b172c2e81bb68e8",
+    "src/responses.rs": "5b4fc039fc867d763627d9e2cf0763898830ab01b428d042773184b3bc855a11",
+    "src/oauth.rs": "7367bb0834d622246c3cbb13775f8c79952b8d76bc54714862e9a4a7da9ae5ee",
+    "src/errors.rs": "bcd785ccbf1210e620ec74ce5e50367ab752f85d893c22d9e985e4c501f77c14",
+    "src/storage.rs": "e8c3627862072f90acdbd00d56a9741e31dd8cc4ec0b0c3e41293bf390627a74"
+  }
+}

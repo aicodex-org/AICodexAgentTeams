@@ -141,6 +141,7 @@ async fn xai_authorization_should_observe_quota_without_affecting_commit() {
             .for_provider(&gateway_core::routing::ProviderKind::new("xai").unwrap())
             .unwrap()
             .start_authorization(StartAuthorization {
+                authentication_kind: None,
                 outbound_proxy: None,
                 context: context("oauth-xai-create"),
                 name: "new xAI credential".to_owned(),

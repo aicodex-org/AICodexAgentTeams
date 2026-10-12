@@ -177,6 +177,12 @@ impl CodexCredentialRepository {
         if loaded.account != *account {
             return Err(CredentialRepositoryError::RevisionConflict(None));
         }
+        if let CodexCredentialData::ChatGpt(data) =
+            CodexCredentialCodec::decode_complete(&loaded.credential)?
+            && !data.ready()
+        {
+            return Err(CredentialRepositoryError::InvalidCredentialData(None));
+        }
         self.decode_runtime_credential(&loaded)
     }
 

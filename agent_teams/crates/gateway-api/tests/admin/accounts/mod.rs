@@ -720,6 +720,15 @@ mod actions {
 
     #[test]
     fn credential_recovery_requests_should_not_accept_client_revision_fences() {
+        let chatgpt: StartAccountAuthorizationRequest = serde_json::from_value(json!({
+            "provider": "openai", "name": "ChatGPT account", "authenticationKind": "chatgpt_oauth"
+        }))
+        .expect("ChatGPT authorization request");
+        assert_eq!(
+            chatgpt.authentication_kind.as_deref(),
+            Some("chatgpt_oauth")
+        );
+        chatgpt.validate().expect("valid ChatGPT request");
         let authorization: StartAccountAuthorizationRequest = serde_json::from_value(json!({
             "provider": "openai",
             "name": "reauthorize",

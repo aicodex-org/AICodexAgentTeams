@@ -146,7 +146,10 @@ impl ProviderLeasePort for RefreshLeases {
     }
 }
 
-struct RefreshCredentialState;
+#[derive(Default)]
+struct RefreshCredentialState {
+    cleared: Mutex<Vec<String>>,
+}
 
 impl ProviderCredentialStatePort for RefreshCredentialState {
     fn replace(&self, _: ProviderCredentialState) -> BoxFuture<'_, Result<(), ProviderStoreError>> {
@@ -177,9 +180,12 @@ impl ProviderCredentialStatePort for RefreshCredentialState {
 
     fn clear_refresh_backoff<'a>(
         &'a self,
-        _: &'a ProviderAccountId,
+        account: &'a ProviderAccountId,
     ) -> BoxFuture<'a, Result<(), ProviderStoreError>> {
-        Box::pin(async { Ok(()) })
+        Box::pin(async move {
+            self.cleared.lock().unwrap().push(account.to_string());
+            Ok(())
+        })
     }
 }
 
@@ -221,7 +227,7 @@ fn refresh_service(
         store.repository(),
         refresher,
         Arc::new(RefreshLeases),
-        Arc::new(RefreshCredentialState),
+        Arc::new(RefreshCredentialState::default()),
         runtime_policy,
         Arc::new(crate::RecordingDiagnostics::default()),
     )
@@ -304,7 +310,7 @@ async fn scheduled_refresh_stops_retrying_rejected_disabled_credentials() {
             },
         }),
         Arc::new(RefreshLeases),
-        Arc::new(RefreshCredentialState),
+        Arc::new(RefreshCredentialState::default()),
         MutableRuntimePolicy::new(Duration::from_secs(5 * 60)),
         Arc::new(crate::RecordingDiagnostics::default()),
     );
@@ -510,7 +516,7 @@ async fn scheduled_refresh_persists_the_original_upstream_error_message() {
             },
         }),
         Arc::new(RefreshLeases),
-        Arc::new(RefreshCredentialState),
+        Arc::new(RefreshCredentialState::default()),
         policy,
         Arc::new(crate::RecordingDiagnostics::default()),
     );
@@ -574,7 +580,7 @@ async fn scheduled_refresh_persists_retryable_message_inside_the_two_hour_window
             provider_openai::transport::profile::CodexWireProfileState::new(Default::default()),
         )),
         Arc::new(RefreshLeases),
-        Arc::new(RefreshCredentialState),
+        Arc::new(RefreshCredentialState::default()),
         policy,
         Arc::new(crate::RecordingDiagnostics::default()),
     );
@@ -628,7 +634,7 @@ async fn scheduled_refresh_uses_the_final_message_after_the_two_hour_window() {
             },
         }),
         Arc::new(RefreshLeases),
-        Arc::new(RefreshCredentialState),
+        Arc::new(RefreshCredentialState::default()),
         policy,
         Arc::new(crate::RecordingDiagnostics::default()),
     );
@@ -943,7 +949,7 @@ async fn quota_rejection_during_oauth_refresh_preserves_terminal_result() {
                 background_quota,
             }),
             Arc::new(RefreshLeases),
-            Arc::new(RefreshCredentialState),
+            Arc::new(RefreshCredentialState::default()),
             MutableRuntimePolicy::new(Duration::from_secs(5 * 60)),
             Arc::new(crate::RecordingDiagnostics::default()),
         );
@@ -979,7 +985,7 @@ async fn scheduled_refresh_records_native_failure_once_and_keeps_retry_state() {
             },
         }),
         Arc::new(RefreshLeases),
-        Arc::new(RefreshCredentialState),
+        Arc::new(RefreshCredentialState::default()),
         MutableRuntimePolicy::new(Duration::from_secs(300)),
         diagnostics.clone(),
     );
@@ -1005,4 +1011,47 @@ async fn scheduled_refresh_records_native_failure_once_and_keeps_retry_state() {
             .contains("PRIVATE_OAUTH_NATIVE_CAUSE")
     );
     assert!(!format!("{:?}", failures[0]).contains("PRIVATE_OAUTH_NATIVE_CAUSE"));
+}
+
+#[tokio::test]
+async fn chatgpt_checkpoint_recovery_clears_previous_refresh_backoff() {
+    let store = Arc::new(MemoryAccountStore::default());
+    let mut data = super::chatgpt::data(true);
+    let now = chrono::Utc::now().timestamp_millis();
+    data.chatgpt_connection["pendingRefresh"] = serde_json::json!({
+        "credentials":{"accessToken":"successor-access","refreshToken":"successor-refresh","expiresAt":now + 3600000},
+        "scopes":["openid", "chatgpt.tokens.use.direct"], "receivedAt":now
+    });
+    let prepared = data.prepare_create("Recover ChatGPT".into()).unwrap();
+    let account_id = prepared.account.id().clone();
+    store.create_account(prepared).await.unwrap();
+    let state = Arc::new(RefreshCredentialState::default());
+    let refresher = SingleUseRefresher::new();
+    let service = CodexCredentialRefreshService::new(
+        store.repository(),
+        refresher.clone(),
+        Arc::new(RefreshLeases),
+        state.clone(),
+        MutableRuntimePolicy::new(Duration::from_secs(300)),
+        Arc::new(crate::RecordingDiagnostics::default()),
+    );
+    let result = service.refresh_due().await.unwrap();
+    assert!(matches!(
+        result.as_slice(),
+        [CodexCredentialRefreshOutcome::Refreshed { .. }]
+    ));
+    assert_eq!(*state.cleared.lock().unwrap(), vec![account_id.to_string()]);
+    assert_eq!(refresher.calls(), 0);
+    let saved = store.load_current_credential(&account_id).await.unwrap();
+    assert_eq!(saved.account.credential_state(), CredentialState::Ready);
+    let provider_openai::credential::CodexCredentialData::ChatGpt(data) =
+        CodexCredentialCodec::decode_complete(&saved.credential).unwrap()
+    else {
+        panic!("ChatGPT")
+    };
+    assert!(data.chatgpt_connection.get("pendingRefresh").is_none());
+    assert_eq!(
+        data.chatgpt_connection["credentials"]["refreshToken"],
+        "successor-refresh"
+    );
 }

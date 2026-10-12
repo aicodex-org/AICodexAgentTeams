@@ -4,6 +4,7 @@ mod admin;
 mod affinity;
 mod api_key;
 mod catalog;
+pub mod chatgpt;
 mod cookie;
 mod oauth;
 mod profile_statistics;

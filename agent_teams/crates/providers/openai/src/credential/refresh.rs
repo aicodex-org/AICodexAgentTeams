@@ -301,6 +301,28 @@ impl CodexCredentialRefreshService {
                 return Ok(CodexCredentialRefreshOutcome::LeaseUnavailable { account_id });
             }
         };
+        if due.account.authentication_kind() == super::chatgpt::AUTHENTICATION_KIND {
+            let repository = self.repository.clone();
+            let account = due.account.clone();
+            let result = tokio::spawn(async move {
+                let _guards = (_capacity_guard, _guard);
+                let prepared = super::chatgpt::prepare_refresh(&repository, &account).await?;
+                repository
+                    .store()
+                    .compare_and_swap_credential(prepared.credential)
+                    .await
+                    .map_err(|_| {
+                        sign_in_with_chatgpt::ChatGPTError::new(
+                            "storage_unavailable",
+                            "ChatGPT 凭据暂时无法保存",
+                            true,
+                        )
+                    })
+            })
+            .await
+            .map_err(|_| CodexCredentialRefreshError::InvalidRefreshResponse)?;
+            return self.settle_chatgpt_refresh(&due.account, result).await;
+        }
         let refresh_token = due
             .secret
             .refresh_token
@@ -413,6 +435,63 @@ impl CodexCredentialRefreshService {
         }
     }
 
+    async fn settle_chatgpt_refresh(
+        &self,
+        account: &ProviderAccount,
+        result: Result<
+            gateway_core::account::CredentialCasOutcome,
+            sign_in_with_chatgpt::ChatGPTError,
+        >,
+    ) -> Result<CodexCredentialRefreshOutcome, CodexCredentialRefreshError> {
+        use gateway_core::account::CredentialCasOutcome;
+        let account_id = account.id().to_string();
+        match result {
+            Ok(outcome) => match outcome {
+                CredentialCasOutcome::Updated(revision) => {
+                    let _ = self
+                        .credential_state
+                        .clear_refresh_backoff(account.id())
+                        .await;
+                    Ok(CodexCredentialRefreshOutcome::Refreshed {
+                        account_id,
+                        credential_revision: revision.get(),
+                    })
+                }
+                CredentialCasOutcome::Conflict => {
+                    Ok(CodexCredentialRefreshOutcome::Stale { account_id })
+                }
+            },
+            Err(error) => {
+                let current = self
+                    .repository
+                    .store()
+                    .get_account(account.id())
+                    .await
+                    .map_err(CredentialRepositoryError::from)?
+                    .ok_or(CredentialRepositoryError::InvalidCredentialData(None))?;
+                // 新 revision 可能来自 checkpoint 或同时完成的重新授权，不能用旧失败覆盖
+                if current.revision() != account.revision() {
+                    return Ok(CodexCredentialRefreshOutcome::Stale { account_id });
+                }
+                if sign_in_with_chatgpt::hosted::refresh_requires_reauthentication(&error) {
+                    self.repository
+                        .apply_state(&current, CredentialState::Expired, SystemTime::now())
+                        .await?;
+                    Ok(CodexCredentialRefreshOutcome::Invalidated { account_id })
+                } else {
+                    self.defer_refresh(
+                        &current,
+                        "chatgpt_refresh",
+                        Some("ChatGPT 凭据刷新暂时失败"),
+                        None,
+                    )
+                    .await?;
+                    Ok(CodexCredentialRefreshOutcome::Transient { account_id })
+                }
+            }
+        }
+    }
+
     async fn list_due_refresh(
         &self,
         excluded: &BTreeSet<ProviderAccountId>,
@@ -460,10 +539,10 @@ impl CodexCredentialRefreshService {
                 Ok(runtime)
                     if runtime
                         .authentication
-                        .oauth()
+                        .refreshable_oauth()
                         .is_some_and(|secret| secret.refresh_token.is_some()) =>
                 {
-                    let Some(secret) = runtime.authentication.oauth() else {
+                    let Some(secret) = runtime.authentication.refreshable_oauth() else {
                         unreachable!("OAuth runtime authentication was checked above")
                     };
                     due.push(DueCodexCredential {

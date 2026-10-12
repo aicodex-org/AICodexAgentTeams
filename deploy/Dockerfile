@@ -29,6 +29,7 @@ ENV AICODEX_AGENT_TEAMS_BUILD_TYPE=${AICODEX_AGENT_TEAMS_BUILD_TYPE}
 COPY agent_teams/Cargo.toml agent_teams/Cargo.lock ./
 COPY agent_teams/apps ./apps
 COPY agent_teams/crates ./crates
+COPY agent_teams/vendor ./vendor
 COPY agent_teams/migrations ./migrations
 COPY release/version.yaml /app/release/version.yaml
 RUN --mount=type=cache,target=/usr/local/cargo/registry \

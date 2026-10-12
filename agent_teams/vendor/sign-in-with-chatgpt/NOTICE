@@ -1,0 +1,16 @@
+This is an unofficial Rust translation and modification of packages/local from:
+https://github.com/openai/sign-in-with-chatgpt-devkit
+Upstream commit: 0a36fefeb913055c8c7a1a29b63d82b96b2e841a
+Copyright 2026 OpenAI
+
+Rust source, tests and documentation are Modified Work under the accompanying
+Sign-in with ChatGPT DevKit Noncommercial License v1.0.
+Changes: TypeScript/Node runtime translated to Rust/Tokio with native typed
+configuration, RAII cancellation and subscriptions, injectable HTTP transport,
+and Rust behavioral and cross-language parity tests.
+This project is not an official OpenAI SDK and is not endorsed by OpenAI.
+Third-party Cargo dependencies retain their own licenses.
+
+Host adapter modifications: caller-owned callback and encrypted persistence,
+explicit outbound proxy, and durable checkpoints for refreshes without ID tokens.
+Source snapshot hashes are recorded in SOURCE.json.

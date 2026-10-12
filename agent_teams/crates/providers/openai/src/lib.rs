@@ -205,7 +205,8 @@ pub async fn initialize(
             Arc::clone(&runtime_policy),
             ports.diagnostics(),
         )
-        .with_personal_access_token_client(token_client),
+        .with_personal_access_token_client(token_client)
+        .with_chatgpt_repository(repository.clone()),
     );
     let refresh = Arc::new(CodexCredentialRefreshService::new(
         repository,

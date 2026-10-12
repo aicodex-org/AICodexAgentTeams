@@ -132,6 +132,7 @@ impl fmt::Debug for CompleteCodexOAuthAuthorization {
 }
 
 pub struct CodexPendingAuthorization {
+    pub(crate) chatgpt_client_id: Option<String>,
     flow_id: String,
     owner_ref: String,
     started_request_ref: String,
@@ -146,6 +147,7 @@ pub struct CodexPendingAuthorization {
 }
 
 pub struct StoredCodexPendingAuthorization {
+    pub chatgpt_client_id: Option<String>,
     pub flow_id: String,
     pub owner_ref: String,
     pub started_request_ref: String,
@@ -169,6 +171,7 @@ impl CodexPendingAuthorization {
             .transpose()
             .map_err(|_| CodexOAuthPendingStoreError::InvalidValue)?;
         let pending = Self {
+            chatgpt_client_id: input.chatgpt_client_id,
             flow_id: input.flow_id,
             owner_ref: input.owner_ref,
             started_request_ref: input.started_request_ref,
@@ -195,6 +198,16 @@ impl CodexPendingAuthorization {
             return Err(CodexOAuthPendingStoreError::InvalidValue);
         }
         Ok(pending)
+    }
+
+    fn chatgpt_request(&self) -> sign_in_with_chatgpt::hosted::Authorization {
+        sign_in_with_chatgpt::hosted::Authorization {
+            state: self.state.expose_secret().into(),
+            nonce: self.nonce.expose_secret().into(),
+            verifier: self.code_verifier.expose_secret().into(),
+            host_id: format!("urn:uuid:{}", self.installation_id),
+            client_id: self.chatgpt_client_id.clone(),
+        }
     }
 
     #[must_use]
@@ -332,6 +345,8 @@ pub enum CodexOAuthAdminError {
     CallbackRejected,
     #[error("Codex OAuth token exchange was rejected")]
     TokenRejected,
+    #[error("OAuth code was consumed but identity verification did not complete")]
+    AuthorizationRestartRequired,
     #[error("Codex OAuth upstream is unavailable")]
     UpstreamUnavailable,
     #[error("Codex OAuth exchange send state is ambiguous")]
@@ -518,6 +533,51 @@ impl CodexOAuthAdminService {
         } else {
             None
         };
+        if pending.mutation.authentication_kind() == Some(super::chatgpt::AUTHENTICATION_KIND) {
+            let request = pending.chatgpt_request();
+            let previous = current
+                .as_ref()
+                .map(|current| CodexCredentialCodec::decode_complete(&current.credential))
+                .transpose()
+                .map_err(|_| CodexOAuthAdminError::Credential)?;
+            let previous = match previous {
+                Some(super::CodexCredentialData::ChatGpt(data)) => Some(data.chatgpt_connection),
+                None => None,
+                _ => return Err(CodexOAuthAdminError::Conflict),
+            };
+            let proxy = current
+                .as_ref()
+                .map_or(pending.mutation.outbound_proxy(), |current| {
+                    current.account.outbound_proxy()
+                });
+            let connection = super::chatgpt::oauth_client(proxy)
+                .map_err(|_| CodexOAuthAdminError::UpstreamUnavailable)?
+                .complete(&request, callback_url, previous.as_ref())
+                .await
+                .map_err(|error| {
+                    if error.code == "authorization_restart_required" {
+                        CodexOAuthAdminError::AuthorizationRestartRequired
+                    } else if error.retryable {
+                        CodexOAuthAdminError::UpstreamUnavailable
+                    } else {
+                        CodexOAuthAdminError::TokenRejected
+                    }
+                })?;
+            let data = super::chatgpt::ChatGptCredentialData {
+                schema_version: 1,
+                installation_id: pending.installation_id,
+                chatgpt_connection: connection,
+            };
+            let credential = match current {
+                Some(current) => CompletedCodexOAuthCredential::Reauthorize(Box::new(
+                    data.prepare_rotation(current).map_err(map_admin_error)?,
+                )),
+                None => CompletedCodexOAuthCredential::Create(Box::new(
+                    data.prepare_create(pending.name).map_err(map_admin_error)?,
+                )),
+            };
+            return Ok((pending.mutation, credential));
+        }
         let fallback_refresh_token = current
             .as_ref()
             .map(current_oauth_refresh_token)
@@ -597,7 +657,8 @@ impl CodexOAuthAdminService {
             .ok_or(CodexOAuthAdminError::InvalidInput)?;
         let owner_ref = oauth_owner_ref(mutation.owner_binding().owner());
         let started_request_ref = mutation.owner_binding().started_request_id().to_owned();
-        let pending = CodexPendingAuthorization::from_stored(StoredCodexPendingAuthorization {
+        let mut pending = CodexPendingAuthorization::from_stored(StoredCodexPendingAuthorization {
+            chatgpt_client_id: None,
             flow_id: random_secret()?,
             owner_ref,
             started_request_ref,
@@ -612,8 +673,38 @@ impl CodexOAuthAdminService {
         })
         .map_err(map_pending_error)?;
         let profile = self.profile.snapshot();
-        let authorization_url =
-            authorization_url(&pending, &self.oauth_client_id, &profile.desktop_version)?;
+        let authorization_url = if pending.mutation.authentication_kind()
+            == Some(super::chatgpt::AUTHENTICATION_KIND)
+        {
+            let client_id = if let Some(account_id) = pending.reauthorization() {
+                let loaded = self
+                    .store
+                    .load_current_credential(account_id)
+                    .await
+                    .map_err(map_store_error)?;
+                match CodexCredentialCodec::decode_complete(&loaded.credential)
+                    .map_err(|_| CodexOAuthAdminError::Credential)?
+                {
+                    super::CodexCredentialData::ChatGpt(data) => {
+                        data.chatgpt_connection["clientId"]
+                            .as_str()
+                            .map(str::to_owned)
+                    }
+                    _ => return Err(CodexOAuthAdminError::Conflict),
+                }
+            } else {
+                None
+            };
+            pending.chatgpt_client_id = client_id;
+            let request = pending.chatgpt_request();
+            sign_in_with_chatgpt::hosted::OAuthClient::authorization_url(
+                &request,
+                "AICodexAgentTeams",
+            )
+            .map_err(|_| CodexOAuthAdminError::UpstreamUnavailable)?
+        } else {
+            authorization_url(&pending, &self.oauth_client_id, &profile.desktop_version)?
+        };
         self.pending
             .create(&pending)
             .await
@@ -736,7 +827,7 @@ fn current_oauth_refresh_token(
 fn current_installation_id(current: &LoadedCredential) -> Result<String, CodexOAuthAdminError> {
     let runtime = CodexCredentialCodec::decode(&current.credential)
         .map_err(|_| CodexOAuthAdminError::Credential)?;
-    if runtime.authentication.oauth().is_none() {
+    if runtime.authentication.refreshable_oauth().is_none() {
         return Err(CodexOAuthAdminError::Credential);
     }
     Ok(runtime.installation_id)

@@ -669,7 +669,7 @@ config 返回 `{ name, plaintextKey }`，仅读取服务端会话绑定的当前
 | `GET` | `/api/admin/accounts/models/catalog` | `accountId` | 读取指定账号的完整 Codex 原生模型目录，返回 `{ modelCount, observedAt, catalog }` |
 | `POST` | `/api/admin/accounts/models/refresh` | `{ accountId }` | 强制拉取最新模型并覆盖 cache |
 | `GET` | `/api/admin/accounts/connection-test` | `accountId`、`modelId` | 通过 SSE 返回实时连接测试事件，不作为业务 Responses 用量记录 |
-| `POST` | `/api/admin/accounts/oauth/start` | `{ provider, name, accountId?, outboundProxyId?, outboundProxyUrl? }` | 为支持登录的 Provider 创建 flow；`accountId` 表示重新授权 |
+| `POST` | `/api/admin/accounts/oauth/start` | `{ provider, name, authenticationKind?, accountId?, outboundProxyId?, outboundProxyUrl? }` | 为支持登录的 Provider 创建 flow；`accountId` 表示重新授权 |
 | `POST` | `/api/admin/accounts/oauth/complete` | `{ provider, flowId, callbackUrl, settings? }` | 消费 OAuth callback；首次授权可附带账号设置，重新授权保留原设置 |
 
 ### 查询与账号字段
@@ -720,6 +720,12 @@ OpenAI 主动额度刷新和正常响应携带的明确套餐会同步到账号�
 指定代理后，推理、OAuth 服务端交换/刷新及账号辅助请求使用同一出口；代理失败不会退回直连。
 浏览器打开的第三方 OAuth 授权页仍使用浏览器自身网络。
 账号出口与连接隔离见 [架构说明](architecture.md#账号出站代理)
+
+OpenAI 授权通过 `authenticationKind` 选择流程：省略或 `oauth` 为 Codex OAuth，`chatgpt_oauth` 为 ChatGPT OAuth。
+两种流程默认可用，无需环境变量开启；生成授权链接不访问上游，完成授权和刷新仍需要服务端能够连接 OpenAI。
+ChatGPT OAuth 使用动态注册的客户端 ID，回调为 `http://127.0.0.1:1456/auth/callback`，完成接口接收浏览器地址栏中的完整回调 URL。
+重新授权须传入账号原有的认证类型，不能在同一账号上混换 Codex 与 ChatGPT 凭据。
+ChatGPT 账号只有取得 `chatgpt.tokens.use.direct` 权限后才参与调度，身份授权成功但未开放套餐使用的账号保留为 `unknown`，可通过重新授权补齐权限。
 
 ### 账号模型限制
 

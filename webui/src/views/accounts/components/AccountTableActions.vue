@@ -26,7 +26,7 @@ const emit = defineEmits<{
   toggleScheduling: [account: Account]
 }>()
 
-const credentialEligible = computed(() => props.account.authenticationKind === 'oauth')
+const credentialEligible = computed(() => ['oauth', 'chatgpt_oauth'].includes(props.account.authenticationKind))
 </script>
 
 <template>

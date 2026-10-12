@@ -602,6 +602,12 @@ impl ProviderAdmin for XaiAdminProvider {
         &self,
         pending: gateway_admin::model::provider_credentials::PendingAuthorizationMutation,
     ) -> Result<AuthorizationStarted, ProviderAdminError> {
+        if pending
+            .authentication_kind()
+            .is_some_and(|kind| kind != "oauth")
+        {
+            return Err(provider_error(ProviderAdminErrorKind::Unsupported));
+        }
         if pending.provider_kind() != &self.provider_kind {
             return Err(provider_error(ProviderAdminErrorKind::Invalid));
         }
@@ -1051,6 +1057,7 @@ fn prepared_rotation(
             plan_type: profile.plan_type,
             preserve_profile,
             preserve_credential_state: false,
+            credential_state: None,
             provider_material: ProviderDocument::new(OpaqueProviderData::new(
                 credential.into_inner(),
             )),

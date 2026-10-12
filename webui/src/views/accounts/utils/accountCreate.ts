@@ -5,7 +5,7 @@ import { parseAccountSchedulingForm } from './schedulingForm'
 import { emptyApiKeyAccountForm } from './upstreamApiKey'
 
 export type AccountCreateSource = { kind: 'bundle' } | { kind: 'provider', id: string }
-export type AccountImportMode = 'oauth' | 'api_key' | 'access_token' | 'refresh_token' | 'json'
+export type AccountImportMode = 'oauth' | 'chatgpt_oauth' | 'api_key' | 'access_token' | 'refresh_token' | 'json'
 type AccountImportInputMode = 'access_token' | 'refresh_token' | 'json'
 
 export interface AccountCreateForm {
@@ -76,7 +76,8 @@ export function accountImportSettings(form: AccountCreateForm) {
 export function accountImportModes(provider: string | undefined) {
   if (provider === 'openai') {
     return [
-      { label: 'OAuth', value: 'oauth' as const },
+      { label: 'Codex OAuth', value: 'oauth' as const },
+      { label: 'ChatGPT OAuth', value: 'chatgpt_oauth' as const },
       { label: 'API Key', value: 'api_key' as const },
       { label: 'AT', value: 'access_token' as const },
       { label: 'RT', value: 'refresh_token' as const },

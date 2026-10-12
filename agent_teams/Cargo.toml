@@ -13,6 +13,7 @@ members = [
     "crates/providers/openai",
     "crates/providers/xai",
 ]
+exclude = ["vendor/sign-in-with-chatgpt"]
 resolver = "3"
 
 [workspace.package]

@@ -818,6 +818,7 @@ pub(crate) async fn rotate_provider_account_in_transaction(
              upstream_account_id = case when $11::boolean then $13::text else upstream_account_id end,
              credential_state = case
                  when $15::boolean then credential_state
+                 when $16::text is not null then $16::text
                  when $11::boolean or credential_state <> 'unknown' then 'ready'
                  else 'unknown'
              end,
@@ -847,6 +848,7 @@ pub(crate) async fn rotate_provider_account_in_transaction(
     .bind(upstream_account_id)
     .bind(update.preserve_profile)
     .bind(update.preserve_credential_state)
+    .bind(update.credential_state.map(|state| state.as_str()))
     .fetch_optional(&mut **transaction)
     .await
     .map_err(|error| {

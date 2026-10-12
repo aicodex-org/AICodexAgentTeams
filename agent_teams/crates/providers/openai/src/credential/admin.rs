@@ -132,6 +132,7 @@ struct ParsedCodexImportAccount {
 
 #[derive(Debug)]
 enum ParsedCodexAuthentication {
+    ChatGpt(super::chatgpt::ChatGptCredentialData),
     OAuth(ParsedOAuthAuthentication),
     ApiKey(ApiKeyCredentialData),
 }
@@ -246,8 +247,19 @@ struct CodexCprExportCommon {
 #[derive(Serialize)]
 #[serde(untagged)]
 enum CodexCprExportAccount {
+    ChatGpt(CodexCprChatGptExportAccount),
     OAuth(CodexCprOAuthExportAccount),
     ApiKey(CodexCprApiKeyExportAccount),
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CodexCprChatGptExportAccount {
+    #[serde(flatten)]
+    common: CodexCprExportCommon,
+    provider: &'static str,
+    authentication_kind: &'static str,
+    chatgpt: super::chatgpt::ChatGptCredentialData,
 }
 
 #[derive(Serialize)]
@@ -297,10 +309,10 @@ pub struct PreparedCodexCredentialRotation {
     pub profile: ProviderAccountUpdate,
     pub credential: CredentialCasUpdate,
     pub replacement_identity: Option<ProviderAccountIdentity>,
-    refresh_guards: Option<ProviderRefreshGuards>,
+    pub(super) refresh_guards: Option<ProviderRefreshGuards>,
 }
 
-struct ProviderRefreshGuards {
+pub(super) struct ProviderRefreshGuards {
     _capacity: Box<dyn ProviderLeaseGuard>,
     _account: Box<dyn ProviderLeaseGuard>,
 }
@@ -688,6 +700,14 @@ impl CodexCredentialAdmin {
                     .map(|proxy| proxy.expose_url().to_owned()),
             };
             let exported = match data {
+                CodexCredentialData::ChatGpt(data) => {
+                    CodexCprExportAccount::ChatGpt(CodexCprChatGptExportAccount {
+                        common,
+                        provider: PROVIDER_NAME,
+                        authentication_kind: super::chatgpt::AUTHENTICATION_KIND,
+                        chatgpt: data,
+                    })
+                }
                 CodexCredentialData::ApiKey(data) => {
                     if account.authentication_kind() != CODEX_AUTHENTICATION_KIND_API_KEY {
                         return Err(CodexCredentialAdminError::InvalidCredential);
@@ -860,6 +880,7 @@ impl CodexCredentialAdmin {
 
 /// 有状态的 Codex 手工刷新边界；消费调用方刚读取的当前 credential 并准备 CAS
 pub struct CodexCredentialAdminService {
+    chatgpt_repository: Option<super::CodexCredentialRepository>,
     refresher: Arc<dyn TokenRefresher>,
     personal_access_token_client: Option<Arc<OpenAiTokenClient>>,
     leases: Arc<dyn ProviderLeasePort>,
@@ -892,6 +913,7 @@ impl CodexCredentialAdminService {
         Self {
             refresher,
             personal_access_token_client: None,
+            chatgpt_repository: None,
             leases,
             runtime_policy,
             diagnostics,
@@ -902,6 +924,11 @@ impl CodexCredentialAdminService {
     #[must_use]
     pub fn with_personal_access_token_client(mut self, client: Arc<OpenAiTokenClient>) -> Self {
         self.personal_access_token_client = Some(client);
+        self
+    }
+
+    pub fn with_chatgpt_repository(mut self, repository: super::CodexCredentialRepository) -> Self {
+        self.chatgpt_repository = Some(repository);
         self
     }
 
@@ -919,7 +946,7 @@ impl CodexCredentialAdminService {
             .map_err(|_| CodexCredentialAdminError::InvalidCredential)?;
         let oauth = runtime
             .authentication
-            .oauth()
+            .refreshable_oauth()
             .ok_or(CodexCredentialAdminError::MissingRefreshToken)?;
         let refresh_token = oauth
             .refresh_token
@@ -956,6 +983,25 @@ impl CodexCredentialAdminService {
                 return Err(CodexCredentialAdminError::RefreshLeaseUnavailable);
             }
         };
+        if current.account.authentication_kind() == super::chatgpt::AUTHENTICATION_KIND {
+            let repository = self
+                .chatgpt_repository
+                .clone()
+                .ok_or(CodexCredentialAdminError::RefreshUnavailable)?;
+            return tokio::spawn(async move {
+                let guards = ProviderRefreshGuards {
+                    _capacity: capacity_guard,
+                    _account: account_guard,
+                };
+                let mut prepared = super::chatgpt::prepare_refresh(&repository, &current.account)
+                    .await
+                    .map_err(|_| CodexCredentialAdminError::RefreshUnavailable)?;
+                prepared.refresh_guards = Some(guards);
+                Ok(prepared)
+            })
+            .await
+            .map_err(|_| CodexCredentialAdminError::RefreshUnavailable)?;
+        }
         let tokens = self
             .refresher
             .refresh_with_proxy(
@@ -1043,6 +1089,17 @@ impl CodexCredentialAdminService {
         for candidate in candidates {
             let account_id = format!("acct_{}", uuid::Uuid::now_v7().simple());
             let authentication = match candidate.authentication {
+                ParsedCodexAuthentication::ChatGpt(data) => {
+                    let mut prepared = data
+                        .prepare_create(candidate.name.unwrap_or_else(|| "ChatGPT OAuth".into()))?;
+                    prepared.model_access = candidate.model_access;
+                    prepared.account = prepared
+                        .account
+                        .with_outbound_proxy(candidate.outbound_proxy);
+                    accounts.push(prepared);
+                    continue;
+                }
+
                 ParsedCodexAuthentication::ApiKey(data) => {
                     let mut prepared = CodexCredentialAdmin.prepare_api_key(
                         account_id,
@@ -1295,7 +1352,20 @@ fn parse_codex_import_account(
             .map_err(|_| CodexCredentialAdminError::InvalidInput)?,
         name: first_string(value, &["name", "label"]),
         email: first_string(value, &["email"]).or_else(|| first_string(credentials, &["email"])),
-        authentication: if is_api_key_import(value) {
+        authentication: if value
+            .get("authenticationKind")
+            .or_else(|| value.get("authentication_kind"))
+            .and_then(Value::as_str)
+            == Some(super::chatgpt::AUTHENTICATION_KIND)
+        {
+            let data: super::chatgpt::ChatGptCredentialData =
+                serde_json::from_value(value["chatgpt"].clone())
+                    .map_err(|_| CodexCredentialAdminError::InvalidCredential)?;
+            if !data.validate() {
+                return Err(CodexCredentialAdminError::InvalidCredential);
+            }
+            ParsedCodexAuthentication::ChatGpt(data)
+        } else if is_api_key_import(value) {
             ParsedCodexAuthentication::ApiKey(parse_api_key_import(value)?)
         } else {
             ParsedCodexAuthentication::OAuth(parse_oauth_import_tokens(value)?)

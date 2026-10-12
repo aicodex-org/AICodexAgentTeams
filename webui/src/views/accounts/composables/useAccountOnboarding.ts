@@ -48,7 +48,7 @@ export function useAccountOnboarding(options: {
   }
 
   async function handleCreate() {
-    if (createForm.value.mode === 'oauth') {
+    if ((createForm.value.mode === 'oauth' || createForm.value.mode === 'chatgpt_oauth')) {
       await authorization.complete()
       return
     }
@@ -60,7 +60,7 @@ export function useAccountOnboarding(options: {
       const settings = accountImportSettings(form)
       const outboundProxyId = form.proxyMode === 'proxy' ? form.proxyId.trim() : undefined
       const mode = form.mode
-      if (mode === 'oauth')
+      if ((mode === 'oauth' || mode === 'chatgpt_oauth'))
         return
       const provider = accountCreateProvider(form)
       if (mode === 'api_key') {
@@ -111,6 +111,7 @@ export function useAccountOnboarding(options: {
       await authorization.start({
         start: {
           provider,
+          authenticationKind: form.mode === 'chatgpt_oauth' ? 'chatgpt_oauth' : undefined,
           name: account?.name || account?.email || `${formatProviderLabel(provider)} 账号`,
           accountId: account?.id,
           outboundProxyId: account ? undefined : form.proxyMode === 'proxy' ? form.proxyId.trim() : undefined,
@@ -131,11 +132,11 @@ export function useAccountOnboarding(options: {
   }
 
   function openReauthorizeAccount(account: Account) {
-    if (isSupportedProvider(account.provider) && account.authenticationKind !== 'oauth')
+    if (isSupportedProvider(account.provider) && !['oauth', 'chatgpt_oauth'].includes(account.authenticationKind))
       return
     authorization.reset()
     reauthorizingAccount.value = account
-    createForm.value = { ...emptyAccountCreateForm(), source: { kind: 'provider', id: account.provider }, step: 'import' }
+    createForm.value = { ...emptyAccountCreateForm(), source: { kind: 'provider', id: account.provider }, step: 'import', mode: account.authenticationKind === 'chatgpt_oauth' ? 'chatgpt_oauth' : 'oauth' }
     showCreateModal.value = true
     void handleAuthorizeOAuth()
   }
@@ -149,7 +150,7 @@ export function useAccountOnboarding(options: {
   watch(() => accountCreateSourceKey(createForm.value), () => {
     createForm.value = {
       ...createForm.value,
-      mode: reauthorizingAccount.value ? 'oauth' : createForm.value.source?.kind === 'bundle' ? 'json' : accountImportModes(accountCreateProvider(createForm.value))[0]?.value ?? 'json',
+      mode: reauthorizingAccount.value ? reauthorizingAccount.value.authenticationKind === 'chatgpt_oauth' ? 'chatgpt_oauth' : 'oauth' : createForm.value.source?.kind === 'bundle' ? 'json' : accountImportModes(accountCreateProvider(createForm.value))[0]?.value ?? 'json',
       apiKey: emptyApiKeyAccountForm(),
       importTexts: { access_token: '', refresh_token: '', json: '' },
     }
