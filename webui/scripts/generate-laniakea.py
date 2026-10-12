@@ -64,7 +64,7 @@ def main():
     seeds = seeds[rng.choice(len(seeds), min(1200, len(seeds)), replace=False)]
     positions = (seeds.astype(float) - 64) * (1000 / 128)
 
-    def direction(points):
+    def velocity(points):
         grid = points / (1000 / 64) + 32
         low = np.floor(grid).astype(int)
         low = np.clip(low, 0, 62)
@@ -77,8 +77,32 @@ def main():
                     index = low + delta
                     weight = np.prod(np.where(delta, frac, 1 - frac), axis=1)
                     result += field[:, index[:, 0], index[:, 1], index[:, 2]].T * weight[:, None]
+        return result
+
+    def direction(points):
+        result = velocity(points)
         speed = np.linalg.norm(result, axis=1)
         return result / np.maximum(speed[:, None], 1e-9), speed
+
+    # 论文坐标来自 128³ 重建，仅作初值；标记必须与绘图使用的 64³ 插值速度场一致
+    # https://arxiv.org/html/2305.02339v2#S3
+    published_attractor = np.array([-62., -8., 39.])
+    attractor = published_attractor.copy()
+    offsets = np.eye(3) * .01
+    for _ in range(30):
+        v = velocity(attractor[None, :])[0]
+        jacobian = ((velocity(attractor + offsets) - velocity(attractor - offsets)) / .02).T
+        if np.linalg.norm(v) < 1e-6:
+            break
+        attractor -= np.linalg.solve(jacobian, v)
+        if not np.isfinite(attractor).all() or np.linalg.norm(attractor - published_attractor) > 2 * (1000 / 64):
+            raise ValueError('Attractor solver left the Laniakea reference neighborhood')
+    residual = float(np.linalg.norm(velocity(attractor[None, :])[0]))
+    if residual >= 1e-6 or np.any(np.linalg.eigvals(jacobian).real >= 0):
+        raise ValueError('Expected a converged, stable velocity-field attractor')
+    basin_index = np.rint(attractor / (1000 / 128) + 64).astype(int)
+    if basin[tuple(basin_index[::-1])] != 1:
+        raise ValueError('Computed attractor is outside the Laniakea basin')
 
     paths = [[p.copy()] for p in positions]
     active = np.ones(len(positions), dtype=bool)
@@ -114,6 +138,13 @@ def main():
             'velocityArrayAxes': 'component XYZ, X, Y, Z',
             'basinArrayAxes': 'Z, Y, X',
             'resolutionNote': '64^3 velocity field, 128^3 basin mask; illustrative integration, not a reproduction of the paper at full resolution',
+            'attractor': {
+                'position': attractor.tolist(),
+                'publishedPosition': published_attractor.tolist(),
+                'method': 'Stable zero of the same trilinearly interpolated 64^3 velocity field; Newton iteration initialized at the published 128^3 attractor',
+                'residualKmS': residual,
+                'source': 'https://arxiv.org/html/2305.02339v2#S3',
+            },
             'seed': 2014, 'stepMpcH': step, 'maxSteps': 200, 'sampleStride': 2,
             'lineCount': len(lines),
         },

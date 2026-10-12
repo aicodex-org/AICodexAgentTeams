@@ -88,7 +88,7 @@ function retry() {
           <strong>真实数据，流线可视化</strong>
           <p>基于 CosmicFlows-4 非分组速度场与拉尼亚凯亚盆地采样生成，线条表示重建流向，光点用于演示方向，不表示星系位置或实际运行速度</p>
           <p>坐标为超星系坐标 SGX / SGY / SGZ，单位 Mpc/h，银河系在此尺度下近似位于本星系群原点</p>
-          <p>巨引源以 CF4 非分组重建的拉尼亚凯亚吸引中心 [−62, −8, 39] 标示，是模型估计位置，不代表单个天体</p>
+          <p>巨引源标记为当前 64³ 流线模型的稳定汇聚中心，与论文 128³ 重建的估计位置有所不同，不代表单个天体的精确位置</p>
           <a href="https://projets.ip2i.in2p3.fr/cosmicflows/" target="_blank" rel="noreferrer">CosmicFlows 官方数据 ↗</a>
           <a href="https://arxiv.org/abs/2211.16390" target="_blank" rel="noreferrer">Courtois 等 · 2023 · 速度场 ↗</a>
           <a href="https://arxiv.org/abs/2305.02339" target="_blank" rel="noreferrer">Dupuy & Courtois · 2023 · 引力盆地 ↗</a>

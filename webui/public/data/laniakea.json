@@ -17,6 +17,21 @@
     "velocityArrayAxes": "component XYZ, X, Y, Z",
     "basinArrayAxes": "Z, Y, X",
     "resolutionNote": "64^3 velocity field, 128^3 basin mask; illustrative integration, not a reproduction of the paper at full resolution",
+    "attractor": {
+      "position": [
+        -53.38308659974277,
+        3.143838912150942,
+        40.27217154385951
+      ],
+      "publishedPosition": [
+        -62.0,
+        -8.0,
+        39.0
+      ],
+      "method": "Stable zero of the same trilinearly interpolated 64^3 velocity field; Newton iteration initialized at the published 128^3 attractor",
+      "residualKmS": 2.452889751446466e-09,
+      "source": "https://arxiv.org/html/2305.02339v2#S3"
+    },
     "seed": 2014,
     "stepMpcH": 1.5,
     "maxSteps": 200,

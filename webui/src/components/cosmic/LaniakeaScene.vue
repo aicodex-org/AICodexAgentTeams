@@ -9,11 +9,10 @@ const props = defineProps<{ playing: boolean, decorative?: boolean }>()
 const emit = defineEmits<{ ready: [count: number], retry: [], failed: [] }>()
 const host = useTemplateRef<HTMLDivElement>('host')
 const markerElements = useTemplateRef<HTMLDivElement[]>('markerElements')
-// 银河系在当前尺度下近似本星系群原点，吸引中心采用同一 CF4 非分组重建
-// 坐标来源：https://arxiv.org/html/2305.02339v2#S3，单位 Mpc/h
+// 银河系近似本星系群原点，巨引源位置随流线数据加载，避免混用不同分辨率的吸引中心
 const landmarks = [
   { id: 'milky-way', label: '银河系', detail: '我们的位置', position: new Vector3(0, 0, 0) },
-  { id: 'great-attractor', label: '巨引源', detail: 'CF4 吸引中心', position: new Vector3(-62, -8, 39) },
+  { id: 'great-attractor', label: '巨引源', detail: '模型汇聚中心', position: new Vector3() },
 ]
 const projected = new Vector3()
 const error = shallowRef('')
@@ -86,11 +85,15 @@ onMounted(async () => {
     const response = await fetch('/data/laniakea.json', { signal: abort.signal })
     if (!response.ok)
       throw new Error('数据加载失败')
-    const data: { lines: number[][] } = await response.json()
+    const data: { lines: number[][], metadata: { attractor: { position: number[] } } } = await response.json()
     if (disposed || !host.value)
       return
     if (!Array.isArray(data.lines) || !data.lines.length || data.lines.some(line => line.length < 6 || line.length % 3 || line.some(value => !Number.isFinite(value))))
       throw new Error('数据格式无效')
+    const attractorPosition = data.metadata?.attractor?.position
+    if (!Array.isArray(attractorPosition) || attractorPosition.length !== 3 || attractorPosition.some(value => !Number.isFinite(value)))
+      throw new Error('吸引中心坐标无效')
+    landmarks.find(item => item.id === 'great-attractor')!.position.fromArray(attractorPosition)
 
     renderer = new WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'low-power' })
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75))
@@ -309,8 +312,6 @@ onBeforeUnmount(() => {
   left: 16px;
   padding: 5px 9px;
   border-left: 1px solid currentColor;
-  border-radius: 0 4px 4px 0;
-  background: color-mix(in srgb, var(--cp-color-bg-layout) 90%, transparent);
   white-space: nowrap;
 }
 .marker-label::before {
