@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ZButton, ZCard, ZInput, ZMotionIcon, ZSegmented } from '@codex-proxy/ui'
+import { ZButton, ZCard, ZFormItem, ZInput, ZSegmented } from '@codex-proxy/ui'
 
-import { KeyRound, Mail, ShieldCheck } from '@lucide/vue'
+import { ArrowRight, KeyRound, ShieldCheck, UserRound } from '@lucide/vue'
 import { computed } from 'vue'
 import AppBrandMark from '@/components/AppBrandMark.vue'
 
@@ -27,217 +27,280 @@ const realmOptions = [
 ]
 
 const isKeyRealm = computed(() => realm.value === 'key')
-const realmCaption = computed(() => isKeyRealm.value ? 'KEY REALM' : 'ADMIN REALM')
 const submitLabel = computed(() => {
   if (props.loading)
     return '正在登录...'
-  return '登录'
+  return isKeyRealm.value ? '查看用量' : '进入控制台'
 })
 </script>
 
 <template>
-  <ZCard
-    as="form"
-    padding="none"
-    class="login-form relative grid w-full content-start gap-8 rounded-lg px-7.5 pt-10 pb-6 max-[560px]:gap-6 max-[560px]:p-5.5"
-    @submit.prevent="emit('submit')"
-  >
-    <div class="login-form-line" />
-
-    <header class="flex min-w-0 items-center justify-between gap-4.5 max-[560px]:gap-3.5">
-      <div class="flex min-w-0 items-center gap-2">
-        <ZMotionIcon variant="brand" class="login-logo">
-          <AppBrandMark class="block size-10.5 select-none" />
-        </ZMotionIcon>
-        <span class="grid min-w-0 gap-1">
-          <strong
-            class="text-[17px] leading-[1.3] font-semibold text-(--cp-login-brand-title-color) max-[560px]:text-cp-xl"
-          >
-            AICodex<wbr>AgentTeams
-          </strong>
-          <span class="font-mono text-[10px] leading-[1.2] font-normal text-(--cp-login-brand-caption-color) ml-0.5">
-            {{ realmCaption }}
-          </span>
-        </span>
+  <ZCard as="form" padding="none" class="login-form" @submit.prevent="emit('submit')">
+    <header class="login-heading">
+      <div class="login-emblem" aria-hidden="true">
+        <span class="emblem-orbit" />
+        <AppBrandMark class="login-logo" />
       </div>
-
-      <ZSegmented
-        v-model="realm"
-        class="w-18 shrink-0 [--cp-color-bg-container:var(--cp-color-bg-elevated)] [--cp-color-fill-tertiary:var(--cp-login-input-bg)] [--cp-control-height-sm:34px] [&_svg]:size-4"
-        aria-label="选择登录方式"
-        :options="realmOptions"
-        display="icon"
-        size="small"
-        :disabled="loading"
-      />
+      <p class="login-brand">
+        AICodexAgentTeams
+      </p>
+      <h1 id="login-title">
+        欢迎回来
+      </h1>
+      <p class="login-description">
+        {{ isKeyRealm ? '连接你的密钥，掌握每一次调用' : '连接你的账号，开启协作之旅' }}
+      </p>
     </header>
 
-    <section class="grid min-h-18 min-w-0 content-start gap-4" aria-labelledby="login-title">
-      <h1
-        id="login-title"
-        class="m-0 text-[34px] leading-[1.02] font-semibold text-(--cp-login-title-color) max-[560px]:text-[30px]"
-      >
-        控制台登录
-      </h1>
-      <p class="m-0 -ml-2 text-sm leading-[1.45] font-normal text-(--cp-login-description-color)">
-        「 欢迎回来，登录以开始您的数据之旅 」
-      </p>
-    </section>
+    <div class="login-body">
+      <ZSegmented
+        v-model="realm"
+        class="login-realms"
+        aria-label="选择登录方式"
+        :options="realmOptions"
+        size="large"
+        :disabled="loading"
+      />
 
-    <div class="grid gap-3">
-      <template v-if="!isKeyRealm">
-        <div class="grid min-w-0 gap-2">
-          <span id="admin-username-label" class="text-cp leading-[1.1] font-bold text-(--cp-login-label-color)">管理员账号</span>
+      <div class="login-fields">
+        <template v-if="!isKeyRealm">
+          <ZFormItem class="login-field" label="管理员账号" for="admin-username">
+            <ZInput
+              id="admin-username"
+              v-model="username"
+              name="username"
+              aria-label="管理员账号"
+              placeholder="输入管理员账号"
+              autocomplete="username"
+              autocapitalize="none"
+              spellcheck="false"
+            >
+              <template #prefix>
+                <UserRound :size="17" />
+              </template>
+            </ZInput>
+          </ZFormItem>
+          <ZFormItem class="login-field" label="登录密码" for="admin-password">
+            <ZInput
+              id="admin-password"
+              v-model="password"
+              name="password"
+              aria-label="登录密码"
+              placeholder="输入登录密码"
+              show-password
+              autocomplete="current-password"
+            >
+              <template #prefix>
+                <KeyRound :size="17" />
+              </template>
+            </ZInput>
+          </ZFormItem>
+        </template>
+        <ZFormItem v-else class="login-field" label="API Key" for="client-api-key">
           <ZInput
-            v-model="username"
-            name="username"
-            aria-label="管理员账号"
-            placeholder="输入会话账号"
-            autocomplete="username"
-          >
-            <template #prefix>
-              <Mail :size="17" />
-            </template>
-          </ZInput>
-        </div>
-
-        <div class="grid min-w-0 gap-2">
-          <span class="text-cp leading-[1.1] font-bold text-(--cp-login-label-color)">访问密钥</span>
-          <ZInput
-            v-model="password"
-            name="password"
-            aria-label="访问密钥"
-            placeholder="输入会话密钥"
+            id="client-api-key"
+            v-model="apiKey"
+            name="apiKey"
+            aria-label="API Key"
+            placeholder="输入你的 API Key"
             show-password
-            autocomplete="current-password"
+            autocomplete="off"
+            autocapitalize="none"
+            spellcheck="false"
           >
             <template #prefix>
               <KeyRound :size="17" />
             </template>
           </ZInput>
-        </div>
-      </template>
+          <p class="key-hint">
+            使用网关密钥查看用量与调用记录
+          </p>
+        </ZFormItem>
+      </div>
 
-      <div v-else class="grid min-w-0 gap-2">
-        <span id="client-api-key-label" class="text-cp leading-[1.1] font-bold text-(--cp-login-label-color)">访问密钥</span>
-        <ZInput
-          id="client-api-key"
-          v-model="apiKey"
-          name="apiKey"
-          aria-labelledby="client-api-key-label"
-          placeholder="输入 API Key"
-          show-password
-          autocomplete="off"
-          autocapitalize="none"
-          spellcheck="false"
-        >
-          <template #prefix>
-            <KeyRound :size="17" />
-          </template>
-        </ZInput>
-      </div>
-      <div class="min-w-0">
-        <ZButton
-          type="primary"
-          size="large"
-          native-type="submit"
-          class="login-submit"
-          :loading="props.loading"
-          :disabled="props.submitDisabled"
-        >
-          <span>{{ submitLabel }}</span>
-        </ZButton>
-      </div>
+      <ZButton
+        type="primary"
+        size="large"
+        native-type="submit"
+        class="login-submit"
+        :loading="props.loading"
+        :disabled="props.submitDisabled"
+      >
+        <span>{{ submitLabel }}</span>
+        <ArrowRight v-if="!loading" :size="17" />
+      </ZButton>
+    </div>
+
+    <div class="login-signature" aria-hidden="true">
+      <span /> LANIAKEA <span />
     </div>
   </ZCard>
 </template>
 
 <style scoped>
 .login-form {
-  --cp-color-bg-container: transparent;
-  --cp-color-fill-quaternary: var(--cp-login-toggle-bg);
-  --cp-color-fill-tertiary: var(--cp-login-input-bg);
-  --cp-color-text: var(--cp-login-title-color);
-  --cp-color-text-secondary: var(--cp-login-description-color);
-  --cp-color-text-quaternary: var(--cp-login-placeholder-color);
-  --cp-color-error-container: var(--cp-login-error-bg);
-  --cp-color-error-border: transparent;
-  --cp-color-error-text: var(--cp-login-error-text-color);
-  --cp-color-error: var(--cp-login-error-icon-color);
-  --cp-color-bg-container-disabled: var(--cp-login-disabled-bg);
-  --cp-color-text-disabled: var(--cp-login-disabled-text-color);
-  --cp-input-bg: var(--cp-login-input-bg);
-  --cp-input-hover-bg: var(--cp-login-input-hover-bg);
-  --cp-input-active-bg: var(--cp-login-input-active-bg);
-  --cp-border-radius-sm: 6px;
-  --cp-border-radius: 6px;
-  --cp-box-shadow-tertiary: none;
-  --cp-box-shadow: none;
-  --cp-control-height: 43px;
-
-  background:
-    linear-gradient(
-      118deg,
-      var(--cp-login-panel-bg-start),
-      var(--cp-login-panel-bg-middle) 56%,
-      var(--cp-login-panel-bg-end)
-    ),
-    var(--cp-login-panel-bg-middle);
-  box-shadow: 0 18px 38px -20px var(--cp-login-panel-shadow-color);
-  backdrop-filter: blur(18px) saturate(1.08);
-  -webkit-backdrop-filter: blur(18px) saturate(1.08);
+  --cp-button-primary-bg: var(--cosmic-accent);
+  --cp-button-primary-hover-bg: color-mix(in srgb, var(--cosmic-accent) 88%, var(--cp-color-text));
+  --cp-button-primary-active-bg: color-mix(in srgb, var(--cosmic-accent) 80%, var(--cp-color-text));
+  --cp-button-primary-color: var(--cosmic-on-accent);
+  --cp-control-outline: color-mix(in srgb, var(--cosmic-accent) 40%, transparent);
+  --cp-input-bg: color-mix(in srgb, var(--cp-color-bg-container) 75%, transparent);
+  --cp-input-hover-bg: var(--cp-color-bg-container);
+  --cp-input-active-bg: var(--cp-color-bg-container);
+  --cp-input-shadow: 0 0 0 1px var(--cp-color-border);
+  --cp-input-hover-shadow: 0 0 0 1px color-mix(in srgb, var(--cosmic-accent) 60%, transparent);
+  --cp-input-active-shadow: 0 0 0 2px color-mix(in srgb, var(--cosmic-accent) 40%, transparent);
+  --cp-border-radius: 10px;
+  --cp-border-radius-sm: 10px;
+  --cp-control-height: 48px;
+  --cp-control-height-lg: 48px;
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--cosmic-accent) 24%, var(--cp-color-bg-container));
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--cp-color-bg-container) 94%, transparent);
+  box-shadow: 0 32px 100px -40px color-mix(in srgb, var(--cp-color-text) 26%, transparent);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
 }
-
-.login-form-line {
-  position: absolute;
-  top: 0;
-  left: 22px;
-  width: calc(100% - 44px);
-  height: 2px;
-  background: linear-gradient(
-    90deg,
-    var(--cp-color-transparent),
-    var(--cp-login-panel-line-color),
-    var(--cp-color-transparent)
+.login-heading {
+  display: grid;
+  justify-items: center;
+  padding: 36px 36px 28px;
+  text-align: center;
+  background: radial-gradient(
+    ellipse at 50% 0%,
+    color-mix(in srgb, var(--cosmic-accent) 9%, transparent),
+    transparent 75%
   );
-  opacity: 0.42;
-  pointer-events: none;
 }
-
-:global(html[data-theme='dark'] .login-form-line) {
-  opacity: 0.3;
+.login-emblem {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100px;
+  height: 80px;
 }
-
+.emblem-orbit {
+  position: absolute;
+  width: 98px;
+  height: 56px;
+  border: 1px solid color-mix(in srgb, var(--cosmic-accent) 35%, transparent);
+  border-radius: 50%;
+  transform: rotate(-32deg);
+}
+.emblem-orbit::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 20px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--cosmic-accent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--cosmic-accent) 50%, transparent);
+}
 .login-logo {
-  display: inline-flex;
-  width: 42px;
-  height: 42px;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  color: var(--cp-login-logo-color);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1;
+  position: relative;
+  width: 54px;
+  height: 54px;
+  box-shadow: 0 8px 24px #00000016;
+  border-radius: 13px;
 }
-
+.login-brand {
+  margin: 12px 0 24px;
+  font-size: 13px;
+  font-weight: 550;
+  letter-spacing: 0.2px;
+  color: var(--cp-color-text-secondary);
+}
+.login-heading h1 {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: 2px;
+}
+.login-description {
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--cp-color-text-secondary);
+}
+.login-body {
+  display: grid;
+  gap: 26px;
+  padding: 0 40px;
+}
+.login-realms {
+  --cp-input-bg: var(--cp-color-bg-layout);
+  width: 100%;
+}
+.login-realms :deep([aria-checked='true']) {
+  color: var(--cosmic-accent);
+}
+.login-fields {
+  display: grid;
+  gap: 20px;
+}
+.login-field :deep(label) {
+  font-size: 12px;
+  font-weight: 550;
+}
+.key-hint {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--cp-color-text-secondary);
+}
 .login-submit {
   width: 100%;
-  height: 44px;
-  box-shadow: 0 14px 24px -18px var(--cp-login-button-shadow-color);
+  height: 48px;
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 550;
 }
-
-.login-submit:disabled {
-  background: var(--cp-login-disabled-bg);
-  box-shadow: none;
-  transform: none;
+.login-signature {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 28px 40px;
+  font-family: 'JetBrains Mono Variable', monospace;
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: var(--cosmic-accent);
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .login-submit {
-    transition: none;
+.login-signature span {
+  width: 28px;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.35;
+}
+@media (max-width: 560px) {
+  .login-form {
+    border-radius: 20px;
+  }
+  .login-heading {
+    padding: 24px 20px;
+  }
+  .login-brand {
+    margin-bottom: 20px;
+  }
+  .login-heading h1 {
+    font-size: 28px;
+  }
+  .login-body {
+    padding: 0 24px;
+    gap: 24px;
+  }
+  .login-realms :deep(button) {
+    padding-inline: 6px;
+    font-size: 12px;
+  }
+  .login-signature {
+    margin: 24px;
   }
 }
 </style>

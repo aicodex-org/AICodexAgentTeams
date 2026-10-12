@@ -1,0 +1,17 @@
+.cosmic-surface {
+  --cosmic-accent: #a06c35;
+  --cosmic-local: #477b9c;
+  --cosmic-on-accent: #fff;
+  color: var(--cp-color-text);
+  background: radial-gradient(
+    ellipse at 57% 45%,
+    color-mix(in srgb, var(--cp-color-bg-container) 88%, #e7cd9c),
+    var(--cp-color-bg-layout) 72%
+  );
+}
+html[data-theme='dark'] .cosmic-surface {
+  --cosmic-accent: #e9b66e;
+  --cosmic-local: #9bc8e5;
+  --cosmic-on-accent: #141820;
+  background: radial-gradient(ellipse at 57% 45%, #202127, var(--cp-color-bg-layout) 75%);
+}

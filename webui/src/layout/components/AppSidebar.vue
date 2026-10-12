@@ -69,13 +69,13 @@ const pluginMenuId = useId()
 const pluginGroupExpanded = shallowRef(route.path.startsWith('/plugins'))
 
 const navItems = [
-  { label: '概览', icon: LayoutDashboard, path: '/' },
+  { label: '系统概览', icon: LayoutDashboard, path: '/dashboard' },
   { label: '账号管理', icon: Users, path: '/accounts' },
   { label: '代理管理', icon: Network, path: '/proxies' },
   { label: '分组管理', icon: FolderTree, path: '/groups' },
   { label: 'API 密钥', icon: KeyRound, path: '/keys' },
   { label: '使用统计', icon: ChartNoAxesColumn, path: '/usage' },
-  { label: '插件', icon: Puzzle, path: '/plugins' },
+  { label: '系统插件', icon: Puzzle, path: '/plugins' },
   { label: '主题设置', icon: Palette, path: '/theme' },
   { label: '系统设置', icon: Settings, path: '/settings' },
 ]
@@ -91,8 +91,6 @@ const pluginChildrenHeight = computed(() => pluginMenuVisible.value
   : 0)
 
 function isActive(path: string) {
-  if (path === '/')
-    return route.path === '/'
   return route.path.startsWith(path)
 }
 
@@ -477,7 +475,7 @@ onBeforeUnmount(() => {
                 class="grid transition-[grid-template-rows] duration-260 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
                 :class="pluginMenuVisible ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'"
                 :inert="!pluginMenuVisible"
-                aria-label="插件导航"
+                aria-label="系统插件导航"
               >
                 <div class="min-h-0 overflow-hidden">
                   <div class="relative ml-3 grid gap-1 pt-1 pl-3">
@@ -533,6 +531,7 @@ onBeforeUnmount(() => {
                     ? 'bg-transparent font-semibold text-cp-text-secondary transition-none'
                     : 'bg-transparent font-semibold text-cp-text-secondary transition-colors duration-200 hover:bg-cp-fill-quaternary hover:text-cp-text',
               ]"
+              :aria-current="isActive(item.path) ? 'page' : undefined"
               @click="navigate(item.path)"
             >
               <component :is="item.icon" class="shrink-0" :size="20" />

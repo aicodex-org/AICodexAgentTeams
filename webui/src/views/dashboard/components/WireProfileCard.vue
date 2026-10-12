@@ -178,7 +178,7 @@ watch(
 </script>
 
 <template>
-  <ZCard as="article" class="flex min-h-95 w-full flex-col">
+  <ZCard as="article" class="flex w-full flex-col">
     <template #header>
       <div class="flex min-w-0 flex-wrap items-start justify-between gap-3">
         <h2 class="m-0 pt-0.5 text-xl leading-[1.15] font-heavy text-cp-text text-balance">
@@ -197,17 +197,12 @@ watch(
     </template>
 
     <template #body>
-      <ZEmpty v-if="!profile" title="暂无请求身份" surface="inset" class="min-h-71.75 flex-1 place-content-center" />
+      <ZEmpty v-if="!profile" title="暂无请求身份" surface="inset" class="min-h-60 flex-1 place-content-center" />
 
       <div v-else class="flex flex-1">
         <section
           aria-label="请求身份组成"
-          class="grid min-w-0 flex-1 content-between gap-6 rounded-cp-lg bg-cp-fill-alter/70 px-5 py-5.5 sm:px-6 sm:py-5"
-          :class="
-            verifiedLabel || checkedLabel
-              ? 'sm:grid-rows-[auto_minmax(0,1fr)_auto_auto]'
-              : 'sm:grid-rows-[auto_minmax(0,1fr)_auto]'
-          "
+          class="grid min-w-0 flex-1 content-start gap-5 rounded-cp-lg bg-cp-fill-alter/50 p-4"
         >
           <div class="flex min-w-0 items-center justify-between gap-3">
             <div class="flex min-w-0 items-center gap-2 text-cp-text">
@@ -233,7 +228,7 @@ watch(
                 class="inline-flex max-w-full min-w-0 items-baseline gap-2 font-mono leading-none tabular-nums"
                 :title="profile.version"
               >
-                <span class="wrap-break-word text-[27px] leading-[1.05] font-heavy text-cp-text">
+                <span class="wrap-break-word text-[24px] leading-[1.05] font-medium text-cp-text">
                   {{ versionParts.release }}
                 </span>
                 <span v-if="versionParts.prerelease" class="truncate text-cp-sm font-bold text-cp-text-secondary">
@@ -249,14 +244,14 @@ watch(
             </div>
           </div>
 
-          <dl class="m-0 flex min-w-0 flex-wrap gap-x-7 gap-y-5">
+          <dl class="m-0 flex min-w-0 flex-wrap gap-x-7 gap-y-4">
             <div v-if="profile.provider === 'xai'" class="min-w-0 flex-auto">
               <dt class="flex items-center gap-1.5 text-[10px] leading-none font-bold text-cp-text-quaternary">
                 <ShieldCheck class="size-3.25 text-cp-text-tertiary" />
                 认证协议
               </dt>
               <dd
-                class="mt-2 mb-0 font-mono text-cp-lg leading-snug font-bold wrap-anywhere tabular-nums text-cp-text"
+                class="mt-2 mb-0 font-mono text-sm leading-snug font-medium wrap-anywhere tabular-nums text-cp-text"
                 :title="authProtocol"
               >
                 {{ authProtocol }}
@@ -269,7 +264,7 @@ watch(
                 {{ profile.provider === 'openai' ? '模拟运行环境' : '运行环境' }}
               </dt>
               <dd
-                class="mt-2 mb-0 font-mono text-cp-lg leading-snug font-bold wrap-anywhere tabular-nums text-cp-text"
+                class="mt-2 mb-0 font-mono text-sm leading-snug font-medium wrap-anywhere tabular-nums text-cp-text"
                 :title="runtimeEnvironment.title"
               >
                 {{ runtimeEnvironment.primary }}
@@ -285,7 +280,7 @@ watch(
                 {{ attribute.label }}
               </dt>
               <dd
-                class="mt-2 mb-0 font-mono text-[16px] leading-snug font-heavy wrap-anywhere tabular-nums text-cp-text"
+                class="mt-2 mb-0 font-mono text-[13px] leading-snug font-medium wrap-anywhere tabular-nums text-cp-text"
                 :title="attribute.value"
               >
                 {{ attribute.value }}

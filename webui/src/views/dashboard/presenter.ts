@@ -134,7 +134,7 @@ function metricCards(
   const recentPoints = recentTrendWindow(points)
   return [
     {
-      title: '账号',
+      title: '账号总数',
       value: credentials.total,
       valueRaw: credentials.totalValue,
       valueFormatter: formatAccountCount,
@@ -154,7 +154,7 @@ function metricCards(
       ],
     },
     {
-      title: '请求次数',
+      title: '今日请求',
       value: traffic.todayRequests,
       valueRaw: traffic.todayRequestsValue,
       valueFormatter: formatCompactNumber,
@@ -171,7 +171,7 @@ function metricCards(
       ],
     },
     {
-      title: 'Token',
+      title: '今日 Token',
       value: tokens.todayTokens,
       valueRaw: tokens.todayTokensValue,
       valueFormatter: formatCompactNumber,
@@ -188,7 +188,7 @@ function metricCards(
       ],
     },
     {
-      title: '缓存命中',
+      title: '今日缓存命中率',
       value: cache.todayHitRate,
       valueRaw: cache.todayHitRateValue,
       valueFormatter: formatDashboardRate,

@@ -8,7 +8,7 @@ import { computed } from 'vue'
 import AnimatedMetricValue from '@/components/AnimatedMetricValue.vue'
 import BaseChart from '@/components/charts/BaseChart.vue'
 import { useThemeColor } from '@/composables/useThemeColor'
-import { metricToneIconClasses, metricToneValueClasses } from '../constants'
+import { metricToneValueClasses } from '../constants'
 
 const props = defineProps<{
   metric: MetricCardView
@@ -71,19 +71,18 @@ const sparklineOption = computed<EChartsOption | null>(() => {
 </script>
 
 <template>
-  <ZCard as="article" padding="compact" class="relative h-38.5 w-full">
+  <ZCard as="article" padding="compact" class="metric-card relative min-h-38.5 w-full">
     <div class="flex items-start gap-3">
       <ZMotionIcon
-        class="inline-flex size-8.5 shrink-0 items-center justify-center rounded-cp-lg"
-        :class="metricToneIconClasses[metric.tone]"
+        class="metric-icon inline-flex size-8.5 shrink-0 items-center justify-center rounded-cp-lg"
       >
         <component :is="metric.icon" :size="18" />
       </ZMotionIcon>
-      <span class="mt-1 text-cp leading-[1.15] font-emphasis text-cp-text-secondary">{{ metric.title }}</span>
+      <span class="mt-1 text-xs leading-[1.4] font-medium text-cp-text-secondary">{{ metric.title }}</span>
     </div>
 
     <div class="mt-3.25 flex h-7.75 items-end gap-2">
-      <strong class="font-mono text-[28px] leading-[1.05] font-heavy tabular-nums text-cp-text">
+      <strong class="font-mono text-[28px] leading-[1.05] font-medium tabular-nums text-cp-text">
         <AnimatedMetricValue :value="metric.value" :raw-value="metric.valueRaw" :formatter="metric.valueFormatter" />
       </strong>
       <i
@@ -98,14 +97,14 @@ const sparklineOption = computed<EChartsOption | null>(() => {
       />
     </div>
 
-    <div v-if="sparklineOption" class="pointer-events-none absolute top-7 right-6 h-16 w-[42%]">
-      <BaseChart :option="sparklineOption" :height="64" />
+    <div v-if="sparklineOption" class="pointer-events-none absolute top-12 right-4 h-10 w-[30%]">
+      <BaseChart :option="sparklineOption" :height="40" />
     </div>
 
     <div
-      class="mt-3 grid h-7.5 w-full grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center rounded-cp-lg bg-cp-fill-alter/70 px-3"
+      class="mt-4 flex min-h-7.5 w-full flex-wrap items-center justify-between gap-x-3 gap-y-2 text-cp-text-secondary"
     >
-      <span class="inline-grid min-w-0 w-full grid-cols-[auto_minmax(0,1fr)] items-baseline gap-2.5">
+      <span class="inline-grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-baseline gap-1.5">
         <span class="shrink-0 text-cp-xs leading-none font-emphasis text-cp-text-quaternary">
           {{ metric.details[0]?.label }}
         </span>
@@ -116,7 +115,7 @@ const sparklineOption = computed<EChartsOption | null>(() => {
           {{ metric.details[0]?.value }}
         </b>
       </span>
-      <span class="inline-grid min-w-0 w-full grid-cols-[auto_minmax(0,auto)] items-baseline justify-end gap-2.5">
+      <span class="inline-grid min-w-0 grid-cols-[auto_minmax(0,auto)] items-baseline justify-end gap-1.5">
         <span class="shrink-0 text-cp-xs leading-none font-emphasis text-cp-text-quaternary">
           {{ metric.details[1]?.label }}
         </span>
@@ -130,3 +129,17 @@ const sparklineOption = computed<EChartsOption | null>(() => {
     </div>
   </ZCard>
 </template>
+
+<style scoped>
+.metric-icon {
+  color: var(--cosmic-accent);
+  background: color-mix(in srgb, var(--cosmic-accent) 9%, transparent);
+}
+.metric-card {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--cosmic-accent) 5%, var(--cp-color-bg-container)),
+    var(--cp-card-bg)
+  );
+}
+</style>

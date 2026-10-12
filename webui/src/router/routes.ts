@@ -11,6 +11,12 @@ declare module 'vue-router' {
 
 export const routes: RouteRecordRaw[] = [
   {
+    path: '/',
+    alias: '/home',
+    name: 'home',
+    component: () => import('@/views/home/index.vue'),
+  },
+  {
     path: '/login',
     name: 'login',
     meta: { guestOnly: true },
@@ -24,12 +30,13 @@ export const routes: RouteRecordRaw[] = [
   },
   {
     path: '/',
-    meta: { role: 'admin', defaultEntry: true },
+    meta: { role: 'admin' },
     component: () => import('@/layout/index.vue'),
     children: [
       {
-        path: '',
+        path: 'dashboard',
         name: 'dashboard',
+        meta: { role: 'admin', defaultEntry: true },
         component: () => import('@/views/dashboard/index.vue'),
       },
       {

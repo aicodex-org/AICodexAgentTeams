@@ -7,10 +7,11 @@ import { RouterView, useRoute } from 'vue-router'
 import AppAboutModal from '@/components/AppAboutModal.vue'
 import { useSystemUpdateStore } from '@/stores/modules/system-update'
 import { useUiStore } from '@/stores/modules/ui'
-
 import AppSidebar from './components/AppSidebar.vue'
+
 import FloatingSidebarToggle from './components/FloatingSidebarToggle.vue'
 import SystemUpdateModal from './components/system-update-modal/index.vue'
+import '@/components/cosmic/surface.css'
 
 const uiStore = useUiStore()
 const systemUpdateStore = useSystemUpdateStore()
@@ -51,7 +52,7 @@ watch(
 </script>
 
 <template>
-  <div class="relative flex h-dvh overflow-hidden bg-cp-bg-layout">
+  <div class="relative flex h-dvh overflow-hidden bg-cp-bg-layout" :class="route.name === 'dashboard' ? 'dashboard-shell cosmic-surface' : undefined">
     <AppSidebar
       :collapsed="sidebarCollapsed"
       @toggle="toggleSidebar"
@@ -81,6 +82,7 @@ watch(
           <div class="mobile-sidebar-panel absolute inset-y-0 left-0 flex">
             <AppSidebar
               mobile
+              :class="route.name === 'dashboard' ? 'dashboard-shell cosmic-surface' : undefined"
               @close="closeMobileSidebar"
               @navigate="closeMobileSidebar"
               @open-about="aboutOpen = true"
@@ -97,6 +99,16 @@ watch(
 </template>
 
 <style scoped>
+.dashboard-shell {
+  --cp-menu-item-selected-bg: color-mix(in srgb, var(--cosmic-accent) 12%, transparent);
+}
+.dashboard-shell :deep(aside) {
+  background: color-mix(in srgb, var(--cp-color-bg-container) 88%, transparent);
+}
+.dashboard-shell :deep(nav [aria-current='page']) {
+  color: var(--cosmic-accent);
+}
+
 .mobile-sidebar-enter-active,
 .mobile-sidebar-leave-active {
   transition: opacity 180ms ease;

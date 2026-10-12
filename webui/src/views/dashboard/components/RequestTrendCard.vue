@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import type { dashboardTrendView, normalizeDashboardTrendKind } from '../presenter'
 
-import { ZCard, ZEmpty, ZSegmented } from '@codex-proxy/ui'
+import { ZButton, ZCard, ZEmpty, ZSegmented } from '@codex-proxy/ui'
+import { RefreshCw } from '@lucide/vue'
 import { toRef } from 'vue'
 import BaseChart from '@/components/charts/BaseChart.vue'
 import { useRequestTrendChart } from '../composables/useRequestTrendChart'
@@ -42,13 +43,13 @@ const {
 </script>
 
 <template>
-  <ZCard as="article" title="使用趋势" class="min-h-95 w-full">
+  <ZCard as="article" title="使用趋势" class="w-full">
     <template #actions>
       <ZSegmented
         v-model="activeKind"
         aria-label="趋势指标"
         :options="tabs"
-        class="w-full max-w-61.5 sm:w-61.5"
+        class="w-full sm:w-48"
         @update:model-value="handleTrendChange"
       />
     </template>
@@ -93,14 +94,25 @@ const {
           </button>
         </div>
 
-        <div class="relative h-55 w-full overflow-hidden">
+        <div class="relative h-55 w-full overflow-hidden" :aria-busy="loading">
           <BaseChart v-if="hasSamples" :option="chartOption" :height="220" />
+          <div v-else-if="loading" role="status" class="flex h-full items-center justify-center gap-2 text-xs text-cp-text-secondary">
+            <RefreshCw :size="16" class="animate-spin motion-reduce:animate-none" />
+            正在加载趋势
+          </div>
           <ZEmpty
-            v-else-if="!loading"
+            v-else
             surface="none"
-            :title="error || '暂无趋势数据'"
+            :title="error ? '趋势暂不可用' : '暂无趋势数据'"
+            :description="error || '产生请求后，可在这里查看当日用量、延迟与错误趋势'"
             class="h-full place-content-center"
-          />
+          >
+            <template v-if="error" #action>
+              <ZButton size="small" @click="emit('trendChange', activeKind)">
+                重新加载
+              </ZButton>
+            </template>
+          </ZEmpty>
         </div>
       </div>
     </template>

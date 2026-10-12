@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import type { dashboardSnapshotView, dashboardTrendView } from '../presenter'
 import type { DashboardTrendKind } from '@/api/modules/dashboard'
-import { ZIconButton, ZPageHeader } from '@codex-proxy/ui'
+import { ZButton, ZPageHeader } from '@codex-proxy/ui'
 
-import { RefreshCw } from '@lucide/vue'
+import { ArrowUpRight, RefreshCw } from '@lucide/vue'
+import { defineAsyncComponent } from 'vue'
+import { RouterLink } from 'vue-router'
 
 import RequestHealthTimelineCard from '@/components/usage/RequestHealthTimelineCard.vue'
 import AccountOverviewCard from './AccountOverviewCard.vue'
@@ -12,9 +14,6 @@ import MetricCard from './MetricCard.vue'
 import RequestTrendCard from './RequestTrendCard.vue'
 import UsageRecordCard from './UsageRecordCard.vue'
 import WireProfileCard from './WireProfileCard.vue'
-
-type DashboardSnapshotView = ReturnType<typeof dashboardSnapshotView>
-type DashboardTrendView = ReturnType<typeof dashboardTrendView>
 
 withDefaults(
   defineProps<{
@@ -51,20 +50,30 @@ const emit = defineEmits<{
   trendChange: [kind: DashboardTrendKind]
 }>()
 
+const LaniakeaScene = defineAsyncComponent(() => import('@/components/cosmic/LaniakeaScene.vue'))
+
+type DashboardSnapshotView = ReturnType<typeof dashboardSnapshotView>
+type DashboardTrendView = ReturnType<typeof dashboardTrendView>
+
 const trendKind = defineModel<DashboardTrendKind>('trendKind', { required: true })
 </script>
 
 <template>
-  <div class="w-full">
-    <ZPageHeader title="系统概览">
+  <div class="dashboard-content w-full">
+    <div class="dashboard-universe" aria-hidden="true" inert>
+      <LaniakeaScene :playing="false" decorative />
+    </div>
+    <ZPageHeader title="系统概览" class="dashboard-header">
       <template #description>
-        <span>当日统计</span>
+        <span class="period-label">当日统计</span>
         <DashboardHeartbeat :updated-at="lastRefreshedAt" />
       </template>
       <template #actions>
-        <ZIconButton
-          class="text-cp-primary-text"
-          size="default"
+        <RouterLink to="/" class="home-link">
+          返回主页 <ArrowUpRight :size="15" />
+        </RouterLink>
+        <ZButton
+          class="refresh-button"
           aria-label="刷新概览"
           :loading="loading || refreshing"
           :disabled="loading || refreshing"
@@ -73,8 +82,9 @@ const trendKind = defineModel<DashboardTrendKind>('trendKind', { required: true 
           <template #loading>
             <RefreshCw class="animate-spin motion-reduce:animate-none" :size="19" />
           </template>
-          <RefreshCw :size="19" />
-        </ZIconButton>
+          <RefreshCw :size="15" />
+          刷新
+        </ZButton>
       </template>
     </ZPageHeader>
 
@@ -84,14 +94,14 @@ const trendKind = defineModel<DashboardTrendKind>('trendKind', { required: true 
 
     <template v-if="!analyticsError || analytics">
       <section
-        class="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-4 2xl:gap-6"
+        class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
         aria-label="核心指标"
       >
         <MetricCard v-for="metric in metrics" :key="metric.title" :metric="metric" />
       </section>
 
       <section
-        class="mt-6 grid grid-cols-1 gap-6 2xl:grid-cols-[minmax(0,948fr)_minmax(0,608fr)] 2xl:gap-7"
+        class="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(340px,1fr)]"
       >
         <RequestTrendCard
           v-model:kind="trendKind"
@@ -109,12 +119,76 @@ const trendKind = defineModel<DashboardTrendKind>('trendKind', { required: true 
         :pool="poolSummary"
         :capacity="capacityInfo"
         :rotation-strategy="rotationStrategy"
-        class="mt-6"
+        class="mt-5"
       />
 
-      <RequestHealthTimelineCard :timeline="healthTimeline" class="mt-6" />
+      <RequestHealthTimelineCard :timeline="healthTimeline" class="mt-5" />
 
-      <UsageRecordCard :rows="usageRecords" class="mt-6" />
+      <UsageRecordCard :rows="usageRecords" class="mt-5" />
     </template>
   </div>
 </template>
+
+<style scoped>
+.dashboard-content {
+  --cp-card-bg: color-mix(in srgb, var(--cp-color-bg-container) 94%, transparent);
+  position: relative;
+  isolation: isolate;
+}
+.dashboard-universe {
+  position: absolute;
+  inset: -24px 0 auto;
+  height: 500px;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0.25;
+  mask-image: linear-gradient(#000, transparent);
+}
+.dashboard-header {
+  padding: 12px 0 24px;
+  border-bottom: 1px solid color-mix(in srgb, var(--cosmic-accent) 18%, transparent);
+}
+.dashboard-header :deep(h1) {
+  font-size: 30px;
+  font-weight: 500;
+  letter-spacing: 1px;
+}
+.dashboard-header :deep(p) {
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 12px;
+  font-weight: 400;
+}
+.period-label {
+  color: var(--cosmic-accent);
+}
+.home-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 12px;
+  color: var(--cp-color-text-secondary);
+  font-size: 12px;
+}
+.home-link:hover {
+  color: var(--cosmic-accent);
+}
+.refresh-button {
+  color: var(--cosmic-accent);
+  background: color-mix(in srgb, var(--cosmic-accent) 10%, var(--cp-color-bg-container));
+}
+.dashboard-content :deep(h2) {
+  font-size: 17px;
+  font-weight: 550;
+  line-height: 1.4;
+}
+@media (max-width: 600px) {
+  .dashboard-header {
+    padding-top: 6px;
+  }
+  .dashboard-header :deep(h1) {
+    font-size: 26px;
+  }
+}
+</style>
