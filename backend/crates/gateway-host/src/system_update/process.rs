@@ -7,7 +7,7 @@ use std::process::{Command, Stdio};
 use super::config::environment_value;
 use super::{OperationError, SystemUpdateConfig, internal};
 
-const RESTART_DELAY_ENV: &str = "CPR_RESTART_DELAY_MS";
+const RESTART_DELAY_ENV: &str = "AICODEX_AGENT_TEAMS_RESTART_DELAY_MS";
 const DEFAULT_RESTART_DELAY_MS: u64 = 1_200;
 
 pub(crate) fn spawn_replacement(config: &SystemUpdateConfig) -> Result<(), OperationError> {
@@ -40,7 +40,7 @@ pub(crate) fn spawn_replacement(config: &SystemUpdateConfig) -> Result<(), Opera
         command
             .arg("-c")
             .arg("sleep \"$1\"; shift; exec \"$@\"")
-            .arg("codex-proxy-rs-restart")
+            .arg("AICodexAgentTeams-restart")
             .arg(delay)
             .arg(&executable)
             .args(env::args_os().skip(1));

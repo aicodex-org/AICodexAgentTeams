@@ -308,6 +308,7 @@ fn valid_digest(digest: &str) -> bool {
 
 fn default_instance_id(plugin_id: &str) -> String {
     let mut hash = Sha256::new();
+    // 保留派生域，避免产品改名为已安装插件生成另一组默认实例
     hash.update(b"codex-proxy-rs/plugin-default-instance/v1\0");
     hash.update(plugin_id.as_bytes());
     let digest = hash.finalize();

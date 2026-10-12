@@ -23,7 +23,7 @@ async fn send(
         .header("x-request-id", "import-task-contract")
         .header(header::CONTENT_TYPE, "application/json");
     if authenticated {
-        request = request.header(header::COOKIE, "cpr_session=valid-session");
+        request = request.header(header::COOKIE, "aicodex_agent_teams_session=valid-session");
     }
     let response = admin::router::<AdminTestState>()
         .with_state(fixture.state())

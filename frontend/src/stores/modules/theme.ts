@@ -303,7 +303,7 @@ export const useThemeStore = defineStore(
   },
   {
     persist: {
-      key: 'codex-proxy-rs-theme',
+      key: 'AICodexAgentTeams-theme',
       pick: [
         'themeMode',
         'themeColor',

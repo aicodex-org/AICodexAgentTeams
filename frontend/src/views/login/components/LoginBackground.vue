@@ -25,7 +25,7 @@ const routeClusters: readonly RouteCluster[] = [
     <span
       class="login-watermark absolute top-[9.63%] left-[6.15%] whitespace-nowrap font-mono text-cp leading-none font-medium text-(--cp-login-watermark-color)"
     >
-      CODEX_PROXY_RS // ROUTE_TOPOLOGY // AUTH_GATEWAY
+      AICODEX_AGENT_TEAMS // ROUTE_TOPOLOGY // AUTH_GATEWAY
     </span>
 
     <div class="login-protocol-stack login-protocol-stack--ingress">

@@ -11,8 +11,8 @@ use tracing_subscriber::EnvFilter;
 use crate::system_update::SystemUpdateConfig;
 
 const CONFIG_RELATIVE_PATH: &str = "deploy/config.yaml";
-const SERVER_HOST_ENV: &str = "CPR_SERVER_HOST";
-const SERVER_PORT_ENV: &str = "CPR_SERVER_PORT";
+const SERVER_HOST_ENV: &str = "AICODEX_AGENT_TEAMS_SERVER_HOST";
+const SERVER_PORT_ENV: &str = "AICODEX_AGENT_TEAMS_SERVER_PORT";
 
 /// 由组装根实现的顶层配置契约
 ///

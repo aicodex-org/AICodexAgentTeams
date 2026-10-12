@@ -17,7 +17,7 @@ async fn proxy_probe_should_use_provider_custom_ca_for_https_proxies() {
         },
     };
 
-    const CHILD_ENV: &str = "CPR_TEST_PROXY_TLS_DIRECTORY";
+    const CHILD_ENV: &str = "AICODEX_AGENT_TEAMS_TEST_PROXY_TLS_DIRECTORY";
     let Ok(directory) = std::env::var(CHILD_ENV) else {
         let directory = tempfile::tempdir().unwrap();
         generate_proxy_test_certificates(directory.path());

@@ -165,7 +165,7 @@ async fn affinity_repository() -> Option<(
     ConnectionManager,
     String,
 )> {
-    let redis_url = crate::support::test_env("CPR_TEST_REDIS_URL")?;
+    let redis_url = crate::support::test_env("AICODEX_AGENT_TEAMS_TEST_REDIS_URL")?;
     let connection = redis::Client::open(redis_url)
         .unwrap()
         .get_connection_manager()

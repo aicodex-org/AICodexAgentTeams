@@ -6,7 +6,7 @@ use provider_openai::transport::client::build_account_http_client;
 
 #[tokio::test]
 async fn cold_connection_admission_bounds_queue_and_releases_cancelled_work() {
-    const CHILD: &str = "CPR_CONNECTION_ADMISSION_TEST_CHILD";
+    const CHILD: &str = "AICODEX_AGENT_TEAMS_CONNECTION_ADMISSION_TEST_CHILD";
     if std::env::var_os(CHILD).is_none() {
         let status = Command::new(std::env::current_exe().unwrap())
             .args(["--exact", "transport::connection::cold_connection_admission_bounds_queue_and_releases_cancelled_work", "--nocapture"])

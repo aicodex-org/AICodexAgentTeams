@@ -57,7 +57,7 @@ async fn dashboard_summary_should_include_quota_exhaustion_in_unavailable_headli
         .oneshot(
             Request::builder()
                 .uri("/api/admin/dashboard/summary")
-                .header(header::COOKIE, "cpr_session=valid-session")
+                .header(header::COOKIE, "aicodex_agent_teams_session=valid-session")
                 .header("x-request-id", "req_dashboard_account_summary")
                 .body(Body::empty())
                 .expect("dashboard request"),
@@ -148,7 +148,7 @@ async fn dashboard_summary_should_use_lifetime_totals_for_card_footers() {
         .oneshot(
             Request::builder()
                 .uri("/api/admin/dashboard/summary")
-                .header(header::COOKIE, "cpr_session=valid-session")
+                .header(header::COOKIE, "aicodex_agent_teams_session=valid-session")
                 .header("x-request-id", "req_dashboard_lifetime_totals")
                 .body(Body::empty())
                 .expect("dashboard request"),
@@ -223,7 +223,7 @@ async fn dashboard_summary_should_default_to_current_deployment_day() {
         .oneshot(
             Request::builder()
                 .uri("/api/admin/dashboard/summary")
-                .header(header::COOKIE, "cpr_session=valid-session")
+                .header(header::COOKIE, "aicodex_agent_teams_session=valid-session")
                 .header("x-request-id", "req_dashboard_today_range")
                 .body(Body::empty())
                 .expect("dashboard request"),
@@ -326,7 +326,7 @@ async fn usage_detail_should_keep_attempt_snapshot_contract() {
         .oneshot(
             Request::builder()
                 .uri("/api/admin/usage/records/detail?id=req_detail")
-                .header(header::COOKIE, "cpr_session=valid-session")
+                .header(header::COOKIE, "aicodex_agent_teams_session=valid-session")
                 .header("x-request-id", "req_usage_detail_snapshot")
                 .body(Body::empty())
                 .expect("usage detail request"),
@@ -454,7 +454,7 @@ async fn zero_attempt_failure_detail_keeps_missing_upstream_facts_and_preparatio
         .oneshot(
             Request::builder()
                 .uri("/api/admin/usage/records/detail?id=req_early")
-                .header(header::COOKIE, "cpr_session=valid-session")
+                .header(header::COOKIE, "aicodex_agent_teams_session=valid-session")
                 .header("x-request-id", "req_zero_attempt_detail")
                 .body(Body::empty())
                 .unwrap(),
@@ -570,7 +570,7 @@ async fn ops_errors_should_keep_account_label_and_authentication_contract() {
         .oneshot(
             Request::builder()
                 .uri("/api/admin/operations/errors")
-                .header(header::COOKIE, "cpr_session=valid-session")
+                .header(header::COOKIE, "aicodex_agent_teams_session=valid-session")
                 .header("x-request-id", "req_ops_errors_snapshot")
                 .body(Body::empty())
                 .expect("ops errors request"),
@@ -673,7 +673,7 @@ async fn diagnostics_should_keep_stable_key_and_display_name_contract() {
         .oneshot(
             Request::builder()
                 .uri("/api/admin/usage/insights/diagnostics?dimension=account")
-                .header(header::COOKIE, "cpr_session=valid-session")
+                .header(header::COOKIE, "aicodex_agent_teams_session=valid-session")
                 .header("x-request-id", "req_diagnostics_snapshot")
                 .body(Body::empty())
                 .expect("diagnostics request"),
@@ -819,7 +819,7 @@ async fn usage_route_should_forward_a_bounded_unknown_outcome_filter() {
         .oneshot(
             Request::builder()
                 .uri("/api/admin/usage/records?outcome=provider_future_state")
-                .header(header::COOKIE, "cpr_session=valid-session")
+                .header(header::COOKIE, "aicodex_agent_teams_session=valid-session")
                 .header("x-request-id", "req_usage_other_outcome")
                 .body(Body::empty())
                 .expect("usage request"),
@@ -954,7 +954,7 @@ async fn usage_route_should_expose_table_facts_without_detail_payload() {
         .oneshot(
             Request::builder()
                 .uri("/api/admin/usage/records")
-                .header(header::COOKIE, "cpr_session=valid-session")
+                .header(header::COOKIE, "aicodex_agent_teams_session=valid-session")
                 .header("x-request-id", "req_usage_endpoint")
                 .body(Body::empty())
                 .expect("usage request"),
@@ -1154,7 +1154,7 @@ async fn calendar_queries_and_display_follow_deployment_timezone_with_one_anchor
                         "/api/admin/dashboard/summary?period=today&asOf={}",
                         end.timestamp_millis()
                     ))
-                    .header(header::COOKIE, "cpr_session=valid-session")
+                    .header(header::COOKIE, "aicodex_agent_teams_session=valid-session")
                     .header("x-request-id", "req_timezone_calendar")
                     .body(Body::empty())
                     .unwrap(),
@@ -1206,7 +1206,7 @@ async fn calendar_queries_and_display_follow_deployment_timezone_with_one_anchor
         }
         let invalid = router.oneshot(Request::builder()
             .uri(format!("/api/admin/dashboard/summary?period=today&asOf={}&startTime=2026-01-01T00%3A00%3A00Z", end.timestamp_millis()))
-            .header(header::COOKIE, "cpr_session=valid-session")
+            .header(header::COOKIE, "aicodex_agent_teams_session=valid-session")
             .header("x-request-id", "req_timezone_mixed_range")
             .body(Body::empty()).unwrap()).await.unwrap();
         assert_eq!(invalid.status(), StatusCode::BAD_REQUEST);
@@ -1233,7 +1233,7 @@ async fn calendar_query_rejects_an_anchor_outside_the_local_calendar() {
                     "/api/admin/dashboard/summary?period=today&asOf={}",
                     chrono::DateTime::<chrono::Utc>::MAX_UTC.timestamp_millis()
                 ))
-                .header(header::COOKIE, "cpr_session=valid-session")
+                .header(header::COOKIE, "aicodex_agent_teams_session=valid-session")
                 .header("x-request-id", "req_timezone_out_of_range")
                 .body(Body::empty())
                 .unwrap(),
@@ -1264,7 +1264,7 @@ async fn request_and_ops_queries_should_forward_deleted_group_id_sets() {
                     .uri(format!(
                         "{path}?routingGroupRefs=deleted-b,deleted-a,deleted-b"
                     ))
-                    .header(header::COOKIE, "cpr_session=valid-session")
+                    .header(header::COOKIE, "aicodex_agent_teams_session=valid-session")
                     .header("x-request-id", "req_group_filter")
                     .body(Body::empty())
                     .unwrap(),

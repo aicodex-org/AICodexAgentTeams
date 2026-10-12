@@ -4,7 +4,7 @@ use std::{future::Future, path::Path, process::Command, time::Duration};
 
 use gateway_host::config::{FileLoggingConfig, HostConfig, ListenConfig, LoggingConfig};
 
-pub const CHILD_PROCESS_ENV: &str = "CPR_HOST_LIFECYCLE_TEST_CHILD";
+pub const CHILD_PROCESS_ENV: &str = "AICODEX_AGENT_TEAMS_HOST_LIFECYCLE_TEST_CHILD";
 
 pub fn run_in_child(name: &str, scenario: impl Future<Output = ()>) {
     if std::env::var(CHILD_PROCESS_ENV).as_deref() == Ok(name) {

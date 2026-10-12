@@ -41,7 +41,7 @@ fn author_manifest(contributes: Value, state: Value) -> Vec<u8> {
         "version": "1.0.0",
         "description": "Composed plugin",
         "license": "MIT",
-        "engines": {"codex-proxy-rs": "*"},
+        "engines": {"AICodexAgentTeams": "*"},
         "main": "bin/plugin",
         "runtime": "trustedProcess",
         "contributes": contributes,

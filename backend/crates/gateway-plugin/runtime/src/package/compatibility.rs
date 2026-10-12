@@ -52,7 +52,7 @@ pub(crate) fn requirements(
         .as_ref()
         .ok_or_else(|| AdminError::invalid("插件包缺少构建元数据"))?;
     Ok(PluginCompatibilityRequirements {
-        host_version: manifest.engines.codex_proxy_rs.to_string(),
+        host_version: manifest.engines.aicodex_agent_teams.to_string(),
         manifest_schema_version: manifest.manifest_version,
         protocol_version: package.protocol_version,
         capabilities: manifest

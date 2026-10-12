@@ -16,21 +16,21 @@
 
 需要 Node.js 24、pnpm、[Rust 工具链](architecture.md#验证命令)、PostgreSQL 和 Redis
 
-各前端的 `packageManager` 固定 pnpm 版本，宿主 CI 和 Docker 从 `frontend/package.json` 读取
+各前端的 `packageManager` 固定 pnpm 版本，Docker 从 `frontend/package.json` 读取
 
 Rust 工具链声明位于 `backend/rust-toolchain.toml`，从仓库根目录运行 Cargo 时显式选择该工具链；
 `--manifest-path` 只选择 manifest，不切换 rustup 按当前目录选定的工具链
 
 ```bash
-git clone https://github.com/zyycn/codex-proxy-rs.git
-cd codex-proxy-rs
+git clone https://github.com/aicodex-org/AICodexAgentTeams.git
+cd AICodexAgentTeams
 pnpm --dir frontend install --frozen-lockfile
 ```
 
 前端依赖、锁文件与 ESLint 配置由 `frontend/` 管理，根目录不维护 Node 包
 
 - **版本固定**：`@codex-proxy/ui` 使用固定 GitHub 标签或提交，锁文件记录实际提交、源码归档地址及完整性摘要
-- **安装与构建**：pnpm 按 UI 自身锁文件准备依赖，执行 `prepack` 生成 JS、CSS 和类型声明，普通 `dev`、`build`、发行 CI 和 Docker 使用编译产物，无需初始化子模块
+- **安装与构建**：pnpm 按 UI 自身锁文件准备依赖，执行 `prepack` 生成 JS、CSS 和类型声明，普通 `dev`、`build` 和 Docker 使用编译产物，无需初始化子模块
 - **构建许可**：`frontend/pnpm-workspace.yaml` 的 `allowBuilds` 按仓库放行自有 UI 包脚本，升级时核对源码并更新锁文件，无需逐次修改许可，不开放全部依赖脚本
 
 ## 启动宿主
@@ -41,7 +41,7 @@ pnpm --dir frontend install --frozen-lockfile
 
 ```bash
 docker compose -f deploy/compose.yaml up -d postgres redis
-cargo +1.97.0 run --manifest-path backend/Cargo.toml -p codex-proxy-rs --locked
+cargo +1.97.0 run --manifest-path backend/Cargo.toml -p aicodex-agent-teams --locked
 ```
 
 后端从当前目录向上查找 `deploy/config.yaml`，本机运行时数据库与 Redis 地址应指向可访问的本机端口
@@ -80,8 +80,8 @@ pnpm --dir frontend dev
 首次检出可同时下载子模块：
 
 ```bash
-git clone --recurse-submodules https://github.com/zyycn/codex-proxy-rs.git
-cd codex-proxy-rs
+git clone --recurse-submodules https://github.com/aicodex-org/AICodexAgentTeams.git
+cd AICodexAgentTeams
 ```
 
 已有仓库运行 `git submodule update --init --recursive`。子模块固定到具体提交；拉取宿主更新后，同样用此命令对齐。执行前先保存子模块中的改动，避免切换正在开发的分支
@@ -114,7 +114,7 @@ pnpm --dir modules/plugins/examples/workbench/frontend build:source
 ```
 
 `build:source` 用各项目的 `tsconfig.source.json` 检查源码类型，管理端构建到 `frontend/node_modules/.vite/source-dist`，示例构建到其前端项目的 `.vite/source-dist`，不改写正式依赖、锁文件或 `dist`。
-源码联调 CI 显式检出子模块、核对 UI 提交锁定并验证这两个命令
+源码联调需显式检出子模块、核对 UI 提交锁定并验证这两个命令
 
 ### 本地 SDK 验证
 
@@ -123,14 +123,14 @@ pnpm --dir modules/plugins/examples/workbench/frontend build:source
 ```bash
 (
   set -e
-  cpr_sdk_check_dir=$(mktemp -d)
-  trap 'rm -rf "$cpr_sdk_check_dir"' EXIT
-  mkdir "$cpr_sdk_check_dir/backend"
-  cp modules/plugins/examples/workbench/backend/Cargo.{toml,lock} "$cpr_sdk_check_dir/backend/"
-  cp -R modules/plugins/examples/workbench/backend/{src,tests} "$cpr_sdk_check_dir/backend/"
-  cp modules/plugins/examples/workbench/plugin.json "$cpr_sdk_check_dir/"
+  aicodex_sdk_check_dir=$(mktemp -d)
+  trap 'rm -rf "$aicodex_sdk_check_dir"' EXIT
+  mkdir "$aicodex_sdk_check_dir/backend"
+  cp modules/plugins/examples/workbench/backend/Cargo.{toml,lock} "$aicodex_sdk_check_dir/backend/"
+  cp -R modules/plugins/examples/workbench/backend/{src,tests} "$aicodex_sdk_check_dir/backend/"
+  cp modules/plugins/examples/workbench/plugin.json "$aicodex_sdk_check_dir/"
   RUST_MIN_STACK=16777216 CARGO_TARGET_DIR="$PWD/backend/target/plugin-development" \
-    cargo +1.97.0 test --manifest-path "$cpr_sdk_check_dir/backend/Cargo.toml" \
+    cargo +1.97.0 test --manifest-path "$aicodex_sdk_check_dir/backend/Cargo.toml" \
     --config "patch.\"https://github.com/zyycn/codex-proxy-rs.git\".gateway-plugin-sdk.path=\"$PWD/backend/crates/gateway-plugin/sdk\""
 )
 ```
@@ -142,7 +142,7 @@ pnpm --dir modules/plugins/examples/workbench/frontend build:source
 1. 在要修改的子模块内先创建分支，例如 `git -C modules/ui switch -c feat/select`。初次初始化的子模块通常处于 detached HEAD
 2. 在子模块运行自身检查，并在宿主根目录运行所需联调检查
 3. 分别提交、推送并合并组件库或插件 PR。宿主只记录子模块提交号，不能替代子仓库的提交与推送
-4. UI 更新后，将管理端和插件页面的 UI 依赖同步到同一固定标签或提交，重新生成各自锁文件，再更新宿主的子模块指针；CI 会核对三处是否一致
+4. UI 更新后，将管理端和插件页面的 UI 依赖同步到同一固定标签或提交，重新生成各自锁文件，再更新宿主的子模块指针，核对三处是否一致
 5. 提交宿主改动及 `modules/ui`、`modules/plugins` 指针。指针必须指向远程可取得的提交，不能只存在于开发机
 
 更新子模块指针不会自动升级消费方依赖。正式依赖不能写成开发机路径或浮动分支；SDK 仍由插件仓库固定到包含所需合同的宿主提交

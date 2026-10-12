@@ -17,15 +17,15 @@ FROM rust:1.98-bookworm@sha256:93ce27a88655056a51dbdd8f5f2d7ddc071c7b0070fb288a3
 
 WORKDIR /app/backend
 ARG TARGETARCH
-ARG CPR_VERSION=
-ARG CPR_GIT_SHA=unknown
-ARG CPR_BUILD_TIME=unknown
-ARG CPR_BUILD_TYPE=release
+ARG AICODEX_AGENT_TEAMS_VERSION=
+ARG AICODEX_AGENT_TEAMS_GIT_SHA=unknown
+ARG AICODEX_AGENT_TEAMS_BUILD_TIME=unknown
+ARG AICODEX_AGENT_TEAMS_BUILD_TYPE=release
 ENV CARGO_TARGET_DIR=/app/backend/target/${TARGETARCH}
-ENV CPR_VERSION=${CPR_VERSION}
-ENV CPR_GIT_SHA=${CPR_GIT_SHA}
-ENV CPR_BUILD_TIME=${CPR_BUILD_TIME}
-ENV CPR_BUILD_TYPE=${CPR_BUILD_TYPE}
+ENV AICODEX_AGENT_TEAMS_VERSION=${AICODEX_AGENT_TEAMS_VERSION}
+ENV AICODEX_AGENT_TEAMS_GIT_SHA=${AICODEX_AGENT_TEAMS_GIT_SHA}
+ENV AICODEX_AGENT_TEAMS_BUILD_TIME=${AICODEX_AGENT_TEAMS_BUILD_TIME}
+ENV AICODEX_AGENT_TEAMS_BUILD_TYPE=${AICODEX_AGENT_TEAMS_BUILD_TYPE}
 COPY backend/Cargo.toml backend/Cargo.lock ./
 COPY backend/apps ./apps
 COPY backend/crates ./crates
@@ -34,8 +34,8 @@ COPY release/version.yaml /app/release/version.yaml
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/app/backend/target \
-    cargo build --release --locked --bin codex-proxy-rs \
-    && cp "${CARGO_TARGET_DIR}/release/codex-proxy-rs" /tmp/codex-proxy-rs
+    cargo build --release --locked --bin AICodexAgentTeams \
+    && cp "${CARGO_TARGET_DIR}/release/AICodexAgentTeams" /tmp/AICodexAgentTeams
 
 # 备份客户端来源：与 compose 服务端同一固定镜像，版本一致。
 FROM ${POSTGRES_IMAGE} AS pg-client
@@ -53,9 +53,9 @@ RUN apt-get update \
     && install -d /usr/lib/postgresql/18/bin \
     && ln -snf "/usr/share/zoneinfo/${TZ}" /etc/localtime \
     && printf '%s\n' "${TZ}" > /etc/timezone \
-    && groupadd --system --gid 10001 cpr \
-    && useradd --system --uid 10001 --gid cpr --home-dir /app --shell /usr/sbin/nologin cpr \
-    && install -d -o cpr -g cpr \
+    && groupadd --system --gid 10001 aicodex-agent-teams \
+    && useradd --system --uid 10001 --gid aicodex-agent-teams --home-dir /app --shell /usr/sbin/nologin aicodex-agent-teams \
+    && install -d -o aicodex-agent-teams -g aicodex-agent-teams \
         /app/bin /app/deploy /app/.runtime/data /app/.runtime/logs /app/web \
     && rm -rf /var/lib/apt/lists/*
 
@@ -65,7 +65,7 @@ RUN /usr/lib/postgresql/18/bin/pg_dump --version \
     && /usr/lib/postgresql/18/bin/pg_restore --version
 
 WORKDIR /app
-ENV CPR_DEPLOYMENT_MODE=docker
+ENV AICODEX_AGENT_TEAMS_DEPLOYMENT_MODE=docker
 ENV PATH="/app/bin:/usr/lib/postgresql/18/bin:${PATH}"
 
 EXPOSE 8080
@@ -74,24 +74,24 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5m --retries=3 \
     CMD curl -fsS http://127.0.0.1:8080/healthz || exit 1
 
-CMD ["/app/bin/codex-proxy-rs"]
+CMD ["/app/bin/AICodexAgentTeams"]
 
 FROM runtime-base AS runtime
 
-COPY --from=backend-builder --chown=cpr:cpr /tmp/codex-proxy-rs /app/bin/codex-proxy-rs
-COPY --from=frontend-builder --chown=cpr:cpr /app/frontend/dist ./web/dist
-USER cpr
+COPY --from=backend-builder --chown=aicodex-agent-teams:aicodex-agent-teams /tmp/AICodexAgentTeams /app/bin/AICodexAgentTeams
+COPY --from=frontend-builder --chown=aicodex-agent-teams:aicodex-agent-teams /app/frontend/dist ./web/dist
+USER aicodex-agent-teams
 
 FROM runtime-base AS runtime-prebuilt
 
 ARG TARGETARCH
-ARG CPR_PREBUILT_DIR=dist/docker
+ARG AICODEX_AGENT_TEAMS_PREBUILT_DIR=dist/docker
 
-COPY --chown=cpr:cpr ${CPR_PREBUILT_DIR}/linux-${TARGETARCH}/codex-proxy-rs /app/bin/codex-proxy-rs
-COPY --chown=cpr:cpr ${CPR_PREBUILT_DIR}/web/dist ./web/dist
-COPY --chown=cpr:cpr ${CPR_PREBUILT_DIR}/linux-${TARGETARCH}/plugins/official /app/bin/plugins/official
-RUN chmod +x /app/bin/codex-proxy-rs \
+COPY --chown=aicodex-agent-teams:aicodex-agent-teams ${AICODEX_AGENT_TEAMS_PREBUILT_DIR}/linux-${TARGETARCH}/AICodexAgentTeams /app/bin/AICodexAgentTeams
+COPY --chown=aicodex-agent-teams:aicodex-agent-teams ${AICODEX_AGENT_TEAMS_PREBUILT_DIR}/web/dist ./web/dist
+COPY --chown=aicodex-agent-teams:aicodex-agent-teams ${AICODEX_AGENT_TEAMS_PREBUILT_DIR}/linux-${TARGETARCH}/plugins/official /app/bin/plugins/official
+RUN chmod +x /app/bin/AICodexAgentTeams \
     && find /app/bin/plugins/official -type f -exec chmod 0444 '{}' + \
     && chmod 0555 /app/bin/plugins/official \
     && chmod 0755 /app/bin/plugins
-USER cpr
+USER aicodex-agent-teams

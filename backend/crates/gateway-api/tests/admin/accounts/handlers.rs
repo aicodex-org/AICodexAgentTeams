@@ -67,7 +67,7 @@ async fn account_cooldown_returns_an_instant_and_server_formatted_recovery() {
                     Request::builder()
                         .uri("/api/admin/accounts")
                         .header("x-request-id", "req_cooldown_timezone")
-                        .header(header::COOKIE, "cpr_session=valid-session")
+                        .header(header::COOKIE, "aicodex_agent_teams_session=valid-session")
                         .body(Body::empty())
                         .unwrap(),
                 )
@@ -193,7 +193,7 @@ async fn account_usage_returns_distinct_cache_read_and_write_tokens_without_alia
                 Request::builder()
                     .uri("/api/admin/accounts")
                     .header("x-request-id", "req_account_usage_contract")
-                    .header(header::COOKIE, "cpr_session=valid-session")
+                    .header(header::COOKIE, "aicodex_agent_teams_session=valid-session")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -235,7 +235,7 @@ async fn standalone_credential_rotation_route_is_not_exposed() {
             Request::builder()
                 .method("POST")
                 .uri("/api/admin/accounts/rotate")
-                .header(header::COOKIE, "cpr_session=valid-session")
+                .header(header::COOKIE, "aicodex_agent_teams_session=valid-session")
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from("{}"))
                 .unwrap(),
@@ -278,7 +278,7 @@ async fn connection_update_requires_admin_and_validates_before_calling_the_servi
             .header(header::CONTENT_TYPE, "application/json")
             .header("x-request-id", "req_connection_update");
         if authenticated {
-            request = request.header(header::COOKIE, "cpr_session=valid-session");
+            request = request.header(header::COOKIE, "aicodex_agent_teams_session=valid-session");
         }
         let response = admin::router::<AdminTestState>()
             .with_state(fixture.state())
@@ -314,7 +314,7 @@ async fn personal_info_requires_admin_and_a_valid_account_query() {
             .uri(format!("/api/admin/accounts/personal-info{query}"))
             .header("x-request-id", "req_personal_info");
         if authenticated {
-            request = request.header(header::COOKIE, "cpr_session=valid-session");
+            request = request.header(header::COOKIE, "aicodex_agent_teams_session=valid-session");
         }
         let response = admin::router::<AdminTestState>()
             .with_state(fixture.state())
@@ -356,7 +356,7 @@ async fn quota_forecast_requires_admin_and_valid_account_query() {
             .uri(uri)
             .header("x-request-id", "req_forecast");
         if authenticated {
-            request = request.header(header::COOKIE, "cpr_session=valid-session");
+            request = request.header(header::COOKIE, "aicodex_agent_teams_session=valid-session");
         }
         let response = admin::router::<AdminTestState>()
             .with_state(fixture.state())

@@ -3,7 +3,7 @@ platforms:
     arch: amd64
     runner: ubuntu-latest
     target: x86_64-unknown-linux-gnu
-    binary: codex-proxy-rs
+    binary: AICodexAgentTeams
     archive: tar.gz
     docker: true
     dockerPlatform: linux/amd64
@@ -12,7 +12,7 @@ platforms:
     arch: arm64
     runner: ubuntu-24.04-arm
     target: aarch64-unknown-linux-gnu
-    binary: codex-proxy-rs
+    binary: AICodexAgentTeams
     archive: tar.gz
     docker: true
     dockerPlatform: linux/arm64
@@ -21,5 +21,5 @@ platforms:
     arch: arm64
     runner: macos-15
     target: aarch64-apple-darwin
-    binary: codex-proxy-rs
+    binary: AICodexAgentTeams
     archive: tar.gz

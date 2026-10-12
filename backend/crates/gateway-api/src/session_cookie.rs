@@ -3,7 +3,7 @@
 use axum::http::{HeaderMap, header::ORIGIN};
 use url::Url;
 
-pub(crate) const NAME: &str = "cpr_session";
+pub(crate) const NAME: &str = "aicodex_agent_teams_session";
 
 pub(crate) fn attributes(headers: &HeaderMap) -> &'static str {
     // HTTPS 反代回源 HTTP 不改变浏览器 Origin

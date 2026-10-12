@@ -274,7 +274,10 @@ async fn usage_does_not_accept_sessions_admin_keys_or_caller_selected_scope() {
     let (fixture, app) = fixture().await;
     fixture.auth.insert_session("valid-admin");
     for (name, value) in [
-        (header::COOKIE.as_str(), "cpr_session=valid-admin"),
+        (
+            header::COOKIE.as_str(),
+            "aicodex_agent_teams_session=valid-admin",
+        ),
         ("x-api-key", KEY),
     ] {
         let mut request = empty_request(Method::GET, "/v1/usage");

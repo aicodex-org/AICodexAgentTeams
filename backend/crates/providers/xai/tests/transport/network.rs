@@ -1239,7 +1239,7 @@ fn public_system_result_should_not_invoke_trusted_fallback() {
 
 #[tokio::test]
 async fn official_oauth_transport_should_resolve_through_the_production_policy_when_enabled() {
-    if std::env::var("CPR_TEST_XAI_OFFICIAL_NETWORK").as_deref() != Ok("1") {
+    if std::env::var("AICODEX_AGENT_TEAMS_TEST_XAI_OFFICIAL_NETWORK").as_deref() != Ok("1") {
         return;
     }
     let client = GrokOAuthClient::new(

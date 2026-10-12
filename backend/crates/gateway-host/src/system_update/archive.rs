@@ -6,7 +6,7 @@ use std::path::{Component, Path, PathBuf};
 
 use super::{OperationError, internal, invalid};
 
-const APP_BINARY_NAME: &str = "codex-proxy-rs";
+const APP_BINARY_NAME: &str = "AICodexAgentTeams";
 const MAX_EXTRACTED_SIZE: u64 = 1024 * 1024 * 1024;
 const MAX_ARCHIVE_FILES: usize = 20_000;
 
@@ -113,7 +113,9 @@ pub(crate) fn extract_release(
         }
     }
     if !found_binary {
-        return Err(invalid("release archive does not contain codex-proxy-rs"));
+        return Err(invalid(
+            "release archive does not contain AICodexAgentTeams",
+        ));
     }
     if !found_official_manifest {
         return Err(invalid(

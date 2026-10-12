@@ -77,7 +77,7 @@ struct WorkerFixture {
 fn worker_fixture() -> &'static WorkerFixture {
     static WORKER: OnceLock<WorkerFixture> = OnceLock::new();
     WORKER.get_or_init(|| {
-        let bytes = std::fs::read(env!("CARGO_BIN_EXE_gateway-plugin-test-worker"))
+        let bytes = std::fs::read(env!("CARGO_BIN_EXE_AICodexAgentTeams-plugin-test-worker"))
             .expect("Cargo 应为集成测试构建 Rust 测试插件");
         let digest = hex::encode(Sha256::digest(&bytes));
         WorkerFixture { bytes, digest }
@@ -140,7 +140,7 @@ fn package_with_identity_and_state(
         license: "MIT".to_owned(),
         author: Some("test".to_owned()),
         engines: Engines {
-            codex_proxy_rs: ">=1.0.0, <2.0.0".parse().unwrap(),
+            aicodex_agent_teams: ">=1.0.0, <2.0.0".parse().unwrap(),
         },
         main: "bin/worker".to_owned(),
         runtime: RuntimeKind::TrustedProcess,

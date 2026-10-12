@@ -452,5 +452,5 @@ function createBridgeScript(input: {
     managementTimeoutMs: PLUGIN_MANAGEMENT_TIMEOUT_MS,
     apiTimeoutMs: API_TIMEOUT_MS,
   } satisfies PluginBridgeInitial).replace(/</gu, '\\u003c')
-  return `${bridgeSource};CodexProxyPluginBridge(${initial});`
+  return `${bridgeSource};AICodexAgentTeamsPluginBridge(${initial});`
 }

@@ -50,7 +50,10 @@ async fn reset_budget_route_requires_admin_and_maps_missing_keys() {
     fixture.auth.insert_session("valid-session");
     for (cookie, expected) in [
         ("", StatusCode::UNAUTHORIZED),
-        ("cpr_session=valid-session", StatusCode::NOT_FOUND),
+        (
+            "aicodex_agent_teams_session=valid-session",
+            StatusCode::NOT_FOUND,
+        ),
     ] {
         let response = client_keys::router::<AdminTestState>()
             .with_state(fixture.state())
@@ -109,7 +112,11 @@ async fn budget_reset_allows_admin_but_rejects_key_sessions_without_changing_usa
         .to_owned();
     for (cookie, expected, used) in [
         (key_cookie.as_str(), StatusCode::FORBIDDEN, "1.25"),
-        ("cpr_session=valid-admin", StatusCode::OK, "0"),
+        (
+            "aicodex_agent_teams_session=valid-admin",
+            StatusCode::OK,
+            "0",
+        ),
     ] {
         let mut request = json_request(
             Method::POST,
@@ -522,7 +529,7 @@ async fn reveal_route_should_use_query_id_and_no_store_response() {
         .oneshot(
             Request::builder()
                 .uri("/api/admin/client-keys/reveal?id=key_1")
-                .header(header::COOKIE, "cpr_session=valid-session")
+                .header(header::COOKIE, "aicodex_agent_teams_session=valid-session")
                 .header("x-request-id", "req_reveal")
                 .body(Body::empty())
                 .expect("reveal request"),
@@ -563,7 +570,7 @@ async fn list_route_should_accept_the_full_nonzero_u16_page_size() {
         .oneshot(
             Request::builder()
                 .uri("/api/admin/client-keys?limit=65535")
-                .header(header::COOKIE, "cpr_session=valid-session")
+                .header(header::COOKIE, "aicodex_agent_teams_session=valid-session")
                 .header("x-request-id", "req_client_keys_max_page")
                 .body(Body::empty())
                 .expect("client key list request"),

@@ -307,7 +307,7 @@ async fn live_upstream_should_not_receive_foreign_identity() {
 #[cfg(target_os = "linux")]
 #[test]
 fn live_call_should_pin_profile_but_reload_credentials_and_proxy() {
-    const CHILD: &str = "CPR_LIVE_PROFILE_TEST_CHILD";
+    const CHILD: &str = "AICODEX_AGENT_TEAMS_LIVE_PROFILE_TEST_CHILD";
     if std::env::var_os(CHILD).is_some() {
         tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -636,8 +636,9 @@ async fn accept_live_proxy(
     listener: tokio::net::TcpListener,
 ) -> tokio_rustls::server::TlsStream<tokio::net::TcpStream> {
     use tokio::io::AsyncWriteExt;
-    let directory =
-        std::path::PathBuf::from(std::env::var_os("CPR_LIVE_PROFILE_TEST_CHILD").unwrap());
+    let directory = std::path::PathBuf::from(
+        std::env::var_os("AICODEX_AGENT_TEAMS_LIVE_PROFILE_TEST_CHILD").unwrap(),
+    );
     let (mut stream, _) = listener.accept().await.unwrap();
     let connect = read_live_head(&mut stream).await;
     assert!(connect.starts_with("CONNECT api.openai.com:443 HTTP/1.1"));

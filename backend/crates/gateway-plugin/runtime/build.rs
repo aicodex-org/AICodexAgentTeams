@@ -7,8 +7,8 @@ fn main() {
     let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
     if matches!(target_os.as_str(), "linux" | "macos") {
         for binary in [
-            "gateway-plugin-test-worker",
-            "gateway-plugin-test-middleware",
+            "AICodexAgentTeams-plugin-test-worker",
+            "AICodexAgentTeams-plugin-test-middleware",
         ] {
             println!("cargo::rustc-link-arg-bin={binary}=-Wl,-S");
         }

@@ -398,7 +398,7 @@ onBeforeUnmount(() => {
         <AppBrandMark class="block size-11 select-none" />
       </ZMotionIcon>
       <span v-show="brandLabelVisible" ref="brandLabelEl" class="grid min-w-33 content-center overflow-hidden">
-        <strong class="text-base leading-[1.1] font-heavy text-cp-text"> Codex Proxy </strong>
+        <strong class="text-[13px] leading-[1.1] font-heavy text-cp-text"> AICodexAgentTeams </strong>
         <span class="mt-1.5 flex h-4.5 min-w-0 items-center gap-2">
           <span class="shrink-0 text-xs leading-none font-emphasis text-cp-text-secondary"> Rust build </span>
           <button

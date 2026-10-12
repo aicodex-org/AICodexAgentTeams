@@ -1,4 +1,4 @@
-# Codex Proxy RS 接口
+# AICodexAgentTeams 接口
 
 本文描述当前源码的公开 HTTP 合同，路由以 `backend/crates/gateway-api/src` 中的 router 为准
 
@@ -74,7 +74,7 @@ ChatGPT 远程控制使用 `(codex_chatgpt_<平台>_remote; <版本>)` 形式的
 
 所有 `/api/admin/*` 请求都需要以下任一鉴权方式：
 
-- 管理员登录后得到的 `cpr_session` Cookie（服务端会话身份必须为 `admin`）
+- 管理员登录后得到的 `aicodex_agent_teams_session` Cookie（服务端会话身份必须为 `admin`）
 - `x-api-key: <admin-api-key>`
 
 同源管理端的登录和退出根据浏览器 `Origin` 自动设置会话 Cookie：HTTP 来源省略 `Secure`，
@@ -559,7 +559,7 @@ call 与账号的绑定保存在网关进程内，未连接时一小时过期；
 ### 统一登录与会话
 
 管理员和密钥登录共用 `/api/auth/*`。登录模式 `mode` 只用于选择凭据验证方式，不直接授予权限；
-验证成功后，由后端写入身份和绑定 ID。一个浏览器只持有一份 `cpr_session` HttpOnly Cookie，
+验证成功后，由后端写入身份和绑定 ID。一个浏览器只持有一份 `aicodex_agent_teams_session` HttpOnly Cookie，
 原始 Key 不进入 URL、Pinia 或浏览器存储。登录页的切换只改变本地表单，不改变 URL。
 管理员进入管理端；Key 登录后进入 `/key-usage`，只读取当前会话绑定 Key 的数据
 
@@ -602,7 +602,7 @@ refresh 未认证时返回 `{ authenticated: false, session: null }`，不写 Co
 
 ### Key 用量与客户端配置
 
-以下接口仅接受 Key 身份的 `cpr_session`，不接受 Bearer Key 或管理 API Key。管理员会话返回 `40301`；
+以下接口仅接受 Key 身份的 `aicodex_agent_teams_session`，不接受 Bearer Key 或管理 API Key。管理员会话返回 `40301`；
 缺失、失效或已停用的 Key 会话返回 `40101`。所有响应带 `Cache-Control: no-store`，未知路径和错误方法返回 JSON
 
 | 方法 | 路由 | 查询 | 说明 |
@@ -687,7 +687,7 @@ config 返回 `{ name, plaintextKey }`，仅读取服务端会话绑定的当前
 该上限不代表上游实际允许的并发数
 
 模型目录导出保留上游原生模型对象和能力字段，不包含账号凭据；不支持 Codex 原生目录的账号不能导出。
-管理端下载文件名为 `cpr-model-catalog-<套餐>-<账号名称>.json`，文件正文为 `catalog`，可用于
+管理端下载文件名为 `AICodexAgentTeams-model-catalog-<套餐>-<账号名称>.json`，文件正文为 `catalog`，可用于
 Codex 的 `model_catalog_json` 配置。账号设置保存不等待上游模型目录刷新完成
 
 账号限流详情在 `quota` 中返回：`rateLimitReason` 为 `upstream_rate_limit`（上游临时限流）、

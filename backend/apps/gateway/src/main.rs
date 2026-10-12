@@ -33,13 +33,13 @@ fn run() -> Result<ExitCode, Box<dyn Error + Send + Sync>> {
     match command.as_deref() {
         None | Some("serve") => {
             reject_extra_arguments(arguments)?;
-            runtime()?.block_on(codex_proxy_rs::bootstrap::run())?;
+            runtime()?.block_on(aicodex_agent_teams::bootstrap::run())?;
             Ok(ExitCode::SUCCESS)
         }
         Some("help" | "--help" | "-h") => {
             reject_extra_arguments(arguments)?;
             println!(
-                "Usage: codex-proxy-rs [serve]\n       codex-proxy-rs plugin <instance-id> <command> [options]\n\n  --help     Show help without loading configuration\n  --version  Show version\n  plugin --help  List enabled plugin commands without starting HTTP"
+                "Usage: AICodexAgentTeams [serve]\n       AICodexAgentTeams plugin <instance-id> <command> [options]\n\n  --help     Show help without loading configuration\n  --version  Show version\n  plugin --help  List enabled plugin commands without starting HTTP"
             );
             Ok(ExitCode::SUCCESS)
         }
@@ -47,7 +47,7 @@ fn run() -> Result<ExitCode, Box<dyn Error + Send + Sync>> {
             reject_extra_arguments(arguments)?;
             println!(
                 "{}",
-                option_env!("CPR_VERSION").unwrap_or(env!("CARGO_PKG_VERSION"))
+                option_env!("AICODEX_AGENT_TEAMS_VERSION").unwrap_or(env!("CARGO_PKG_VERSION"))
             );
             Ok(ExitCode::SUCCESS)
         }
@@ -69,8 +69,8 @@ fn run() -> Result<ExitCode, Box<dyn Error + Send + Sync>> {
             if instance_id.is_none() && name.is_some() {
                 return Err(invalid_cli("unexpected plugin help arguments").into());
             }
-            let output = runtime()?.block_on(codex_proxy_rs::bootstrap::plugin_command(
-                codex_proxy_rs::bootstrap::PluginCommand {
+            let output = runtime()?.block_on(aicodex_agent_teams::bootstrap::plugin_command(
+                aicodex_agent_teams::bootstrap::PluginCommand {
                     instance_id,
                     name,
                     arguments: arguments.collect(),

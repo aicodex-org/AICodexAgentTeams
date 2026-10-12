@@ -22,7 +22,7 @@ use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
 use url::Url;
 
-const WEB_DIST_ENV: &str = "CPR_WEB_DIST_DIR";
+const WEB_DIST_ENV: &str = "AICODEX_AGENT_TEAMS_WEB_DIST_DIR";
 
 use crate::health::HealthStatus;
 use crate::openai::service::OpenAiService;

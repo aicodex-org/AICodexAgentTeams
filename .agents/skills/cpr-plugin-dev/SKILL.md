@@ -1,6 +1,6 @@
 ---
 name: cpr-plugin-dev
-description: 开发、排查或打包 Codex Proxy RS 独立网关插件；仅改宿主 Runtime、安装器或管理端时使用 cpr-dev-guide，不适用于 Codex 插件或 Vue 插件
+description: 开发、排查或打包 AICodexAgentTeams 独立网关插件；仅改宿主 Runtime、安装器或管理端时使用 cpr-dev-guide，不适用于 Codex 插件或 Vue 插件
 ---
 
 # 网关插件开发

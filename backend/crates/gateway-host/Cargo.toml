@@ -59,7 +59,7 @@ name = "main"
 path = "tests/main.rs"
 
 [[bin]]
-name = "gateway-host-process-worker"
+name = "AICodexAgentTeams-host-process-worker"
 path = "tests/support/process_worker.rs"
 test = false
 bench = false

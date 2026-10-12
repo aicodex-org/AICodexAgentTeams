@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_NAME="codex-proxy-rs"
+APP_NAME="AICodexAgentTeams"
 VERSION_FILE="release/version.yaml"
 NOTES_FILE="release/notes.md"
 PLUGIN_DEPRECATIONS_FILE="backend/crates/gateway-plugin/runtime/plugin-api-deprecations.json"
@@ -76,6 +76,9 @@ fi
 require_command git
 require_command gh
 require_command ruby
+
+[[ -f ".github/workflows/release.yml" ]] ||
+  die "release automation is not configured; restore a project Release workflow before publishing"
 
 gh auth status >/dev/null 2>&1 || die "gh authentication is required; run gh auth login first"
 

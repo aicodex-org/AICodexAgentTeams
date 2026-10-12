@@ -7,10 +7,10 @@ use std::{
 
 use super::*;
 
-pub(crate) const DATABASE_URL_ENV: &str = "CPR_DATABASE_URL";
-pub(crate) const REDIS_URL_ENV: &str = "CPR_REDIS_URL";
-pub(crate) const DATABASE_PASSWORD_ENV: &str = "CPR_DATABASE_PASSWORD";
-pub(crate) const REDIS_PASSWORD_ENV: &str = "CPR_REDIS_PASSWORD";
+pub(crate) const DATABASE_URL_ENV: &str = "AICODEX_AGENT_TEAMS_DATABASE_URL";
+pub(crate) const REDIS_URL_ENV: &str = "AICODEX_AGENT_TEAMS_REDIS_URL";
+pub(crate) const DATABASE_PASSWORD_ENV: &str = "AICODEX_AGENT_TEAMS_DATABASE_PASSWORD";
+pub(crate) const REDIS_PASSWORD_ENV: &str = "AICODEX_AGENT_TEAMS_REDIS_PASSWORD";
 pub(crate) const POSTGRES_STATEMENT_TIMEOUT: Duration = Duration::from_secs(30);
 pub(crate) const POSTGRES_LOCK_TIMEOUT: Duration = Duration::from_secs(5);
 pub(crate) const POSTGRES_IDLE_TRANSACTION_TIMEOUT: Duration = Duration::from_secs(30);

@@ -2,14 +2,14 @@
 
 use std::{fs, process::Command};
 
-use codex_proxy_rs::bootstrap::GatewayConfig;
+use aicodex_agent_teams::bootstrap::GatewayConfig;
 use gateway_host::LoadableConfig;
 
 const CONFIG_EXAMPLE: &str = include_str!("../../../../../deploy/config.example.yaml");
 const POSTGRES_PASSWORD: &str = "111111111111111111111111111111111111111111111111";
 const REDIS_PASSWORD: &str = "222222222222222222222222222222222222222222222222";
 const ADMIN_PASSWORD: &str = "test-admin-password";
-const TOPOLOGY_CHILD_ENV: &str = "CPR_TEST_TOPOLOGY_CHILD";
+const TOPOLOGY_CHILD_ENV: &str = "AICODEX_AGENT_TEAMS_TEST_TOPOLOGY_CHILD";
 
 #[test]
 fn config_loader_should_load_complete_terminal_example() {
@@ -27,7 +27,7 @@ fn config_loader_should_resolve_paths_relative_to_config_file() {
 
 #[test]
 fn config_loader_should_share_resolved_assets_with_system_update() {
-    const CHILD_ENV: &str = "CPR_TEST_UPDATE_ASSETS_CHILD";
+    const CHILD_ENV: &str = "AICODEX_AGENT_TEAMS_TEST_UPDATE_ASSETS_CHILD";
     let Ok(case) = std::env::var(CHILD_ENV) else {
         // 使用子进程覆盖无环境变量、Docker 路径和相对路径，避免污染并行测试
         for (case, web_dist) in [
@@ -42,9 +42,9 @@ fn config_loader_should_share_resolved_assets_with_system_update() {
                     "bootstrap::config::config_loader_should_share_resolved_assets_with_system_update",
                 ])
                 .env(CHILD_ENV, case)
-                .env_remove("CPR_WEB_DIST_DIR");
+                .env_remove("AICODEX_AGENT_TEAMS_WEB_DIST_DIR");
             if let Some(web_dist) = web_dist {
-                child.env("CPR_WEB_DIST_DIR", web_dist);
+                child.env("AICODEX_AGENT_TEAMS_WEB_DIST_DIR", web_dist);
             }
             let output = child.output().expect("isolated configuration test");
             assert!(
@@ -82,7 +82,7 @@ fn config_loader_should_apply_only_explicit_topology_overrides() {
         .replace("host: '127.0.0.1'", "host: ''")
         .replace("port: 8080", "port: 0")
         .replace(
-            "url: 'postgres://codex_proxy@127.0.0.1:5432/codex_proxy'",
+            "url: 'postgres://aicodex_agent_teams@127.0.0.1:5432/aicodex_agent_teams'",
             "url: 'invalid-postgres-url'",
         )
         .replace("url: 'redis://127.0.0.1:6379/'", "url: 'invalid-redis-url'")
@@ -99,15 +99,15 @@ fn config_loader_should_apply_only_explicit_topology_overrides() {
             "bootstrap::config::config_loader_should_apply_only_explicit_topology_overrides",
         ])
         .env(TOPOLOGY_CHILD_ENV, "1")
-        .env("CPR_SERVER_HOST", "127.0.0.1")
-        .env("CPR_SERVER_PORT", "8080")
+        .env("AICODEX_AGENT_TEAMS_SERVER_HOST", "127.0.0.1")
+        .env("AICODEX_AGENT_TEAMS_SERVER_PORT", "8080")
         .env(
-            "CPR_DATABASE_URL",
-            "postgres://codex_proxy@127.0.0.1:5432/codex_proxy",
+            "AICODEX_AGENT_TEAMS_DATABASE_URL",
+            "postgres://aicodex_agent_teams@127.0.0.1:5432/aicodex_agent_teams",
         )
-        .env("CPR_REDIS_URL", "redis://127.0.0.1:6379/")
-        .env("CPR_DATABASE_PASSWORD", POSTGRES_PASSWORD)
-        .env("CPR_REDIS_PASSWORD", REDIS_PASSWORD)
+        .env("AICODEX_AGENT_TEAMS_REDIS_URL", "redis://127.0.0.1:6379/")
+        .env("AICODEX_AGENT_TEAMS_DATABASE_PASSWORD", POSTGRES_PASSWORD)
+        .env("AICODEX_AGENT_TEAMS_REDIS_PASSWORD", REDIS_PASSWORD)
         .status()
         .expect("run isolated environment override test");
     assert!(status.success());
@@ -172,7 +172,7 @@ fn config_loader_should_reject_invalid_known_fields_alongside_unknown_fields() {
 
 #[test]
 fn config_loader_should_report_startup_configuration_diagnostics() {
-    const CHILD_ENV: &str = "CPR_TEST_CONFIG_DIAGNOSTICS_CHILD";
+    const CHILD_ENV: &str = "AICODEX_AGENT_TEAMS_TEST_CONFIG_DIAGNOSTICS_CHILD";
     const UNUSED_SECRET: &str = "unused-value-must-not-appear-in-diagnostics";
     if std::env::var_os(CHILD_ENV).is_some() {
         gateway_host::load_config::<GatewayConfig>().expect("startup configuration");
@@ -276,8 +276,8 @@ fn config_loader_should_reject_unsupported_schema_version() {
 #[test]
 fn config_loader_should_reject_embedded_database_password() {
     assert_rejected(valid_config().replace(
-        "postgres://codex_proxy@127.0.0.1:5432/codex_proxy",
-        "postgres://codex_proxy:embedded@127.0.0.1:5432/codex_proxy",
+        "postgres://aicodex_agent_teams@127.0.0.1:5432/aicodex_agent_teams",
+        "postgres://aicodex_agent_teams:embedded@127.0.0.1:5432/aicodex_agent_teams",
     ));
 }
 
@@ -293,7 +293,14 @@ fn config_loader_should_reject_wrong_length_redis_password() {
 
 #[test]
 fn config_loader_should_reject_weak_admin_password() {
-    assert_rejected(valid_config().replace(ADMIN_PASSWORD, "password"));
+    for password in [
+        "password",
+        "AICodexAgentTeams",
+        "aicodexagentteams",
+        "codex-proxy-rs",
+    ] {
+        assert_rejected(valid_config().replace(ADMIN_PASSWORD, password));
+    }
 }
 
 #[test]

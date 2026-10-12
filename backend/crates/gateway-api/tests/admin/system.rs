@@ -48,7 +48,7 @@ async fn update_event_stream_should_preserve_event_id_and_download_progress_perc
         .oneshot(
             Request::builder()
                 .uri("/api/admin/system/update/events")
-                .header(header::COOKIE, "cpr_session=valid-session")
+                .header(header::COOKIE, "aicodex_agent_teams_session=valid-session")
                 .header("x-request-id", "req_system_update_events")
                 .body(Body::empty())
                 .expect("update event request"),
@@ -81,7 +81,7 @@ async fn update_should_return_accepted_and_report_restart_only_through_status() 
             Request::builder()
                 .method("POST")
                 .uri("/api/admin/system/update")
-                .header(header::COOKIE, "cpr_session=valid-session")
+                .header(header::COOKIE, "aicodex_agent_teams_session=valid-session")
                 .header("x-request-id", "req_system_update")
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(r#"{"targetVersion":"0.2.0"}"#))
@@ -100,7 +100,7 @@ async fn update_should_return_accepted_and_report_restart_only_through_status() 
         .oneshot(
             Request::builder()
                 .uri("/api/admin/system/update/status")
-                .header(header::COOKIE, "cpr_session=valid-session")
+                .header(header::COOKIE, "aicodex_agent_teams_session=valid-session")
                 .header("x-request-id", "req_system_update")
                 .body(Body::empty())
                 .expect("request"),
@@ -230,7 +230,7 @@ async fn update_detail_should_validate_and_forward_the_temporary_channel() {
             .uri(format!("/api/admin/system/update/detail?{query}"))
             .header("x-request-id", "req_channel_check");
         if authenticated {
-            request = request.header(header::COOKIE, "cpr_session=valid-session");
+            request = request.header(header::COOKIE, "aicodex_agent_teams_session=valid-session");
         }
         let response = router
             .clone()

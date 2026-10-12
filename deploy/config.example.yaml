@@ -1,4 +1,4 @@
-# Codex Proxy RS 应用配置模板。
+# AICodexAgentTeams 应用配置模板。
 #
 # 使用：
 #   sudo install -m 0640 -o "$(id -u)" -g 10001 deploy/config.example.yaml deploy/config.yaml
@@ -11,7 +11,7 @@ host:
   # 统一展示、查询日期、限额重置和定时任务的 IANA 时区，修改后重启生效。
   timezone: 'Asia/Shanghai'
   listen:
-    # 本地 cargo run 使用；Docker 内由 CPR_SERVER_HOST/PORT 覆盖。
+    # 本地 cargo run 使用；Docker 内由 AICODEX_AGENT_TEAMS_SERVER_HOST/PORT 覆盖。
     host: '127.0.0.1'
     port: 8080
   # OpenAI 会话身份、系统更新状态和备份暂存区的统一根目录。
@@ -36,16 +36,16 @@ host:
   # system_update:
   #   deployment_mode: 'binary'
   #   self_restart_enabled: true
-  #   executable_path: '/opt/codex-proxy-rs/codex-proxy-rs' # 可选：覆盖启动时解析的程序路径。
+  #   executable_path: '/opt/AICodexAgentTeams/AICodexAgentTeams' # 可选：覆盖启动时解析的程序路径。
   worker_shutdown_timeout_seconds: 30
 
 store:
   database:
-    # Docker 内由 CPR_DATABASE_URL 覆盖；密码不要写进 URL。
-    url: 'postgres://codex_proxy@127.0.0.1:5432/codex_proxy'
+    # Docker 内由 AICODEX_AGENT_TEAMS_DATABASE_URL 覆盖；密码不要写进 URL。
+    url: 'postgres://aicodex_agent_teams@127.0.0.1:5432/aicodex_agent_teams'
     password: &postgres_password ''
   redis:
-    # Docker 内由 CPR_REDIS_URL 覆盖；密码不要写进 URL。
+    # Docker 内由 AICODEX_AGENT_TEAMS_REDIS_URL 覆盖；密码不要写进 URL。
     # ACL 用户写在 URL 中，例如 redis://u1@redis-host:6379/0；配置步骤见 deploy/README.md。
     url: 'redis://127.0.0.1:6379/'
     password: &redis_password ''
@@ -58,7 +58,7 @@ admin:
   # 不活动期限与从登录起计算的最长有效期，单位为分钟
   session_ttl_minutes: 10080
   session_absolute_ttl_minutes: 43200
-  default_username: 'admin@cpr.local'
+  default_username: 'admin@aicodexagentteams.local'
   # 仅首次创建管理员时使用；至少 12 个字符且不能包含 `$`。
   default_password: ''
 
@@ -67,7 +67,7 @@ client:
   session_ttl_minutes: 1440
 
 api:
-  # Docker 内由 CPR_WEB_DIST_DIR 覆盖。
+  # Docker 内由 AICODEX_AGENT_TEAMS_WEB_DIST_DIR 覆盖。
   asset_directory: '../frontend/dist'
   cors_allowed_origins: []
   request_timeout_seconds: null

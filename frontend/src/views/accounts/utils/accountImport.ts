@@ -19,7 +19,7 @@ function parseJson(value: string): unknown {
 export function mixedImportDocuments(text: string): AccountImportDocument[] {
   const value = parseJson(text)
   if (!isRecord(value) || !Array.isArray(value.documents))
-    throw new Error('批量导入文件必须是 CPR 多平台导出文件')
+    throw new Error('批量导入文件必须是 AICodexAgentTeams 多平台导出文件')
   const documents = value.documents.map((entry): AccountImportDocument => {
     if (!isRecord(entry) || typeof entry.provider !== 'string' || !entry.provider.trim() || !isRecord(entry.document))
       throw new Error('批量导入文件包含无效的 Provider 文档')
@@ -40,7 +40,7 @@ export function accountImportDocuments(provider: string, mode: string, text: str
     return tokens.map(token => ({ provider, document: { accounts: [{ [key]: token }] } }))
   }
   const value = parseJson(text)
-  // 原生快捷入口保留 CPR 文件展开，插件文档的字段含义由插件自己解释。
+  // 原生快捷入口保留 AICodexAgentTeams 文件展开，插件文档的字段含义由插件自己解释。
   if (isSupportedProvider(provider) && isRecord(value) && Array.isArray(value.documents)) {
     const documents = mixedImportDocuments(text).filter(entry => entry.provider === provider)
     if (!documents.length)

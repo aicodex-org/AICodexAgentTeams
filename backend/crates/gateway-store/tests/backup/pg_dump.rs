@@ -13,14 +13,14 @@ use sha2::{Digest as _, Sha256};
 
 #[tokio::test]
 async fn dump_process_lifecycle() {
-    const PROBE_DIR: &str = "CPR_TEST_PG_DUMP_PROBE_DIR";
+    const PROBE_DIR: &str = "AICODEX_AGENT_TEAMS_TEST_PG_DUMP_PROBE_DIR";
     let Ok(directory) = std::env::var(PROBE_DIR) else {
         // PATH 只在独立测试进程中改变，不污染同一 harness 的其他测试
         let directory = tempfile::tempdir().unwrap();
         let script = directory.path().join("pg_dump");
         std::fs::write(
             &script,
-            "#!/bin/sh\nprintf '%s' $$ > \"$CPR_TEST_PG_DUMP_PROBE_DIR/pid\"\ncase \"$5\" in\n  wait) exec 1>&-; exec sleep 30 ;;\n  stream) printf archive; exec sleep 30 ;;\n  fail) printf partial; exit 1 ;;\n  *) printf archive ;;\nesac\n",
+            "#!/bin/sh\nprintf '%s' $$ > \"$AICODEX_AGENT_TEAMS_TEST_PG_DUMP_PROBE_DIR/pid\"\ncase \"$5\" in\n  wait) exec 1>&-; exec sleep 30 ;;\n  stream) printf archive; exec sleep 30 ;;\n  fail) printf partial; exit 1 ;;\n  *) printf archive ;;\nesac\n",
         )
         .unwrap();
         std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).unwrap();

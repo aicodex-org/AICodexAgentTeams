@@ -68,7 +68,7 @@ fn package_with_icon(path: &str, content_type: &str, icon: Vec<u8>) -> std::sync
         "version": "1.0.0",
         "description": "Icon fixture",
         "license": "MIT",
-        "engines": {"codex-proxy-rs": ">=1.0.0, <2.0.0"},
+        "engines": {"AICodexAgentTeams": ">=1.0.0, <2.0.0"},
         "main": "bin/worker",
         "runtime": "trustedProcess",
         "contributes": {},
@@ -287,7 +287,7 @@ fn obsolete_manifest_fields_are_rejected_without_aliases() {
         "version": "1.0.0",
         "description": "Example",
         "license": "MIT",
-        "engines": {"codex-proxy-rs": ">=1.0.0, <2.0.0"},
+        "engines": {"AICodexAgentTeams": ">=1.0.0, <2.0.0"},
         "main": "bin/worker",
         "runtime": "trustedProcess",
         "capabilities": [{"capability":"request_normalizer"}]
@@ -312,7 +312,7 @@ fn source_manifest_cannot_be_installed_without_package_metadata() {
         "version": "1.0.0",
         "description": "Example",
         "license": "MIT",
-        "engines": {"codex-proxy-rs": "*"},
+        "engines": {"AICodexAgentTeams": "*"},
         "main": "bin/worker",
         "runtime": "trustedProcess",
         "contributes": {}
@@ -339,7 +339,7 @@ fn duplicate_contribution_keys_are_rejected_before_map_overwrite() {
         "version":"1.0.0",
         "description":"Example",
         "license":"MIT",
-        "engines":{"codex-proxy-rs":"*"},
+        "engines":{"AICodexAgentTeams":"*"},
         "main":"bin/worker",
         "runtime":"trustedProcess",
         "contributes":{

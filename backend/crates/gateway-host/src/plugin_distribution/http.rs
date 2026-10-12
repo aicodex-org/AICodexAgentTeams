@@ -69,7 +69,7 @@ impl Downloads {
             }
             let mut headers = vec![(
                 "user-agent".to_owned(),
-                b"codex-proxy-rs-plugin-distribution".to_vec(),
+                b"AICodexAgentTeams-plugin-distribution".to_vec(),
             )];
             if github_api {
                 headers.extend([

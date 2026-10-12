@@ -11,7 +11,7 @@ use tower::ServiceExt as _;
 
 use super::{AdminTestFixture, AdminTestState};
 
-const SESSION_COOKIE: &str = "cpr_session=valid-session";
+const SESSION_COOKIE: &str = "aicodex_agent_teams_session=valid-session";
 
 fn app(state: AdminTestState) -> Router {
     crate::openai::api_router_with_admin(state.admin_services().clone()).layer(axum::Extension(

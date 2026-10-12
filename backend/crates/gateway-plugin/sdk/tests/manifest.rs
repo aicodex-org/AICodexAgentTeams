@@ -17,7 +17,7 @@ fn source_manifest() -> Manifest {
         "description": "测试插件",
         "license": "MIT",
         "author": "test",
-        "engines": {"codex-proxy-rs": "*"},
+        "engines": {"AICodexAgentTeams": "*"},
         "main": "bin/worker",
         "runtime": "trustedProcess",
         "contributes": {
@@ -36,7 +36,7 @@ fn source_manifest() -> Manifest {
 fn packaged_manifest() -> Manifest {
     let mut manifest = source_manifest();
     manifest.engines = Engines {
-        codex_proxy_rs: ">=1.0.0, <2.0.0".parse().unwrap(),
+        aicodex_agent_teams: ">=1.0.0, <2.0.0".parse().unwrap(),
     };
     manifest.package = Some(Package {
         protocol_version: PROTOCOL_VERSION,
@@ -83,6 +83,33 @@ fn source_manifest_allows_missing_package_and_wildcard_engine() {
 }
 
 #[test]
+fn engine_brand_rename_accepts_existing_packages_and_serializes_the_new_name() {
+    let old = json!({"codex-proxy-rs": ">=1.0.0, <2.0.0"});
+    let engine: Engines = serde_json::from_value(old).unwrap();
+    assert!(
+        engine
+            .aicodex_agent_teams
+            .matches(&"1.2.0".parse().unwrap())
+    );
+    assert!(
+        !engine
+            .aicodex_agent_teams
+            .matches(&"2.0.0".parse().unwrap())
+    );
+    assert_eq!(
+        serde_json::to_value(engine).unwrap(),
+        json!({"AICodexAgentTeams": ">=1.0.0, <2.0.0"})
+    );
+    assert!(
+        serde_json::from_value::<Engines>(json!({
+            "codex-proxy-rs": "*",
+            "AICodexAgentTeams": "*"
+        }))
+        .is_err()
+    );
+}
+
+#[test]
 fn author_manifest_fills_default_ids_versions_and_fixed_stages() {
     let source = json!({
         "manifestVersion": MANIFEST_VERSION,
@@ -92,7 +119,7 @@ fn author_manifest_fills_default_ids_versions_and_fixed_stages() {
         "version": "1.0.0",
         "description": "测试插件",
         "license": "MIT",
-        "engines": {"codex-proxy-rs": "*"},
+        "engines": {"AICodexAgentTeams": "*"},
         "main": "bin/worker",
         "runtime": "trustedProcess",
         "contributes": {
@@ -124,7 +151,7 @@ fn installation_checks_protocol_engine_and_target() {
     manifest.package.as_mut().unwrap().protocol_version = PROTOCOL_VERSION + 1;
     assert_eq!(manifest.validate(), Err(ManifestError::Incompatible));
     manifest.package.as_mut().unwrap().protocol_version = PROTOCOL_VERSION;
-    manifest.engines.codex_proxy_rs = "*".parse().unwrap();
+    manifest.engines.aicodex_agent_teams = "*".parse().unwrap();
     assert_eq!(manifest.validate(), Err(ManifestError::Invalid));
 }
 
@@ -393,7 +420,7 @@ fn contributes_rejects_duplicate_capability_keys_in_direct_json_parsing() {
         r#"{{
             "manifestVersion":2,"name":"example","displayName":"Example","publisher":"test",
             "version":"1.0.0","description":"Example","license":"MIT",
-            "engines":{{"codex-proxy-rs":"*"}},"main":"bin/worker","runtime":"trustedProcess",
+            "engines":{{"AICodexAgentTeams":"*"}},"main":"bin/worker","runtime":"trustedProcess",
             "contributes":{{"middleware":{declaration},"middleware":{declaration}}}
         }}"#
     );

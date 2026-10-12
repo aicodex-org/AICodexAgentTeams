@@ -43,8 +43,8 @@ pub struct PluginIconVariants {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Engines {
-    #[serde(rename = "codex-proxy-rs")]
-    pub codex_proxy_rs: VersionReq,
+    #[serde(rename = "AICodexAgentTeams", alias = "codex-proxy-rs")]
+    pub aicodex_agent_teams: VersionReq,
 }
 
 /// 安装包的唯一目标平台
@@ -255,7 +255,7 @@ impl Manifest {
         architecture: &str,
     ) -> Result<&Package, ManifestError> {
         self.validate()?;
-        if !self.engines.codex_proxy_rs.matches(host) {
+        if !self.engines.aicodex_agent_teams.matches(host) {
             return Err(ManifestError::Platform);
         }
         self.platform_package(os, architecture)
@@ -410,7 +410,7 @@ impl Manifest {
             return Err(ManifestError::Incompatible);
         }
         // semver 将全版本 `*` 表示为空 comparator；`1.*` 仍有明确的主版本边界
-        if self.engines.codex_proxy_rs.comparators.is_empty()
+        if self.engines.aicodex_agent_teams.comparators.is_empty()
             || !platform_component(&package.target.os)
             || !platform_component(&package.target.architecture)
             || package.files.is_empty()

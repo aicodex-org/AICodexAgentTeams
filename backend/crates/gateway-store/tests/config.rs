@@ -50,7 +50,7 @@ fn store_config_rejects_a_pool_that_cannot_reserve_both_traffic_classes() {
     let root = tempfile::tempdir().expect("runtime data root");
     let mut config: StoreConfig = serde_json::from_value(serde_json::json!({
         "database": {
-            "url": "postgres://codex_proxy@127.0.0.1:5432/codex_proxy",
+            "url": "postgres://aicodex_agent_teams@127.0.0.1:5432/aicodex_agent_teams",
             "password": PASSWORD,
         },
         "redis": {
@@ -77,7 +77,7 @@ fn store_config_rejects_a_pool_that_cannot_reserve_both_traffic_classes() {
 fn valid_config() -> StoreConfig {
     serde_json::from_value(serde_json::json!({
         "database": {
-            "url": "postgres://codex_proxy@127.0.0.1:5432/codex_proxy",
+            "url": "postgres://aicodex_agent_teams@127.0.0.1:5432/aicodex_agent_teams",
             "password": PASSWORD,
         },
         "redis": {

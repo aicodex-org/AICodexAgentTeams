@@ -53,7 +53,7 @@ const submitLabel = computed(() => {
           <strong
             class="text-[17px] leading-[1.3] font-semibold text-(--cp-login-brand-title-color) max-[560px]:text-cp-xl"
           >
-            Codex Proxy RS
+            AICodex<wbr>AgentTeams
           </strong>
           <span class="font-mono text-[10px] leading-[1.2] font-normal text-(--cp-login-brand-caption-color) ml-0.5">
             {{ realmCaption }}

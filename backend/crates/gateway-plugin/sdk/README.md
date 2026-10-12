@@ -1,6 +1,6 @@
 # Gateway Plugin SDK
 
-用于编写 Codex Proxy 插件的 Rust 合同与可选会话辅助。插件只依赖本包，不依赖宿主 Core、Admin、Store 或 Host。
+用于编写 AICodexAgentTeams 插件的 Rust 合同与可选会话辅助。插件只依赖本包，不依赖宿主 Core、Admin、Store 或 Host。
 SDK 处于实验阶段；能力是否可用取决于宿主支持、清单声明与实际注册，
 而不只是枚举中存在该名称
 
@@ -103,7 +103,7 @@ sequenceDiagram
 修改宿主合同后，在仓库根目录更新生成文件；Admin 合同测试会检查生成结果是否同步：
 
 ```bash
-CPR_UPDATE_SERVICE_CONTRACT=1 RUST_MIN_STACK=16777216 cargo +1.97.0 test --manifest-path backend/Cargo.toml -p gateway-admin --test main sdk_settings_contract_matches_host_declarations --locked
+AICODEX_AGENT_TEAMS_UPDATE_SERVICE_CONTRACT=1 RUST_MIN_STACK=16777216 cargo +1.97.0 test --manifest-path backend/Cargo.toml -p gateway-admin --test main sdk_settings_contract_matches_host_declarations --locked
 cargo +1.97.0 fmt --all --manifest-path backend/Cargo.toml
 ```
 

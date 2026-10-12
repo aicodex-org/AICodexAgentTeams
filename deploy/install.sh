@@ -2,19 +2,21 @@
 set -Eeuo pipefail
 umask 0077
 
-# codex-proxy-rs 一键安装脚本。
+# AICodexAgentTeams 一键安装脚本。
 # 新安装使用同一个 Release 的 compose.yaml 与 config.example.yaml；
 # 已存在 deploy/config.yaml 时保留整套部署文件，不执行版本升级。
 
-REPO="zyycn/codex-proxy-rs"
-CPR_RELEASE_TAG="${CPR_RELEASE_TAG:-}"
-INSTALL_DIR="${INSTALL_DIR:-$PWD/codex-proxy-rs}"
+REPO="aicodex-org/AICodexAgentTeams"
+AICODEX_AGENT_TEAMS_RELEASE_TAG="${AICODEX_AGENT_TEAMS_RELEASE_TAG:-}"
+INSTALL_DIR="${INSTALL_DIR:-$PWD/AICodexAgentTeams}"
 DEPLOY_DIR="${INSTALL_DIR}/deploy"
 RUNTIME_DIR="${INSTALL_DIR}/.runtime"
 
 CONFIG_EXAMPLE="${DEPLOY_DIR}/config.example.yaml"
 CONFIG_FILE="${DEPLOY_DIR}/config.yaml"
 COMPOSE_FILE="${DEPLOY_DIR}/compose.yaml"
+APP_SERVICE="aicodex-agent-teams"
+APP_USER="aicodex-agent-teams"
 
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
 
@@ -80,15 +82,15 @@ prepare_install_dir() {
 resolve_release_tag() {
   local release_url
 
-  if [[ -z "$CPR_RELEASE_TAG" ]]; then
+  if [[ -z "$AICODEX_AGENT_TEAMS_RELEASE_TAG" ]]; then
     release_url="$(curl -fsSL -o /dev/null -w '%{url_effective}' \
       "https://github.com/${REPO}/releases/latest")"
-    CPR_RELEASE_TAG="${release_url%/}"
-    CPR_RELEASE_TAG="${CPR_RELEASE_TAG##*/}"
+    AICODEX_AGENT_TEAMS_RELEASE_TAG="${release_url%/}"
+    AICODEX_AGENT_TEAMS_RELEASE_TAG="${AICODEX_AGENT_TEAMS_RELEASE_TAG##*/}"
   fi
 
-  [[ "$CPR_RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]] \
-    || die "无法确定有效的发布版本：${CPR_RELEASE_TAG:-<空>}"
+  [[ "$AICODEX_AGENT_TEAMS_RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]] \
+    || die "无法确定有效的发布版本：${AICODEX_AGENT_TEAMS_RELEASE_TAG:-<空>}"
 }
 
 download() {
@@ -110,14 +112,14 @@ download_release_files() {
   local base_url
 
   resolve_release_tag
-  base_url="https://github.com/${REPO}/releases/download/${CPR_RELEASE_TAG}"
+  base_url="https://github.com/${REPO}/releases/download/${AICODEX_AGENT_TEAMS_RELEASE_TAG}"
 
-  log "下载 ${CPR_RELEASE_TAG} compose.yaml"
+  log "下载 ${AICODEX_AGENT_TEAMS_RELEASE_TAG} compose.yaml"
   download "${base_url}/compose.yaml" "$COMPOSE_FILE"
-  log "下载 ${CPR_RELEASE_TAG} config.example.yaml"
+  log "下载 ${AICODEX_AGENT_TEAMS_RELEASE_TAG} config.example.yaml"
   download "${base_url}/config.example.yaml" "$CONFIG_EXAMPLE"
 
-  grep -q '^name: codex-proxy-rs$' "$COMPOSE_FILE" \
+  grep -q '^name: aicodex-agent-teams$' "$COMPOSE_FILE" \
     || die "下载到的 compose.yaml 内容异常。"
   grep -q '^schema_version:' "$CONFIG_EXAMPLE" \
     || die "下载到的 config.example.yaml 内容异常。"
@@ -141,7 +143,7 @@ validate_admin_password() {
     die "ADMIN_PASSWORD 不能包含换行或其他控制字符。"
   fi
   normalized="$(printf '%s' "$password" | tr '[:upper:]' '[:lower:]')"
-  if [[ "$normalized" == "codex-proxy-rs" ]]; then
+  if [[ "$normalized" == "aicodexagentteams" || "$normalized" == "codex-proxy-rs" ]]; then
     die "ADMIN_PASSWORD 不能使用常见弱口令。"
   fi
 }
@@ -204,6 +206,30 @@ service_user_ids() {
   printf '%s:%s\n' "$uid" "$gid"
 }
 
+resolve_app_service() {
+  local services
+  local service
+  local found=0
+
+  services="$(cd "$INSTALL_DIR" && docker compose -f deploy/compose.yaml config --services)"
+  while IFS= read -r service; do
+    case "$service" in
+      aicodex-agent-teams)
+        APP_SERVICE="$service"
+        APP_USER="aicodex-agent-teams"
+        found=$((found + 1))
+        ;;
+      codex-proxy-rs)
+        # 重跑安装保留原部署文件，因此仍需使用其中的服务和镜像用户
+        APP_SERVICE="$service"
+        APP_USER="cpr"
+        found=$((found + 1))
+        ;;
+    esac
+  done <<< "$services"
+  [[ "$found" -eq 1 ]] || die "部署文件必须包含且仅包含一个受支持的应用服务。"
+}
+
 fix_runtime_permissions() {
   local postgres_ids
   local redis_ids
@@ -213,12 +239,12 @@ fix_runtime_permissions() {
   log "读取容器用户 UID/GID"
   postgres_ids="$(service_user_ids postgres postgres)"
   redis_ids="$(service_user_ids redis redis)"
-  app_ids="$(service_user_ids codex-proxy-rs cpr)"
+  app_ids="$(service_user_ids "$APP_SERVICE" "$APP_USER")"
   app_gid="${app_ids#*:}"
 
   info "PostgreSQL postgres = ${postgres_ids}"
   info "Redis redis         = ${redis_ids}"
-  info "codex-proxy-rs cpr  = ${app_ids}"
+  info "${APP_SERVICE} ${APP_USER} = ${app_ids}"
 
   log "设置运行目录权限"
   run_root chown -R "$postgres_ids" -- "${RUNTIME_DIR}/postgres"
@@ -252,7 +278,7 @@ main() {
 
   printf '\n'
   printf '%s\n' '============================================='
-  printf '%s\n' ' codex-proxy-rs 一键部署'
+  printf '%s\n' ' AICodexAgentTeams 一键部署'
   printf '%s\n' ' 新安装使用同一 Release 的官方部署文件'
   printf '%s\n' '============================================='
   printf '\n'
@@ -302,6 +328,7 @@ main() {
     cd "$INSTALL_DIR"
     docker compose -f deploy/compose.yaml config --quiet
   )
+  resolve_app_service
 
   log "拉取容器镜像"
   (
@@ -329,7 +356,7 @@ main() {
     warn "最近日志："
     (
       cd "$INSTALL_DIR"
-      docker compose -f deploy/compose.yaml logs --tail=100 codex-proxy-rs
+      docker compose -f deploy/compose.yaml logs --tail=100 "$APP_SERVICE"
     ) || true
     return 1
   fi
@@ -340,10 +367,11 @@ main() {
   printf '%b%s%b\n' "$GREEN" '=============================================' "$NC"
   printf '\n'
   printf '访问地址：      http://127.0.0.1:8080\n'
-  printf '管理员用户名：  admin@cpr.local\n'
   if [[ "$existing_config" -eq 0 ]]; then
+    printf '管理员用户名：  admin@aicodexagentteams.local\n'
     printf '管理员密码：    %s\n' "$ADMIN_PASSWORD"
   else
+    printf '管理员用户名：  使用现有配置中的管理员账号\n'
     printf '管理员密码：    保留现有配置（未修改）\n'
   fi
   printf '安装目录：      %s\n' "$INSTALL_DIR"
@@ -352,8 +380,8 @@ main() {
   printf '常用命令：\n'
   printf '  cd %q\n' "$INSTALL_DIR"
   printf '  docker compose -f deploy/compose.yaml ps\n'
-  printf '  docker compose -f deploy/compose.yaml logs -f codex-proxy-rs\n'
-  printf '  docker compose -f deploy/compose.yaml restart codex-proxy-rs\n'
+  printf '  docker compose -f deploy/compose.yaml logs -f %s\n' "$APP_SERVICE"
+  printf '  docker compose -f deploy/compose.yaml restart %s\n' "$APP_SERVICE"
   printf '  docker compose -f deploy/compose.yaml down\n'
   printf '\n'
   if [[ "$existing_config" -eq 0 ]]; then

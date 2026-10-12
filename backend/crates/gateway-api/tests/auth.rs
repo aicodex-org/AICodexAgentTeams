@@ -389,8 +389,15 @@ async fn data_plane_keys_and_browser_sessions_are_not_interchangeable() {
         );
     }
     assert_eq!(
-        response_json(get(&app, "/api/auth/status", &format!("cpr_session={RAW_KEY}")).await).await
-            ["data"]["authenticated"],
+        response_json(
+            get(
+                &app,
+                "/api/auth/status",
+                &format!("aicodex_agent_teams_session={RAW_KEY}")
+            )
+            .await
+        )
+        .await["data"]["authenticated"],
         false
     );
 }
@@ -451,7 +458,7 @@ async fn removed_auth_routes_do_not_fall_back_to_spa_or_accept_old_cookies() {
     let cookie =
         session_cookie(&login(&app, json!({"mode": "key", "apiKey": RAW_KEY}), None).await);
     for old_name in ["cpr_admin_session", "cpr_client_session"] {
-        let old_cookie = cookie.replace("cpr_session", old_name);
+        let old_cookie = cookie.replace("aicodex_agent_teams_session", old_name);
         assert_eq!(
             response_json(get(&app, "/api/auth/status", &old_cookie).await).await["data"]["authenticated"],
             false
@@ -491,7 +498,7 @@ async fn key_auth_should_issue_restore_and_clear_a_unified_cookie() {
         .to_str()
         .expect("client session cookie")
         .to_owned();
-    assert!(set_cookie.starts_with("cpr_session=session_"));
+    assert!(set_cookie.starts_with("aicodex_agent_teams_session=session_"));
     assert!(set_cookie.contains("Path=/;"));
     assert!(set_cookie.contains("; Secure; HttpOnly; SameSite=Lax"));
     assert!(set_cookie.contains("; Max-Age="));
@@ -526,7 +533,7 @@ async fn key_auth_should_issue_restore_and_clear_a_unified_cookie() {
     let cleared = logout.headers()[header::SET_COOKIE]
         .to_str()
         .expect("cleared cookie");
-    assert!(cleared.starts_with("cpr_session=;"));
+    assert!(cleared.starts_with("aicodex_agent_teams_session=;"));
     assert!(cleared.contains("Path=/;"));
     assert!(cleared.contains("Max-Age=0"));
     let status = app

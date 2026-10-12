@@ -1033,7 +1033,7 @@ impl AccountExportData {
         time: crate::time::TimePresenter,
     ) -> Self {
         let filename = format!(
-            "cpr-accounts-selected-{}-{}.json",
+            "AICodexAgentTeams-accounts-selected-{}-{}.json",
             bundle.documents.len(),
             time.label(bundle.exported_at, "%Y-%m-%d")
         );

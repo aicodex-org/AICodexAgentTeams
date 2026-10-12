@@ -18,7 +18,7 @@ use super::model::CodexWebSocketConnection;
 
 const REDACTED_HEADER_VALUE: &str = "<redacted>";
 /// WebSocket audit artifact 输出目录环境变量
-pub const WS_AUDIT_DIR_ENV: &str = "CODEX_PROXY_WS_AUDIT_DIR";
+pub const WS_AUDIT_DIR_ENV: &str = "AICODEX_AGENT_TEAMS_WS_AUDIT_DIR";
 
 static WS_AUDIT_DIR: OnceLock<Option<PathBuf>> = OnceLock::new();
 

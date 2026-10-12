@@ -1,6 +1,6 @@
 ---
 name: cpr-dev-guide
-description: Codex Proxy RS 仓库的开发、修复、排障、代码审查和文档修改入口；PR、Issue、插件创作与发版按任务另用对应技能
+description: AICodexAgentTeams 仓库的开发、修复、排障、代码审查和文档修改入口；PR、Issue、插件创作与发版按任务另用对应技能
 ---
 
 # 开发指南

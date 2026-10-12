@@ -91,7 +91,7 @@ use crate::transport::accept_codex_test_websocket;
 
 #[tokio::test]
 async fn account_client_preparation_keeps_ca_read_cause_without_exposing_path() {
-    const CHILD: &str = "CPR_TEST_CA_PREPARATION_FAILURE";
+    const CHILD: &str = "AICODEX_AGENT_TEAMS_TEST_CA_PREPARATION_FAILURE";
     if std::env::var_os(CHILD).is_none() {
         let directory = tempfile::tempdir().unwrap();
         // 环境变量只影响隔离子进程，不能改变并发 TLS 测试的配置

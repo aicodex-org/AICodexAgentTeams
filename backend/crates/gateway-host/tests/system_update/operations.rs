@@ -71,7 +71,7 @@ async fn restart_should_spawn_replacement_before_shutdown_outside_docker() {
 #[cfg(target_os = "linux")]
 #[tokio::test]
 async fn restart_should_use_startup_path_after_running_executable_is_renamed() {
-    const CHILD_ENV: &str = "CPR_TEST_RESTART_RENAMED_EXECUTABLE_CHILD";
+    const CHILD_ENV: &str = "AICODEX_AGENT_TEAMS_TEST_RESTART_RENAMED_EXECUTABLE_CHILD";
     let executable = std::env::current_exe().expect("test executable");
     if std::env::var_os(CHILD_ENV).is_none() {
         // 用例只移动目录项，不修改旧程序内容；同盘硬链接避免复制整个调试二进制
@@ -85,7 +85,7 @@ async fn restart_should_use_startup_path_after_running_executable_is_renamed() {
                 "system_update::restart_should_use_startup_path_after_running_executable_is_renamed",
             ])
             .env(CHILD_ENV, "1")
-            .env("CPR_RESTART_DELAY_MS", "1200")
+            .env("AICODEX_AGENT_TEAMS_RESTART_DELAY_MS", "1200")
             .output()
             .expect("isolated restart test");
         assert!(
@@ -96,7 +96,7 @@ async fn restart_should_use_startup_path_after_running_executable_is_renamed() {
         );
         return;
     }
-    if executable.file_name() == Some(std::ffi::OsStr::new("codex-proxy-rs.backup")) {
+    if executable.file_name() == Some(std::ffi::OsStr::new("AICodexAgentTeams.backup")) {
         // 误启动旧程序时留下可观察结果并退出，避免旧副本再次发起重启
         fs::write(
             executable
@@ -116,7 +116,7 @@ async fn restart_should_use_startup_path_after_running_executable_is_renamed() {
     config.self_restart_enabled = true;
     let service = ProcessSystemOperations::new(CancellationToken::new(), config);
 
-    let backup = fixture.root.path().join("codex-proxy-rs.backup");
+    let backup = fixture.root.path().join("AICodexAgentTeams.backup");
     fs::rename(fixture.executable(), &backup).expect("back up running executable");
     fixture.write_executable("#!/bin/sh\nprintf new > \"${0%/*}/replacement-version\"\n");
     assert_eq!(std::env::current_exe().expect("renamed executable"), backup);

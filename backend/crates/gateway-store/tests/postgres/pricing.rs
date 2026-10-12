@@ -11,10 +11,11 @@ use serde_json::json;
 use super::TestDatabase;
 
 async fn pricing_store(name: &str) -> Option<(TestDatabase, gateway_store::StoreBundle)> {
-    let redis_url = crate::support::test_env("CPR_TEST_REDIS_URL")?;
+    let redis_url = crate::support::test_env("AICODEX_AGENT_TEAMS_TEST_REDIS_URL")?;
     let database = TestDatabase::create(name).await?;
     let mut database_url = url::Url::parse(
-        &crate::support::test_env("CPR_TEST_DATABASE_URL").expect("test database URL"),
+        &crate::support::test_env("AICODEX_AGENT_TEAMS_TEST_DATABASE_URL")
+            .expect("test database URL"),
     )
     .unwrap();
     database_url

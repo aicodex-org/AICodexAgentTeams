@@ -377,7 +377,7 @@ async fn admin_http_does_not_invoke_service_middleware_for_native_business_metho
         .oneshot(
             Request::builder()
                 .uri("/api/admin/settings")
-                .header("cookie", "cpr_session=service-fixture")
+                .header("cookie", "aicodex_agent_teams_session=service-fixture")
                 .header("x-request-id", "service-request")
                 .body(Body::empty())
                 .unwrap(),

@@ -13,7 +13,7 @@ sqlx 在服务启动、监听请求之前按编号执行迁移，并把文件 ch
   已发布迁移的编号与字节；同一轮 exp 的后续发行也只能追加迁移。发布前以该发行线已发布版本
   的数据库验证升级路径，不能只与上一正式版比较。不同 exp 实验线之间、exp 与正式版之间
   不保证迁移历史兼容
-- `.frozen-sha256` 使用 `sha256sum` 格式。新增迁移时在同一提交执行 `sha256sum 000N_xxx.sql >> .frozen-sha256` 入册；CI 校验文件字节、SQL 登记完整性及 PR 中清单只增不改
+- `.frozen-sha256` 使用 `sha256sum` 格式。新增迁移时在同一提交执行 `sha256sum 000N_xxx.sql >> .frozen-sha256` 入册；提交前运行 `sha256sum --check .frozen-sha256` 校验文件字节，核对 SQL 登记完整性及 PR 中清单只增不改
 
 从迁移目录检查已登记文件：
 
@@ -30,8 +30,8 @@ sha256sum --check --strict .frozen-sha256
 静默跳过（CI 缺失则直接失败）：
 
 ```bash
-export CPR_TEST_DATABASE_URL='postgres://<user>:<password>@127.0.0.1:5432/<db>'
-export CPR_TEST_REDIS_URL='redis://:<password>@127.0.0.1:6379'
+export AICODEX_AGENT_TEAMS_TEST_DATABASE_URL='postgres://<user>:<password>@127.0.0.1:5432/<db>'
+export AICODEX_AGENT_TEAMS_TEST_REDIS_URL='redis://:<password>@127.0.0.1:6379'
 ```
 
 测试自建随机 schema / key 前缀做隔离，但仍应使用专用开发或测试实例，不要连接生产库。
@@ -43,5 +43,5 @@ PostgreSQL 的临时 schema 测试连接使用异步提交，保留事务可见�
 
 运行包含 `StoreBundle` 初始化的完整集成测试时，两条测试 URL 都须包含密码，且密码满足 Store
 启动配置的 48 位十六进制要求；仅能连接数据库并不代表该初始化合同通过。专用服务使用对应测试密码，
-并在测试进程中清除 `CPR_DATABASE_URL`、`CPR_REDIS_URL`、`CPR_DATABASE_PASSWORD` 和
-`CPR_REDIS_PASSWORD`，避免启动配置被部署环境覆盖
+并在测试进程中清除 `AICODEX_AGENT_TEAMS_DATABASE_URL`、`AICODEX_AGENT_TEAMS_REDIS_URL`、`AICODEX_AGENT_TEAMS_DATABASE_PASSWORD` 和
+`AICODEX_AGENT_TEAMS_REDIS_PASSWORD`，避免启动配置被部署环境覆盖

@@ -340,12 +340,12 @@ fn sdk_settings_contract_matches_host_declarations() {
     };
     let output = root.join("../gateway-plugin/sdk/src/call/services/settings.rs");
     let expected = prettyplease::unparse(&syn::parse2::<syn::File>(generated).unwrap());
-    if std::env::var_os("CPR_UPDATE_SERVICE_CONTRACT").is_some() {
+    if std::env::var_os("AICODEX_AGENT_TEAMS_UPDATE_SERVICE_CONTRACT").is_some() {
         std::fs::write(&output, &expected).unwrap();
     }
     let actual = syn::parse_file(&std::fs::read_to_string(output).unwrap()).unwrap();
     assert!(
         prettyplease::unparse(&actual) == expected,
-        "SDK 服务合同已过期：CPR_UPDATE_SERVICE_CONTRACT=1 cargo test -p gateway-admin --test main sdk_settings_contract_matches_host_declarations"
+        "SDK 服务合同已过期：AICODEX_AGENT_TEAMS_UPDATE_SERVICE_CONTRACT=1 cargo test -p gateway-admin --test main sdk_settings_contract_matches_host_declarations"
     );
 }

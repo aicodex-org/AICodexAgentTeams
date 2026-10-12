@@ -391,8 +391,8 @@ fn running_request(
 }
 
 async fn repository() -> Option<(RedisClientAdmissionRepository, ConnectionManager, String)> {
-    let redis_url = crate::support::test_env("CPR_TEST_REDIS_URL")?;
-    let client = redis::Client::open(redis_url).expect("valid CPR_TEST_REDIS_URL");
+    let redis_url = crate::support::test_env("AICODEX_AGENT_TEAMS_TEST_REDIS_URL")?;
+    let client = redis::Client::open(redis_url).expect("valid AICODEX_AGENT_TEAMS_TEST_REDIS_URL");
     let connection = client
         .get_connection_manager()
         .await

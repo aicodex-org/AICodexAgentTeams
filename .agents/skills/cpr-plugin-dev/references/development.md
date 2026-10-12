@@ -8,7 +8,7 @@
 | 位置 | 用途 |
 | --- | --- |
 | 主仓 `backend/crates/gateway-plugin/sdk/` | Rust 公开合同、会话辅助与能力文档 |
-| 主仓 `backend/apps/plugin-cli/` | `cpr-plugin package`，只校验与打包，不编译插件源码 |
+| 主仓 `backend/apps/plugin-cli/` | `AICodexAgentTeams-plugin package`，只校验与打包，不编译插件源码 |
 | [codex-proxy-plugins](https://github.com/zyycn/codex-proxy-plugins) 的 `examples/workbench/` | 基础能力体验与文本工作流示例，按需选择功能，不整体复制 |
 | [codex-proxy-ui](https://github.com/zyycn/codex-proxy-ui) | 可选的 Vue UI 库、组件文档与 playground |
 
@@ -53,18 +53,18 @@ cargo build --manifest-path /path/to/plugin/Cargo.toml --release --locked --targ
 新工程尚无锁文件时先生成并检查锁文件；不要把缺少锁文件的 `--locked` 失败当作源码问题。
 有页面时另跑该前端项目的检查与生产构建，确认产物路径、资源清单和 MIME 类型相符；无页面的插件无需 Node 项目。
 
-先检查实际调用的 `cpr-plugin` 路径与构建来源。已有工具只有在支持目标作者清单时才复用；
+先检查实际调用的 `AICodexAgentTeams-plugin` 路径与构建来源。已有工具只有在支持目标作者清单时才复用；
 遇到派生字段被要求手写或支持能力不符时，对照目标 SDK 和 CLI 合同，不通过改写清单迁就过期工具。
 需要从目标宿主源码构建工具时，在主仓根目录运行以下命令，把 `--help` 换成实际参数即可，不必全局安装：
 
 ```bash
-cargo +1.97.0 run --manifest-path backend/Cargo.toml -p codex-proxy-plugin-cli --locked -- package --help
+cargo +1.97.0 run --manifest-path backend/Cargo.toml -p aicodex-agent-teams-plugin-cli --locked -- package --help
 ```
 
 直接打包的示意命令：
 
 ```bash
-cpr-plugin package \
+AICodexAgentTeams-plugin package \
   --manifest /path/to/plugin/plugin.json \
   --binary /path/to/plugin/target/x86_64-unknown-linux-gnu/release/plugin \
   --target x86_64-unknown-linux-gnu \

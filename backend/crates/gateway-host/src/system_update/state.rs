@@ -130,7 +130,7 @@ impl UpdateTempDir {
     pub(crate) fn create(parent: &Path) -> Result<Self, OperationError> {
         for attempt in 0..100_u8 {
             let path = parent.join(format!(
-                ".codex-proxy-rs-update-{}-{attempt}",
+                ".AICodexAgentTeams-update-{}-{attempt}",
                 Utc::now().timestamp_nanos_opt().unwrap_or_default()
             ));
             match fs::create_dir(&path) {

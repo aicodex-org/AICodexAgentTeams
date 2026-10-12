@@ -110,7 +110,7 @@ function scopeLabel(binding: PluginCapabilityBinding) {
         </dl>
         <div v-if="showCommand" class="grid gap-1.5">
           <span class="text-cp-sm font-emphasis text-cp-text">终端命令</span>
-          <code class="break-all">codex-proxy-rs plugin {{ instance.id }} --help</code>
+          <code class="break-all">AICodexAgentTeams plugin {{ instance.id }} --help</code>
         </div>
       </div>
     </ZScrollbar>

@@ -27,7 +27,7 @@ let plugin = PluginBuilder::from_json(include_bytes!("../plugin.json"))?
 session.run(plugin).await?;
 ```
 
-`PluginBuilder::from_json` 与 `cpr-plugin package` 使用同一个作者清单规范化入口。构建器负责：
+`PluginBuilder::from_json` 与 `AICodexAgentTeams-plugin package` 使用同一个作者清单规范化入口。构建器负责：
 
 - 自动响应 `plugin.register`，注册内容直接来自规范化后的清单
 - 按方法合同解码控制参数和二进制载荷，并在进入业务处理器前检查调用阶段
@@ -78,7 +78,7 @@ Provider 固定为宿主内置的 OpenAI 与 xAI。宿主开放以下 11 类扩�
 
 类型在 `call::data`。控制参数为 `{}`，查询和结果使用二进制 JSON；结果固定 `schema_version=1`。
 SDK 解析响应时忽略未知字段，包含账号分页、账号及额度窗口；已知字段按声明校验类型与必填性，查询拒绝未知字段。
-插件须通过 `engines.codex-proxy-rs` 限定支持所用接口和字段的宿主版本
+插件须通过 `engines.AICodexAgentTeams` 限定支持所用接口和字段的宿主版本
 
 `key_facts` 每次读取当前管理数据，返回 `client_key_id`、`enabled`、`group_ids`；不存在的 Key 沿用事实接口的 `rejected` 错误
 
@@ -536,14 +536,14 @@ interface PluginModelsBridge {
   }): Promise<Response>
 }
 
-interface CodexProxyPluginBridge {
+interface AICodexAgentTeamsPluginBridge {
   readonly version: 2
   readonly models: PluginModelsBridge
 }
 
 declare global {
   interface Window {
-    readonly codexProxyPlugin: CodexProxyPluginBridge
+    readonly codexProxyPlugin: AICodexAgentTeamsPluginBridge
   }
 }
 

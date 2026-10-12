@@ -93,7 +93,7 @@ async fn browser_origin_controls_http_admin_sessions_without_configuration() {
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
         let cookie = response.headers()["set-cookie"].to_str().unwrap();
-        assert!(cookie.starts_with("cpr_session=;"));
+        assert!(cookie.starts_with("aicodex_agent_teams_session=;"));
         let attrs: Vec<_> = cookie.split(';').map(str::trim).collect();
         assert_eq!(attrs.contains(&"Secure"), secure);
         for attribute in ["Path=/", "HttpOnly", "SameSite=Lax", "Max-Age=0"] {

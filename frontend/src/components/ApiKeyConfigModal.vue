@@ -46,7 +46,7 @@ function importToCcs() {
   window.location.href = buildCodexCcSwitchImportDeeplink({
     apiKey: keyValue.value,
     baseUrl: props.apiBaseUrl,
-    providerName: props.apiKey?.name || 'codex-proxy-rs',
+    providerName: props.apiKey?.name || 'AICodexAgentTeams',
   })
 }
 </script>

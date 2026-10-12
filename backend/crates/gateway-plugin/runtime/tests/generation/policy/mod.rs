@@ -1040,7 +1040,10 @@ async fn middleware_classifies_real_rpc_output_after_a_terminal_frame() {
 
 #[tokio::test]
 async fn outer_plugin_receives_inner_rejection_details_and_preserves_rejection_status() {
-    let worker = std::fs::read(env!("CARGO_BIN_EXE_gateway-plugin-test-middleware")).unwrap();
+    let worker = std::fs::read(env!(
+        "CARGO_BIN_EXE_AICodexAgentTeams-plugin-test-middleware"
+    ))
+    .unwrap();
     let package = crate::support::package_with_contributions(
         &worker,
         Contributions::from([crate::support::contribution(
@@ -1097,7 +1100,10 @@ async fn real_request_plugin_receives_downstream_error_details_without_consuming
         },
         upstream::UpstreamSendState,
     };
-    let worker = std::fs::read(env!("CARGO_BIN_EXE_gateway-plugin-test-middleware")).unwrap();
+    let worker = std::fs::read(env!(
+        "CARGO_BIN_EXE_AICodexAgentTeams-plugin-test-middleware"
+    ))
+    .unwrap();
     let package = crate::support::package_with_contributions(
         &worker,
         Contributions::from([crate::support::contribution(
@@ -1237,7 +1243,10 @@ async fn real_request_plugins_rewrite_settings_in_onion_order() {
     last["timeout_ms"] = serde_json::json!(90_000);
     // 显式写回宿主值也要记录覆盖，否则 Key 默认值会再次生效
     last["runtime"]["request_profiles"] = serde_json::json!({"openai":{"identity":"host"}});
-    let worker = std::fs::read(env!("CARGO_BIN_EXE_gateway-plugin-test-middleware")).unwrap();
+    let worker = std::fs::read(env!(
+        "CARGO_BIN_EXE_AICodexAgentTeams-plugin-test-middleware"
+    ))
+    .unwrap();
     let package = crate::support::package_with_contributions(
         &worker,
         Contributions::from([crate::support::contribution(
@@ -1316,7 +1325,10 @@ async fn real_request_plugins_rewrite_settings_in_onion_order() {
 
 #[tokio::test]
 async fn sdk_middleware_entry_registers_and_maps_a_real_process_response() {
-    let worker = std::fs::read(env!("CARGO_BIN_EXE_gateway-plugin-test-middleware")).unwrap();
+    let worker = std::fs::read(env!(
+        "CARGO_BIN_EXE_AICodexAgentTeams-plugin-test-middleware"
+    ))
+    .unwrap();
 
     let package = crate::support::package_with_contributions(
         &worker,
@@ -1551,7 +1563,10 @@ async fn sdk_capability_declarations_require_request_stage() {
         contribution.version = version;
 
         let package = crate::support::package_with_contributions(
-            &std::fs::read(env!("CARGO_BIN_EXE_gateway-plugin-test-middleware")).unwrap(),
+            &std::fs::read(env!(
+                "CARGO_BIN_EXE_AICodexAgentTeams-plugin-test-middleware"
+            ))
+            .unwrap(),
             Contributions::from([(capability, contribution)]),
         );
         let (_cache, runtime) = setup_package(vec![InstanceFixture {
@@ -1621,7 +1636,10 @@ impl MiddlewareBody for TransparencyBody {
 }
 
 async fn assert_sdk_transparency(mode: &'static str) {
-    let worker = std::fs::read(env!("CARGO_BIN_EXE_gateway-plugin-test-middleware")).unwrap();
+    let worker = std::fs::read(env!(
+        "CARGO_BIN_EXE_AICodexAgentTeams-plugin-test-middleware"
+    ))
+    .unwrap();
 
     let package = crate::support::package_with_contributions(
         &worker,

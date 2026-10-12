@@ -1,5 +1,5 @@
 [package]
-name = "codex-proxy-plugin-cli"
+name = "aicodex-agent-teams-plugin-cli"
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
@@ -7,7 +7,7 @@ publish.workspace = true
 rust-version.workspace = true
 
 [[bin]]
-name = "cpr-plugin"
+name = "AICodexAgentTeams-plugin"
 path = "src/main.rs"
 
 [dependencies]

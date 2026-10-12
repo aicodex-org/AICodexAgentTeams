@@ -27,7 +27,7 @@ async fn store_failure_is_recorded_once_with_the_incoming_request_id() {
         .oneshot(
             Request::builder()
                 .uri("/api/admin/accounts")
-                .header("cookie", "cpr_session=valid-session")
+                .header("cookie", "aicodex_agent_teams_session=valid-session")
                 .header("x-request-id", "admin-native-cause-test")
                 .body(Body::empty())
                 .unwrap(),

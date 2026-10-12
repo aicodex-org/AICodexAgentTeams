@@ -6,7 +6,8 @@ use super::*;
 
 #[tokio::test]
 async fn cancelled_transaction_begin_should_return_a_clean_connection_to_the_pool() {
-    let Some(database_url) = crate::support::test_env("CPR_TEST_DATABASE_URL") else {
+    let Some(database_url) = crate::support::test_env("AICODEX_AGENT_TEAMS_TEST_DATABASE_URL")
+    else {
         return;
     };
     let pool = PgPoolOptions::new()
@@ -110,7 +111,8 @@ async fn invalid_postgres_options_preserve_the_sqlx_source() {
 
 #[tokio::test]
 async fn connect_and_migrate_should_apply_all_migrations_once_and_reopen_cleanly() {
-    let Some(database_url) = crate::support::test_env("CPR_TEST_DATABASE_URL") else {
+    let Some(database_url) = crate::support::test_env("AICODEX_AGENT_TEAMS_TEST_DATABASE_URL")
+    else {
         return;
     };
     let database = format!("cpr_store_migrator_{}", Uuid::new_v4().simple());
@@ -271,7 +273,10 @@ async fn connect_and_migrate_should_apply_all_migrations_once_and_reopen_cleanly
             "runtime_settings",
         ]
     );
-    assert_eq!(session_settings, ("codex-proxy-rs".to_owned(), 30, 5, 30));
+    assert_eq!(
+        session_settings,
+        ("AICodexAgentTeams".to_owned(), 30, 5, 30)
+    );
     assert_eq!(
         migration_count,
         i64::try_from(TEST_MIGRATOR.iter().count())

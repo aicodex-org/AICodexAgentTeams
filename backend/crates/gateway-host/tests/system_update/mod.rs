@@ -226,7 +226,7 @@ impl Fixture {
     }
 
     fn executable(&self) -> PathBuf {
-        self.root.path().join("codex-proxy-rs")
+        self.root.path().join("AICodexAgentTeams")
     }
 
     fn web(&self) -> PathBuf {
@@ -382,7 +382,7 @@ enum ChecksumKind {
 fn release_archive(kind: ArchiveKind) -> Vec<u8> {
     let encoder = GzEncoder::new(Vec::new(), Compression::default());
     let mut tar = Builder::new(encoder);
-    append_file(&mut tar, "codex-proxy-rs", b"new-binary", false);
+    append_file(&mut tar, "AICodexAgentTeams", b"new-binary", false);
     append_file(&mut tar, "web/dist/index.html", b"new-web", false);
     if !matches!(kind, ArchiveKind::MissingOfficialManifest) {
         append_file(
@@ -448,7 +448,7 @@ fn append_file(tar: &mut Builder<GzEncoder<Vec<u8>>>, name: &str, data: &[u8], u
 
 fn archive_name(version: &str) -> String {
     format!(
-        "codex-proxy-rs-{version}-{}-{}.tar.gz",
+        "AICodexAgentTeams-{version}-{}-{}.tar.gz",
         std::env::consts::OS,
         std::env::consts::ARCH
     )

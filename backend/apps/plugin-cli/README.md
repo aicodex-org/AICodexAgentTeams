@@ -1,6 +1,6 @@
-# Codex Proxy Plugin CLI
+# AICodexAgentTeams Plugin CLI
 
-`cpr-plugin` 校验并规范化作者清单、收集声明的资源，生成可安装归档及 SHA-256 校验文件。
+`AICodexAgentTeams-plugin` 校验并规范化作者清单、收集声明的资源，生成可安装归档及 SHA-256 校验文件。
 输出合同与 [SDK 版本](../../crates/gateway-plugin/sdk/README.md)一致
 
 ## 安装
@@ -15,10 +15,10 @@ cargo +1.97.0 install --locked --path backend/apps/plugin-cli --root /path/to/lo
 
 ## 打包
 
-先构建目标平台的插件二进制；插件提供管理页面时，还需构建页面静态资源。打包命令传入作者清单、二进制和所需的资源目录映射，通过 `cpr-plugin package --help` 查看完整参数：
+先构建目标平台的插件二进制；插件提供管理页面时，还需构建页面静态资源。打包命令传入作者清单、二进制和所需的资源目录映射，通过 `AICodexAgentTeams-plugin package --help` 查看完整参数：
 
 ```bash
-cpr-plugin package \
+AICodexAgentTeams-plugin package \
   --manifest /path/to/plugin/plugin.json \
   --binary /path/to/plugin/target/x86_64-unknown-linux-gnu/release/plugin \
   --target x86_64-unknown-linux-gnu \
@@ -42,9 +42,9 @@ CLI 与 SDK 的 `Manifest::from_author_slice`、`PluginBuilder::from_json` 共�
 
 ## 开发
 
-Rust 包名为 `codex-proxy-plugin-cli`，位于宿主的 `backend` workspace，共享工具链、锁文件和检查规则；内部仅依赖 `gateway-plugin-sdk`
+Rust 包名为 `aicodex-agent-teams-plugin-cli`，位于宿主的 `backend` workspace，共享工具链、锁文件和检查规则；内部仅依赖 `gateway-plugin-sdk`
 
 ```bash
-cargo +1.97.0 run --manifest-path backend/Cargo.toml -p codex-proxy-plugin-cli --locked -- package --help
-RUST_MIN_STACK=16777216 cargo +1.97.0 test --manifest-path backend/Cargo.toml -p codex-proxy-plugin-cli --locked
+cargo +1.97.0 run --manifest-path backend/Cargo.toml -p aicodex-agent-teams-plugin-cli --locked -- package --help
+RUST_MIN_STACK=16777216 cargo +1.97.0 test --manifest-path backend/Cargo.toml -p aicodex-agent-teams-plugin-cli --locked
 ```

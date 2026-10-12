@@ -300,8 +300,12 @@ impl Environment {
                 vec![],
             )]);
         }
-        let service_worker = (has_service || has_http)
-            .then(|| std::fs::read(env!("CARGO_BIN_EXE_gateway-plugin-test-middleware")).unwrap());
+        let service_worker = (has_service || has_http).then(|| {
+            std::fs::read(env!(
+                "CARGO_BIN_EXE_AICodexAgentTeams-plugin-test-middleware"
+            ))
+            .unwrap()
+        });
         let worker = service_worker.as_deref().unwrap_or_else(|| super::worker());
         let archive = super::package_with_contributions_for_id(worker, &plugin_id, contributes);
         let inspector = PackageInspector::new(PackageLimits::default(), "1.0.0".parse().unwrap());
@@ -650,23 +654,25 @@ impl Environment {
 
     async fn create_with_store_mode(command_line: bool) -> Option<Self> {
         // 插件专用服务优先；CI 的标准测试服务同样通过随机 schema 隔离数据库
-        let (database, redis) = if let Ok(database) = std::env::var("CPR_PLUGIN_TEST_DATABASE_URL")
-        {
-            (
-                database,
-                std::env::var("CPR_PLUGIN_TEST_REDIS_URL").expect("isolated plugin Redis URL"),
-            )
-        } else {
-            let database = std::env::var("CPR_TEST_DATABASE_URL").ok();
-            assert!(
-                database.is_some() || std::env::var_os("CI").is_none(),
-                "CI requires plugin or standard test services"
-            );
-            (
-                database?,
-                std::env::var("CPR_TEST_REDIS_URL").expect("isolated test Redis URL"),
-            )
-        };
+        let (database, redis) =
+            if let Ok(database) = std::env::var("AICODEX_AGENT_TEAMS_PLUGIN_TEST_DATABASE_URL") {
+                (
+                    database,
+                    std::env::var("AICODEX_AGENT_TEAMS_PLUGIN_TEST_REDIS_URL")
+                        .expect("isolated plugin Redis URL"),
+                )
+            } else {
+                let database = std::env::var("AICODEX_AGENT_TEAMS_TEST_DATABASE_URL").ok();
+                assert!(
+                    database.is_some() || std::env::var_os("CI").is_none(),
+                    "CI requires plugin or standard test services"
+                );
+                (
+                    database?,
+                    std::env::var("AICODEX_AGENT_TEAMS_TEST_REDIS_URL")
+                        .expect("isolated test Redis URL"),
+                )
+            };
         let schema = format!("cpr_plugin_{}", uuid::Uuid::new_v4().simple());
         let admin = PgPoolOptions::new()
             .max_connections(1)

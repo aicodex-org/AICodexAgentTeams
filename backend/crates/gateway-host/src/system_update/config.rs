@@ -10,9 +10,9 @@ use serde::Deserialize;
 use super::{OperationError, conflict, internal};
 use crate::config::ConfigError;
 
-const APP_BINARY_NAME: &str = "codex-proxy-rs";
+const APP_BINARY_NAME: &str = "AICodexAgentTeams";
 const DEFAULT_GITHUB_API_BASE: &str = "https://api.github.com/repos";
-const DEFAULT_UPDATE_REPOSITORY: &str = "zyycn/codex-proxy-rs";
+const DEFAULT_UPDATE_REPOSITORY: &str = "aicodex-org/AICodexAgentTeams";
 
 /// 系统更新与重启配置；所有字段只由 Host 解释
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
@@ -36,45 +36,50 @@ pub struct SystemUpdateConfig {
 
 impl Default for SystemUpdateConfig {
     fn default() -> Self {
-        let deployment_mode =
-            environment_value("CPR_DEPLOYMENT_MODE").unwrap_or_else(|| "source".to_owned());
-        let executable_path = environment_value("CPR_UPDATE_EXE_PATH")
+        let deployment_mode = environment_value("AICODEX_AGENT_TEAMS_DEPLOYMENT_MODE")
+            .unwrap_or_else(|| "source".to_owned());
+        let executable_path = environment_value("AICODEX_AGENT_TEAMS_UPDATE_EXE_PATH")
             .map(PathBuf::from)
             .or_else(|| {
                 (deployment_mode == "docker")
                     .then(|| PathBuf::from("/app/bin").join(APP_BINARY_NAME))
             });
-        let update_state_file = environment_value("CPR_UPDATE_STATE_FILE")
+        let update_state_file = environment_value("AICODEX_AGENT_TEAMS_UPDATE_STATE_FILE")
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("update-state.json"));
-        let update_lock_file = environment_value("CPR_UPDATE_LOCK_FILE")
+        let update_lock_file = environment_value("AICODEX_AGENT_TEAMS_UPDATE_LOCK_FILE")
             .map(PathBuf::from)
             .unwrap_or_else(|| update_state_file.with_file_name("update.lock"));
-        let update_temp_dir = environment_value("CPR_UPDATE_TEMP_DIR")
+        let update_temp_dir = environment_value("AICODEX_AGENT_TEAMS_UPDATE_TEMP_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(|| default_temp_dir(&update_state_file));
         Self {
-            version: option_env!("CPR_VERSION")
+            version: option_env!("AICODEX_AGENT_TEAMS_VERSION")
                 .unwrap_or(env!("CARGO_PKG_VERSION"))
                 .to_owned(),
-            git_sha: option_env!("CPR_GIT_SHA").unwrap_or("unknown").to_owned(),
-            build_time: option_env!("CPR_BUILD_TIME")
+            git_sha: option_env!("AICODEX_AGENT_TEAMS_GIT_SHA")
+                .unwrap_or("unknown")
+                .to_owned(),
+            build_time: option_env!("AICODEX_AGENT_TEAMS_BUILD_TIME")
                 .unwrap_or("unknown")
                 .to_owned(),
             deployment_mode,
-            build_type: option_env!("CPR_BUILD_TYPE").unwrap_or("source").to_owned(),
+            build_type: option_env!("AICODEX_AGENT_TEAMS_BUILD_TYPE")
+                .unwrap_or("source")
+                .to_owned(),
             update_repository: Some(
-                environment_value("CPR_UPDATE_REPOSITORY")
+                environment_value("AICODEX_AGENT_TEAMS_UPDATE_REPOSITORY")
                     .unwrap_or_else(|| DEFAULT_UPDATE_REPOSITORY.to_owned()),
             ),
-            github_api_base: environment_value("CPR_GITHUB_API_BASE")
+            github_api_base: environment_value("AICODEX_AGENT_TEAMS_GITHUB_API_BASE")
                 .unwrap_or_else(|| DEFAULT_GITHUB_API_BASE.to_owned()),
             executable_path,
             web_dist_dir: None,
             update_state_file,
             update_lock_file,
             update_temp_dir,
-            self_restart_enabled: environment_value("CPR_ENABLE_SELF_RESTART").as_deref()
+            self_restart_enabled: environment_value("AICODEX_AGENT_TEAMS_ENABLE_SELF_RESTART")
+                .as_deref()
                 == Some("true"),
         }
     }
@@ -161,5 +166,5 @@ fn default_temp_dir(state_file: &Path) -> PathBuf {
     state_file
         .parent()
         .map(|parent| parent.join("update-tmp"))
-        .unwrap_or_else(|| std::env::temp_dir().join("codex-proxy-rs-update"))
+        .unwrap_or_else(|| std::env::temp_dir().join("AICodexAgentTeams-update"))
 }

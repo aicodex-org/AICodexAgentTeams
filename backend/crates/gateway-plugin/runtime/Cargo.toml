@@ -47,7 +47,7 @@ sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio
 tokio = { version = "1.52.3", default-features = false, features = ["rt-multi-thread", "test-util"] }
 
 [[bin]]
-name = "gateway-plugin-test-worker"
+name = "AICodexAgentTeams-plugin-test-worker"
 path = "tests/support/worker/mod.rs"
 test = false
 bench = false
@@ -58,7 +58,7 @@ name = "main"
 path = "tests/main.rs"
 
 [[bin]]
-name = "gateway-plugin-test-middleware"
+name = "AICodexAgentTeams-plugin-test-middleware"
 path = "tests/support/middleware/mod.rs"
 test = false
 bench = false

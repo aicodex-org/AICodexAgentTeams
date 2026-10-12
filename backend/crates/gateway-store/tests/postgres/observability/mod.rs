@@ -2686,7 +2686,7 @@ async fn dashboard_shares_account_facts_and_bounds_slow_cooldown_reads() {
     let Some(database) = TestDatabase::create("dashboard_shared_state").await else {
         return;
     };
-    let Some(redis_url) = crate::support::test_env("CPR_TEST_REDIS_URL") else {
+    let Some(redis_url) = crate::support::test_env("AICODEX_AGENT_TEAMS_TEST_REDIS_URL") else {
         database.close().await;
         return;
     };

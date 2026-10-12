@@ -31,7 +31,7 @@ export function useApiKeyUse() {
     window.location.href = buildCodexCcSwitchImportDeeplink({
       apiKey: createdKey.value,
       baseUrl: openAiBaseUrl,
-      providerName: createdKeyName.value || 'codex-proxy-rs',
+      providerName: createdKeyName.value || 'AICodexAgentTeams',
     })
   }
 
@@ -50,7 +50,7 @@ export function useApiKeyUse() {
     window.location.href = buildCodexCcSwitchImportDeeplink({
       apiKey: key,
       baseUrl: openAiBaseUrl,
-      providerName: apiKey.name || apiKey.prefix || 'codex-proxy-rs',
+      providerName: apiKey.name || apiKey.prefix || 'AICodexAgentTeams',
     })
   }
 

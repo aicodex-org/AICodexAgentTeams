@@ -15,7 +15,7 @@ description: 草拟、创建、补充或回复 GitHub Issue，包括缺陷、功
 
 ## 按需取材
 
-- 新建 Issue 时，本仓库只读[提交 Issue](../../../CONTRIBUTING.md#提交-issue)及本次匹配的一张表单：[接口问题](../../../.github/ISSUE_TEMPLATE/api-bug-report.yml)、[常规问题](../../../.github/ISSUE_TEMPLATE/general-bug-report.yml)或[功能建议](../../../.github/ISSUE_TEMPLATE/feature-request.yml)；协作规则提案可用普通 Issue
+- 新建 Issue 时，本仓库只读[提交 Issue](../../../CONTRIBUTING.md#提交-issue)，按问题场景提供版本、复现、期望结果与实际结果；本仓库未配置 Issue 表单
 - 回复时读取原帖、相关讨论与支撑答复的证据，按下方回复口吻组织内容，不套用新建 Issue 的表单
 - 其他仓库读取它自己的相关规则与实际模板，长文档先定位标题再截取，不预读全部模板或 CONTRIBUTING
 - 搜索同场景 open/closed Issues、相关 PR 和发布记录，区分主分支修复与已发布修复，不凭标题判断重复；没有新证据时返回已有链接，用户仍要求新建则按其要求处理

@@ -21,7 +21,7 @@ export function resolveAccountCreatePresentation(input: {
   const available = isBatch || (form.mode === 'oauth' && Boolean(authorization.flow)) || modes.some(mode => mode.value === form.mode)
   let description = '粘贴或上传账号 JSON，匹配已有账号时更新凭据'
   if (isBatch)
-    description = '粘贴或上传 CPR 账号包，一次导入多个平台账号'
+    description = '粘贴或上传 AICodexAgentTeams 账号包，一次导入多个平台账号'
   else if (form.mode === 'oauth')
     description = `通过浏览器授权导入 ${label} 账号`
   else if (form.mode === 'api_key')
@@ -61,7 +61,7 @@ export function resolveAccountCreatePresentation(input: {
       ? { label: 'Access Token', placeholder: '每行粘贴一个 Access Token', uploadable: false }
       : form.mode === 'refresh_token'
         ? { label: 'Refresh Token', placeholder: '每行粘贴一个 Refresh Token', uploadable: false }
-        : { label: isBatch ? '批量账号文件' : '账号文件', placeholder: isBatch ? '粘贴 CPR 多平台导出文件内容' : '粘贴账号 JSON 内容', uploadable: true },
+        : { label: isBatch ? '批量账号文件' : '账号文件', placeholder: isBatch ? '粘贴 AICodexAgentTeams 多平台导出文件内容' : '粘贴账号 JSON 内容', uploadable: true },
     canSubmit,
     submitLabel: form.mode === 'oauth'
       ? input.reauthorizing ? '完成重新授权' : '完成导入'

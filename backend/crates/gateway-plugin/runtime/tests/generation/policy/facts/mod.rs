@@ -25,7 +25,10 @@ use gateway_core::{
 async fn reading_websocket_facts_preserves_original_text_and_opaque_messages() {
     let records = tempfile::tempdir().unwrap();
     let marker = records.path().join("facts.jsonl");
-    let worker = std::fs::read(env!("CARGO_BIN_EXE_gateway-plugin-test-middleware")).unwrap();
+    let worker = std::fs::read(env!(
+        "CARGO_BIN_EXE_AICodexAgentTeams-plugin-test-middleware"
+    ))
+    .unwrap();
     let package = crate::support::package_with_contributions(
         &worker,
         Contributions::from([crate::support::contribution(
@@ -111,7 +114,10 @@ async fn reading_websocket_facts_preserves_original_text_and_opaque_messages() {
 async fn facts_are_readable_without_replacing_or_duplicating_the_original_execution() {
     let records = tempfile::tempdir().unwrap();
     let marker = records.path().join("facts.jsonl");
-    let worker = std::fs::read(env!("CARGO_BIN_EXE_gateway-plugin-test-middleware")).unwrap();
+    let worker = std::fs::read(env!(
+        "CARGO_BIN_EXE_AICodexAgentTeams-plugin-test-middleware"
+    ))
+    .unwrap();
     let package = crate::support::package_with_contributions(
         &worker,
         Contributions::from([crate::support::contribution(

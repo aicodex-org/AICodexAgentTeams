@@ -122,8 +122,8 @@ impl HostBundle {
         &self,
     ) -> gateway_admin::model::plugins::official::OfficialPluginReleaseIdentity {
         gateway_admin::model::plugins::official::OfficialPluginReleaseIdentity {
-            gateway_version: env!("CPR_VERSION").to_owned(),
-            gateway_git_sha: env!("CPR_GIT_SHA").to_owned(),
+            gateway_version: env!("AICODEX_AGENT_TEAMS_VERSION").to_owned(),
+            gateway_git_sha: env!("AICODEX_AGENT_TEAMS_GIT_SHA").to_owned(),
         }
     }
 

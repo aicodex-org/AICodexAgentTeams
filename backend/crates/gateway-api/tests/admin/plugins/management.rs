@@ -132,7 +132,10 @@ impl MiddlewarePlan for ModelMiddleware {
         _: MiddlewareNext,
     ) -> BoxFuture<'static, Result<MiddlewareResponse, MiddlewareError>> {
         for (name, value) in [
-            ("cookie", "cpr_session=management-session".to_owned()),
+            (
+                "cookie",
+                "aicodex_agent_teams_session=management-session".to_owned(),
+            ),
             ("authorization", "Bearer admin-fixture".to_owned()),
             ("x-api-key", format!("admin-{}", "a".repeat(64))),
         ] {
@@ -215,7 +218,7 @@ impl MiddlewareBody for ModelBody {
 
 fn model_request(stream: bool) -> Request<Body> {
     Request::post(format!("/api/admin/plugins/extensions/plugin-instance-diagnostic/{}/7/models/responses?clientKeyId=client-key", "a".repeat(64)))
-        .header("cookie", "cpr_session=management-session")
+        .header("cookie", "aicodex_agent_teams_session=management-session")
         .header("authorization", "Bearer admin-fixture")
         .header("x-api-key", format!("admin-{}", "a".repeat(64)))
         .header("content-type", "application/json")
@@ -236,7 +239,7 @@ async fn management_calls_and_callbacks_preserve_headers_and_override_defaults()
         )
         .oneshot(
             Request::get(uri)
-                .header("cookie", "cpr_session=management-session")
+                .header("cookie", "aicodex_agent_teams_session=management-session")
                 .header("authorization", "Bearer management-fixture")
                 .header(
                     "x-plugin-binary",
@@ -253,7 +256,7 @@ async fn management_calls_and_callbacks_preserve_headers_and_override_defaults()
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
             response.headers()["cookie"],
-            "cpr_session=management-session"
+            "aicodex_agent_teams_session=management-session"
         );
         assert_eq!(
             response.headers()["authorization"],
@@ -428,7 +431,7 @@ async fn resource_request(
         .uri(uri)
         .header("x-request-id", "management-cache-test");
     if session {
-        request = request.header("cookie", "cpr_session=management-session");
+        request = request.header("cookie", "aicodex_agent_teams_session=management-session");
     }
     for validator in validators {
         request = request.header("if-none-match", *validator);
@@ -585,7 +588,7 @@ async fn model_responses_requires_the_exact_authorized_target_before_execution()
             .uri(format!(
                 "/api/admin/plugins/extensions/{target}/models/responses?{query}"
             ))
-            .header("cookie", "cpr_session=management-session")
+            .header("cookie", "aicodex_agent_teams_session=management-session")
             .header("authorization", "Bearer admin-fixture")
             .header("x-api-key", format!("admin-{}", "a".repeat(64)))
             .header("content-type", "application/json")
@@ -698,7 +701,7 @@ async fn protected_plugin_routes_require_admin_before_reading_bodies_but_public_
             .method("POST")
             .uri(format!("{prefix}/api/echo"))
             .header("x-request-id", "management-limit")
-            .header("cookie", "cpr_session=management-session")
+            .header("cookie", "aicodex_agent_teams_session=management-session")
             .header("content-type", "application/octet-stream")
             .body(Body::from(vec![0_u8; 1024 * 1024 + 1]))
             .unwrap(),
@@ -716,7 +719,7 @@ async fn protected_plugin_routes_require_admin_before_reading_bodies_but_public_
             .method("POST")
             .uri(format!("{prefix}/models/responses?clientKeyId=client-key"))
             .header("x-request-id", "management-model-limit")
-            .header("cookie", "cpr_session=management-session")
+            .header("cookie", "aicodex_agent_teams_session=management-session")
             .header("content-type", "application/json")
             .body(Body::from(vec![0_u8; 8 * 1024 * 1024 + 1]))
             .unwrap(),

@@ -14,8 +14,8 @@ use sqlx::postgres::PgPoolOptions;
 #[tokio::test]
 async fn inspection_bundle_does_not_migrate_and_rejects_business_writes() {
     let (Some(database), Some(redis)) = (
-        crate::support::test_env("CPR_TEST_DATABASE_URL"),
-        crate::support::test_env("CPR_TEST_REDIS_URL"),
+        crate::support::test_env("AICODEX_AGENT_TEAMS_TEST_DATABASE_URL"),
+        crate::support::test_env("AICODEX_AGENT_TEAMS_TEST_REDIS_URL"),
     ) else {
         return;
     };

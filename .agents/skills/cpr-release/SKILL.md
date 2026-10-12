@@ -1,6 +1,6 @@
 ---
 name: cpr-release
-description: Codex Proxy RS 的版本规划、发布说明、正式或预发行发布与失败恢复；部署重启和普通 Git tag 清理不属于发版
+description: AICodexAgentTeams 的版本规划、发布说明、正式或预发行发布与失败恢复；部署重启和普通 Git tag 清理不属于发版
 ---
 
 # 发版
@@ -31,7 +31,7 @@ description: Codex Proxy RS 的版本规划、发布说明、正式或预发行�
 
 ## 必须保持的边界
 
-- `release/publish` 会提交、打 tag、推送并触发工作流，没有只读预演模式，不能用于探测或演练
+- 本仓库未配置自动发版工作流时，`release/publish` 在任何远程写入前拒绝发布；具备工作流后该入口会提交、打 tag、推送并触发工作流，没有只读预演模式，不能用于探测或演练
 - 同名版本、超时或中断先查本地与远端状态，不删已发布 tag、不移动 tag、不强推掩盖冲突
 - 预发行不得覆盖 GitHub Latest 或镜像 `latest`，完成后回读核对
 - `release/notes.md` 只承载当前发行的说明，常规文档只写当前状态，不追加版本历史；其变更执行[文档检查](../cpr-dev-guide/references/documentation.md)

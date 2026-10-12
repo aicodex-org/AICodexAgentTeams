@@ -191,7 +191,7 @@ impl fmt::Debug for ExportManagedCodexCredential {
     }
 }
 
-/// CPR canonical 账号导出文档；只允许显式序列化，Debug 永不输出 credential secret
+/// AICodexAgentTeams canonical 账号导出文档；只允许显式序列化，Debug 永不输出 credential secret
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CodexCprExportDocument {
@@ -652,7 +652,7 @@ impl CodexCredentialAdmin {
         })
     }
 
-    /// 严格输出可被 CPR 导入逻辑直接读取的 canonical 文档
+    /// 严格输出可被 AICodexAgentTeams 导入逻辑直接读取的 canonical 文档
     pub fn format_cpr_export(
         &self,
         items: Vec<ExportManagedCodexCredential>,

@@ -96,11 +96,11 @@ impl PluginCommandSession {
         if let (Some(instance_id), Some(name)) = (instance_id, name) {
             let command = self.find(instance_id, name)?;
             return Ok(format!(
-                "用法: codex-proxy-rs plugin {instance_id} {name} [参数]\n{}",
+                "用法: AICodexAgentTeams plugin {instance_id} {name} [参数]\n{}",
                 parameters::help(&command.descriptor)
             ));
         }
-        let mut output = String::from("用法: codex-proxy-rs plugin <实例 ID> <命令> [参数]\n\n");
+        let mut output = String::from("用法: AICodexAgentTeams plugin <实例 ID> <命令> [参数]\n\n");
         let mut found = false;
         for command in &self.commands {
             if instance_id.is_none_or(|id| id == command.instance_id) {

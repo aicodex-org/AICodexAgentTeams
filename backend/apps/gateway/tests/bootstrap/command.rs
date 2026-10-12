@@ -8,7 +8,7 @@ fn basic_cli_options_do_not_load_configuration_and_reject_unexpected_arguments()
     fs::create_dir(directory.path().join("deploy")).unwrap();
     fs::write(directory.path().join("deploy/config.yaml"), "invalid: [").unwrap();
     for flag in ["--help", "-h", "help", "--version", "-V"] {
-        let output = Command::new(env!("CARGO_BIN_EXE_codex-proxy-rs"))
+        let output = Command::new(env!("CARGO_BIN_EXE_AICodexAgentTeams"))
             .arg(flag)
             .current_dir(directory.path())
             .env_clear()
@@ -17,13 +17,19 @@ fn basic_cli_options_do_not_load_configuration_and_reject_unexpected_arguments()
         assert!(output.status.success(), "{flag}");
         assert!(!output.stdout.is_empty());
         assert!(output.stderr.is_empty());
+        if matches!(flag, "--help" | "-h" | "help") {
+            let help = String::from_utf8(output.stdout).unwrap();
+            assert!(help.contains("Usage: AICodexAgentTeams [serve]"));
+            assert!(help.contains("AICodexAgentTeams plugin <instance-id>"));
+            assert!(!help.contains("codex-proxy-rs"));
+        }
     }
     for args in [
         vec!["unknown"],
         vec!["--help", "extra"],
         vec!["serve", "extra"],
     ] {
-        let output = Command::new(env!("CARGO_BIN_EXE_codex-proxy-rs"))
+        let output = Command::new(env!("CARGO_BIN_EXE_AICodexAgentTeams"))
             .args(args)
             .current_dir(directory.path())
             .env_clear()
@@ -40,7 +46,7 @@ fn basic_cli_options_do_not_load_configuration_and_reject_unexpected_arguments()
 fn non_utf8_command_is_not_interpreted_as_serve() {
     use std::os::unix::ffi::OsStringExt as _;
 
-    let output = Command::new(env!("CARGO_BIN_EXE_codex-proxy-rs"))
+    let output = Command::new(env!("CARGO_BIN_EXE_AICodexAgentTeams"))
         .arg(std::ffi::OsString::from_vec(vec![0xff]))
         .env_clear()
         .output()

@@ -28,7 +28,10 @@ async fn http_plugin_with_limits(
     ExtensionSetReference,
     gateway_core::engine::middleware::FrozenMiddlewarePlan,
 ) {
-    let worker = std::fs::read(env!("CARGO_BIN_EXE_gateway-plugin-test-middleware")).unwrap();
+    let worker = std::fs::read(env!(
+        "CARGO_BIN_EXE_AICodexAgentTeams-plugin-test-middleware"
+    ))
+    .unwrap();
     let package = crate::support::package_with_contributions(
         &worker,
         Contributions::from([crate::support::contribution(
@@ -481,11 +484,12 @@ async fn dropping_or_cancelling_a_response_releases_its_active_upload() {
 #[ignore = "run with --release --ignored --nocapture for the HTTP middleware baseline"]
 async fn http_onion_performance_baseline() {
     let worker = std::fs::read(
-        std::env::var_os("CPR_PLUGIN_BENCH_WORKER")
-            .unwrap_or_else(|| env!("CARGO_BIN_EXE_gateway-plugin-test-middleware").into()),
+        std::env::var_os("AICODEX_AGENT_TEAMS_PLUGIN_BENCH_WORKER").unwrap_or_else(|| {
+            env!("CARGO_BIN_EXE_AICodexAgentTeams-plugin-test-middleware").into()
+        }),
     )
     .unwrap();
-    let selected = std::env::var("CPR_PLUGIN_BENCH_CASE").ok();
+    let selected = std::env::var("AICODEX_AGENT_TEAMS_PLUGIN_BENCH_CASE").ok();
     assert!(selected.as_deref().is_none_or(|case| {
         ["native", "passthrough", "compose-three", "transform"].contains(&case)
     }));

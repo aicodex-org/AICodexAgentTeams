@@ -1,7 +1,7 @@
 # 部署与运维
 
 首次安装可按 [快速开始](../README.md#快速开始) 操作。
-本文补充客户端配置、权限、备份和升级；部署命令从安装目录 `codex-proxy-rs/` 执行，
+本文补充客户端配置、权限、备份和升级；部署命令从安装目录 `AICodexAgentTeams/` 执行，
 其中 `deploy/` 存放 Compose 文件和配置，`.runtime/` 存放持久化数据
 
 | 任务 | 入口 |
@@ -73,7 +73,7 @@ PostgreSQL 和 Redis 的凭据桥接配置与该段并列，无需在 `compose.y
 
 ```bash
 docker compose -f deploy/compose.yaml config --quiet
-docker compose -f deploy/compose.yaml up -d --no-build --no-deps --force-recreate codex-proxy-rs
+docker compose -f deploy/compose.yaml up -d --no-build --no-deps --force-recreate aicodex-agent-teams
 ```
 
 此配置将 glibc 的 mmap 与 trim 阈值固定为 128 KiB，关闭对应的动态阈值调整。
@@ -84,7 +84,7 @@ docker compose -f deploy/compose.yaml up -d --no-build --no-deps --force-recreat
 `services` 是 Compose 桥接区，直接运行二进制不会读取这一段。Linux/glibc 二进制部署需由启动器在进程启动前设置同一环境变量，例如：
 
 ```bash
-GLIBC_TUNABLES=glibc.malloc.mmap_threshold=131072:glibc.malloc.trim_threshold=131072 ./codex-proxy-rs
+GLIBC_TUNABLES=glibc.malloc.mmap_threshold=131072:glibc.malloc.trim_threshold=131072 ./AICodexAgentTeams
 ```
 
 该变量由 glibc 在进程启动时读取，不支持管理端热更新。
@@ -113,14 +113,14 @@ flowchart LR
 下载同一正式 Release 的部署文件并设置目录权限：
 
 ```bash
-mkdir -p codex-proxy-rs/deploy && cd codex-proxy-rs
+mkdir -p AICodexAgentTeams/deploy && cd AICodexAgentTeams
 
 # 只解析一次最新正式版本，确保两个文件来自同一 Release。
-CPR_RELEASE_URL="$(curl -fsSL -o /dev/null -w '%{url_effective}' https://github.com/zyycn/codex-proxy-rs/releases/latest)"
-CPR_RELEASE_TAG="${CPR_RELEASE_URL##*/}"
-curl -fsSL "https://github.com/zyycn/codex-proxy-rs/releases/download/${CPR_RELEASE_TAG}/compose.yaml" \
+AICODEX_AGENT_TEAMS_RELEASE_URL="$(curl -fsSL -o /dev/null -w '%{url_effective}' https://github.com/aicodex-org/AICodexAgentTeams/releases/latest)"
+AICODEX_AGENT_TEAMS_RELEASE_TAG="${AICODEX_AGENT_TEAMS_RELEASE_URL##*/}"
+curl -fsSL "https://github.com/aicodex-org/AICodexAgentTeams/releases/download/${AICODEX_AGENT_TEAMS_RELEASE_TAG}/compose.yaml" \
   -o deploy/compose.yaml
-curl -fsSL "https://github.com/zyycn/codex-proxy-rs/releases/download/${CPR_RELEASE_TAG}/config.example.yaml" \
+curl -fsSL "https://github.com/aicodex-org/AICodexAgentTeams/releases/download/${AICODEX_AGENT_TEAMS_RELEASE_TAG}/config.example.yaml" \
   -o deploy/config.example.yaml
 
 install -d -m 0750 .runtime/postgres .runtime/redis
@@ -128,7 +128,7 @@ sudo install -d -m 0770 -o "$(id -u)" -g 10001 .runtime/data .runtime/logs
 sudo install -m 0640 -o "$(id -u)" -g 10001 deploy/config.example.yaml deploy/config.yaml
 ```
 
-也可将 `CPR_RELEASE_TAG` 设置为指定的发布标签。Release 附带的 `compose.yaml` 默认使用该版本镜像，
+也可将 `AICODEX_AGENT_TEAMS_RELEASE_TAG` 设置为指定的发布标签。Release 附带的 `compose.yaml` 默认使用该版本镜像，
 配置模板和部署文件均包含在 `checksums.txt` 中；不要混用 `main` 分支模板与已发布镜像
 
 为 PostgreSQL 与 Redis 分别生成一个密码：
@@ -174,7 +174,7 @@ store:
 将这两项合并到已有配置，保留其他配置和密码锚点；Redis 服务端需事先创建并授权该用户。
 用户名中的 `@`、`:` 等特殊字符需要 URL 百分号编码。未填写用户名时使用 Redis 的 `default` 用户
 
-环境变量 `CPR_REDIS_URL` 优先于 `store.redis.url`。默认 `deploy/compose.yaml` 已将它设为
+环境变量 `AICODEX_AGENT_TEAMS_REDIS_URL` 优先于 `store.redis.url`。默认 `deploy/compose.yaml` 已将它设为
 `redis://redis:6379/`，使用 ACL 用户时还需把应用服务的该环境变量改为
 `redis://u1@redis-host:6379/0`，其中主机名必须能从应用容器访问；只改 `config.yaml` 不会生效。
 默认 Compose Redis 服务使用密码认证，不会自动创建 ACL 用户
@@ -228,9 +228,9 @@ PostgreSQL/Redis 启动密码。日常校验使用 `config --quiet`
 使用与网关相同的工作目录和 `deploy/config.yaml`，读取制品已接受且当前已启用的插件实例：
 
 ```bash
-codex-proxy-rs plugin --help
-codex-proxy-rs plugin '实例ID' '命令' --help
-codex-proxy-rs plugin '实例ID' '命令' --参数 '值'
+AICodexAgentTeams plugin --help
+AICodexAgentTeams plugin '实例ID' '命令' --help
+AICodexAgentTeams plugin '实例ID' '命令' --参数 '值'
 ```
 
 将示例中的实例 ID、命令、参数名和值替换为插件实际提供的内容
@@ -291,7 +291,7 @@ SSE 注释保活用于防止传输链路空闲断开，不会重置 Codex 等待
 
 管理端生成的 CC Switch 一键导入包含连接信息和当前 Key 的日／周额度查询，默认每 30 分钟刷新。
 查询地址和凭据随导入生成，在 CC Switch 中修改 Provider 的地址或 Key 后，需重新导入以同步用量查询。
-导入不包含下方模板的远程压缩、原生生图和 WebSocket 设置。需要这些设置时，使用下方配置直连 CPR，
+导入不包含下方模板的远程压缩、原生生图和 WebSocket 设置。需要这些设置时，使用下方配置直连 AICodexAgentTeams，
 避免 CC Switch 切换或接管后重写 Provider 配置
 
 Linux/macOS 默认目录为 `~/.codex/`，Windows 为 `%USERPROFILE%\.codex\`；
@@ -339,7 +339,7 @@ V2 远程压缩通过 Responses 接口发送 `compaction_trigger`，网关和上
 若 Provider ID 改为 `custom`，相应能力配置也要改到 `[model_providers.custom.capabilities]`
 
 需要指定完整模型目录时，在账号的模型列表中导出所选 Codex 模型，并在 `config.toml` 顶层设置
-`model_catalog_json = "/absolute/path/to/cpr-model-catalog.json"`。导出文件不含账号凭据；
+`model_catalog_json = "/absolute/path/to/AICodexAgentTeams-model-catalog.json"`。导出文件不含账号凭据；
 它是一次目录快照，调整选择或上游模型能力变化后需重新导出
 
 ### 生图和 WebSocket
@@ -450,10 +450,10 @@ Provider schema 以明文 JSON 保存于 PostgreSQL。Redis 只保存可重建�
 | 普通日志、OAuth 恢复日志 | `host.logging.file.retention_days` | 前 7 个完整自然日及当天 |
 | 全量请求/响应报文 | `host.logging.request_dump_retention_days` | 前 1 个完整自然日及当天 |
 
-文件名统一为 `codex-proxy-rs-<类别>.YYYY-MM-DD[.N].log[.gz]`，类别分别为
+文件名统一为 `AICodexAgentTeams-<类别>.YYYY-MM-DD[.N].log[.gz]`，类别分别为
 `application`、`oauth-recovery`、`request-dump`。专用 tracing target 为 `oauth_recovery` 和
 `request_dump`；普通日志保留各 Rust 模块的 target，便于按模块过滤。
-程序只管理上述规范名称的日志，其他命名的文件由运维手动清理。
+程序按保留期限清理上述规范名称及 `codex-proxy-rs-<类别>` 前缀的日志，其他命名的文件由运维手动清理。
 
 日志时间戳采用部署时区并携带数字偏移，文件按该时区的日期轮转和整组保留：例如 9 月 8 日配置 1 天，会保留 9 月 7 日全天及 9 月 8 日的所有分片，
 到 9 月 9 日才允许清理 9 月 7 日，避免留下半天日志。夏令时日期允许为 23 或 25 小时。切换时区不重命名历史文件；
@@ -495,7 +495,7 @@ OAuth 恢复开关为 `host.logging.oauth_recovery`，默认关闭，与普通�
 3. 打开错误详情，核对上游/客户端状态、发送状态、attempt、失败阶段及后续恢复关联。
    下载默认诊断包作为反馈材料，先看 `availability`、`attemptsComplete` 和淘汰计数；
    该包不含原始错误正文或完整 trace data。分享前仍应检查关联 ID 等内部信息
-4. 需要更细上下文时，在 `codex-proxy-rs-application.*.log` 及 `.log.gz` 中按网关/上游 ID
+4. 需要更细上下文时，在 `AICodexAgentTeams-application.*.log` 及 `.log.gz` 中按网关/上游 ID
    和时间检索，结合 `attempt.started`、`attempt.failed`、`request.finished` 与 transport 阶段判断。
    **开启 `host.logging.file.enabled` 时，stdout 仅保留 `gateway_startup` 通道**；
    `docker logs` 看不到业务错误不代表没有错误。关闭普通文件日志且开启 `host.logging.stdout`
@@ -510,7 +510,7 @@ OAuth 恢复开关为 `host.logging.oauth_recovery`，默认关闭，与普通�
    按配置的保留窗口及组织的数据处理要求管理已生成文件。不要为普通请求排查开启 OAuth 恢复记录，
    也不要直接上传整个日志目录或完整转储
 
-请求问题反馈使用 [接口问题反馈表单](../.github/ISSUE_TEMPLATE/api-bug-report.yml)；错误诊断与查询合同见
+请求问题反馈在仓库创建 Issue 并提供运行版本和复现步骤；错误诊断与查询合同见
 [API 文档](../docs/api.md#10-dashboard用量与错误)
 
 ### 插件取文与 DNS
@@ -535,6 +535,20 @@ OAuth 恢复开关为 `host.logging.oauth_recovery`，默认关闭，与普通�
 
 ## 镜像升级与源码构建
 
+发布镜像使用 `ghcr.io/aicodex-org/aicodex-agent-teams`，安装脚本和在线更新读取
+`aicodex-org/AICodexAgentTeams` 的 Release。本仓库未配置自动发版工作流，相关产物需先由维护者构建并发布
+
+复用已有 PostgreSQL 数据目录时，数据库和用户名必须与目录中的实际值一致，在 Compose 环境中设置
+`AICODEX_AGENT_TEAMS_DATABASE_NAME` 和 `AICODEX_AGENT_TEAMS_DATABASE_USER`，不要仅修改默认值后启动。
+部署环境变量使用 `AICODEX_AGENT_TEAMS_` 前缀，更新部署时同步调整自定义环境变量。
+现有 `deploy/config.yaml` 中的连接地址、凭据和管理员账号保持实际值，不用配置模板覆盖。
+浏览器会话 Cookie 使用新名称，更新后需要重新登录；主题和侧栏偏好使用独立的本地存储键
+
+从 Compose 项目 `codex-proxy-rs` 迁移时，先在原安装目录使用原 `deploy/compose.yaml` 执行
+`docker compose -f deploy/compose.yaml down`，再替换部署文件并启动新项目。
+若原部署显式设置了 `-p` 或 `COMPOSE_PROJECT_NAME`，停止时使用同一项目名。
+两个项目不能同时挂载同一 PostgreSQL/Redis 数据目录；保留 `.runtime` 和配置文件，停止时不要删除数据卷
+
 每个 Release 独立提供 `config.example.yaml`、默认镜像固定到该版本的 `compose.yaml` 和校验和；
 各平台归档也包含 `deploy/config.example.yaml`。配置模板来自构建该版本的同一提交。
 使用二进制归档手动部署时，将模板中的 `api.asset_directory` 改为 `../web/dist`，指向归档内的静态资源。
@@ -545,14 +559,14 @@ OAuth 恢复开关为 `host.logging.oauth_recovery`，默认关闭，与普通�
 更新部署文件后，从安装目录拉取目标版本镜像并重建应用容器：
 
 ```bash
-docker compose -f deploy/compose.yaml pull codex-proxy-rs
-docker compose -f deploy/compose.yaml up -d --no-build --wait codex-proxy-rs
+docker compose -f deploy/compose.yaml pull aicodex-agent-teams
+docker compose -f deploy/compose.yaml up -d --no-build --wait aicodex-agent-teams
 ```
 
 源码构建需要克隆源码仓库并准备配置与数据目录，构建过程自动准备前端依赖，无需初始化子模块或准备额外 build context。以下命令从仓库根目录执行：
 
 ```bash
-docker compose -f deploy/compose.yaml build codex-proxy-rs
+docker compose -f deploy/compose.yaml build aicodex-agent-teams
 docker compose -f deploy/compose.yaml up -d --no-build --wait
 ```
 
@@ -561,10 +575,10 @@ docker compose -f deploy/compose.yaml up -d --no-build --wait
 构建元数据通过一次性进程环境传入：
 
 ```bash
-CPR_VERSION="$(ruby -ryaml -e 'puts YAML.load_file("release/version.yaml").fetch("version").delete_prefix("v")')" \
-CPR_GIT_SHA="$(git rev-parse HEAD)" \
-CPR_BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-docker compose -f deploy/compose.yaml build codex-proxy-rs
+AICODEX_AGENT_TEAMS_VERSION="$(ruby -ryaml -e 'puts YAML.load_file("release/version.yaml").fetch("version").delete_prefix("v")')" \
+AICODEX_AGENT_TEAMS_GIT_SHA="$(git rev-parse HEAD)" \
+AICODEX_AGENT_TEAMS_BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+docker compose -f deploy/compose.yaml build aicodex-agent-teams
 ```
 
 ### 版本命名与升级规则
@@ -611,7 +625,7 @@ alpha、beta、rc、exp 在 GitHub 标记为 Pre-release，不覆盖 GitHub Late
 回滚入口只接受与记录指纹一致的完整备份；缺少指纹，或备份被替换、丢失时，不提供在线回滚，
 但不会删除备份文件。此时需要按人工部署流程恢复已经核实的发行包
 
-直接运行二进制时，若未设置 `CPR_ENABLE_SELF_RESTART=true`，管理端自重启默认关闭。
+直接运行二进制时，若未设置 `AICODEX_AGENT_TEAMS_ENABLE_SELF_RESTART=true`，管理端自重启默认关闭。
 在现有 `deploy/config.yaml` 的 `host` 下合并以下配置：
 
 ```yaml
@@ -619,29 +633,29 @@ host:
   system_update:
     deployment_mode: binary
     self_restart_enabled: true
-    executable_path: '/opt/codex-proxy-rs/codex-proxy-rs'
+    executable_path: '/opt/AICodexAgentTeams/AICodexAgentTeams'
 ```
 
 `executable_path` 为可选项：未指定时，服务在启动时解析并固定当前程序路径；
 显式配置时，将示例改为实际程序的绝对路径。`self_restart_enabled` 控制管理端的「立即重启」操作；
 修改配置后需手动重启当前服务一次才会生效。
-以上三个字段也可分别通过 `CPR_DEPLOYMENT_MODE`、`CPR_ENABLE_SELF_RESTART` 和 `CPR_UPDATE_EXE_PATH` 设置，
+以上三个字段也可分别通过 `AICODEX_AGENT_TEAMS_DEPLOYMENT_MODE`、`AICODEX_AGENT_TEAMS_ENABLE_SELF_RESTART` 和 `AICODEX_AGENT_TEAMS_UPDATE_EXE_PATH` 设置，
 YAML 中显式配置的值优先于对应环境变量
 
 Compose 提供以下在线更新运行参数：
 
-- `CPR_UPDATE_REPOSITORY`：只接受 `owner/repository`；默认 `zyycn/codex-proxy-rs`
-- `CPR_GITHUB_API_BASE`：正式环境必须为 `https://api.github.com/repos`
-- `CPR_UPDATE_EXE_PATH`、`CPR_WEB_DIST_DIR`：分别指向容器内二进制和前端静态目录；
-  `CPR_WEB_DIST_DIR` 同时供页面服务与更新器使用，相对路径以 `deploy/config.yaml` 所在目录为基准
+- `AICODEX_AGENT_TEAMS_UPDATE_REPOSITORY`：只接受 `owner/repository`；默认 `aicodex-org/AICodexAgentTeams`
+- `AICODEX_AGENT_TEAMS_GITHUB_API_BASE`：正式环境必须为 `https://api.github.com/repos`
+- `AICODEX_AGENT_TEAMS_UPDATE_EXE_PATH`、`AICODEX_AGENT_TEAMS_WEB_DIST_DIR`：分别指向容器内二进制和前端静态目录；
+  `AICODEX_AGENT_TEAMS_WEB_DIST_DIR` 同时供页面服务与更新器使用，相对路径以 `deploy/config.yaml` 所在目录为基准
 - 更新临时目录、状态文件和锁文件默认由 `host.runtime_data_dir` 派生；
-  `CPR_UPDATE_TEMP_DIR`、`CPR_UPDATE_STATE_FILE`、`CPR_UPDATE_LOCK_FILE` 仅用于显式覆盖
-- `CPR_ENABLE_SELF_RESTART=true`：更新或回滚完成后允许管理端请求重启；Docker 进程退出后由
+  `AICODEX_AGENT_TEAMS_UPDATE_TEMP_DIR`、`AICODEX_AGENT_TEAMS_UPDATE_STATE_FILE`、`AICODEX_AGENT_TEAMS_UPDATE_LOCK_FILE` 仅用于显式覆盖
+- `AICODEX_AGENT_TEAMS_ENABLE_SELF_RESTART=true`：更新或回滚完成后允许管理端请求重启；Docker 进程退出后由
   Compose 的 `restart: unless-stopped` 拉起新进程
 
 管理端自重启遵循统一的[停止与重启](#停止与重启)策略，客户端需在新进程完成迁移与初始化后重新连接
 
-Release 必须提供当前 OS/架构的 `codex-proxy-rs_<version>_<os>_<arch>.tar.gz` 与
+Release 必须提供当前 OS/架构的 `AICodexAgentTeams_<version>_<os>_<arch>.tar.gz` 与
 `checksums.txt`。服务会在替换前再次查询远端最新版本，校验下载 host、声明大小、SHA-256 和
 归档路径；二进制或静态资源任一替换失败时恢复旧文件。成功后的旧二进制和旧静态目录分别保留为
 `*.backup`，管理端 rollback 会交换当前文件与这份备份。更新状态和跨进程锁可在以下位置排查：
@@ -700,7 +714,7 @@ OpenAI 主动额度重置卡及消费结果由上游持有，不属于本地备�
 - 官方运行镜像内置与 Compose 数据库服务版本一致的 `pg_dump` / `pg_restore`，无需额外安装。
   自行替换 PostgreSQL 版本时，应同步核对备份工具版本
 - 备份暂存目录为 `host.runtime_data_dir/backup-staging`；Compose 默认对应
-  `/app/.runtime/data/backup-staging`，由 `.runtime/data` 卷持久化，权限 `0700`（仅 `cpr`
+  `/app/.runtime/data/backup-staging`，由 `.runtime/data` 卷持久化，权限 `0700`（仅 `aicodex-agent-teams`
   用户可读写）。部署卷至少预留一个最大数据库归档的空间
 - S3/R2 存储、Cron 计划、保留策略与备份记录都保存在 PostgreSQL（`backup_settings` /
   `backup_records`），备份记录行在删除成功后硬删除，操作历史进入 `admin_audit_events`

@@ -12,13 +12,13 @@ use gateway_host::system_update::SystemUpdateConfig;
 mod sink;
 mod writer;
 
-const LOG_TIMEZONE_ENV: &str = "CPR_LOGGING_TEST_TIMEZONE";
-const LOG_DIRECTORY_ENV: &str = "CPR_LOGGING_TEST_DIRECTORY";
-const CHILD_PROCESS_ENV: &str = "CPR_LOGGING_TEST_CHILD";
-const REQUEST_DUMP_ENABLED_ENV: &str = "CPR_LOGGING_TEST_REQUEST_DUMP_ENABLED";
-const APPLICATION_LOG_FILE_PREFIX: &str = "codex-proxy-rs-application.";
-const OAUTH_RECOVERY_LOG_FILE_PREFIX: &str = "codex-proxy-rs-oauth-recovery.";
-const REQUEST_DUMP_LOG_FILE_PREFIX: &str = "codex-proxy-rs-request-dump.";
+const LOG_TIMEZONE_ENV: &str = "AICODEX_AGENT_TEAMS_LOGGING_TEST_TIMEZONE";
+const LOG_DIRECTORY_ENV: &str = "AICODEX_AGENT_TEAMS_LOGGING_TEST_DIRECTORY";
+const CHILD_PROCESS_ENV: &str = "AICODEX_AGENT_TEAMS_LOGGING_TEST_CHILD";
+const REQUEST_DUMP_ENABLED_ENV: &str = "AICODEX_AGENT_TEAMS_LOGGING_TEST_REQUEST_DUMP_ENABLED";
+const APPLICATION_LOG_FILE_PREFIX: &str = "AICodexAgentTeams-application.";
+const OAUTH_RECOVERY_LOG_FILE_PREFIX: &str = "AICodexAgentTeams-oauth-recovery.";
+const REQUEST_DUMP_LOG_FILE_PREFIX: &str = "AICodexAgentTeams-request-dump.";
 const APPLICATION_LOG_TARGET: &str = "logging_test_application";
 const APPLICATION_LOG_MARKER: &str = "application-file-filter-test";
 const OAUTH_RECOVERY_LOG_TARGET: &str = "oauth_recovery";
@@ -198,8 +198,8 @@ fn shutdown_logs_remain_visible_on_stdout_with_file_logging_enabled() {
 
 #[test]
 fn oauth_recovery_switch_controls_only_its_dedicated_file() {
-    const OAUTH_ENABLED_ENV: &str = "CPR_LOGGING_TEST_OAUTH_ENABLED";
-    const APPLICATION_ENABLED_ENV: &str = "CPR_LOGGING_TEST_APPLICATION_ENABLED";
+    const OAUTH_ENABLED_ENV: &str = "AICODEX_AGENT_TEAMS_LOGGING_TEST_OAUTH_ENABLED";
+    const APPLICATION_ENABLED_ENV: &str = "AICODEX_AGENT_TEAMS_LOGGING_TEST_APPLICATION_ENABLED";
     const TOKEN: &str = "synthetic-oauth-token-must-stay-in-recovery-file";
     if env::var_os(CHILD_PROCESS_ENV).is_some() {
         let mut config =

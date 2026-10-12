@@ -260,7 +260,7 @@ watch(
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div class="min-w-0">
             <p class="m-0 text-cp-xs leading-none font-heavy text-cp-text-quaternary">
-              Codex Proxy RS
+              AICodexAgentTeams
             </p>
             <p class="mt-2 mb-0 text-lg leading-none font-heavy text-cp-text">
               应用包更新

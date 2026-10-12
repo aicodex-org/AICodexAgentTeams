@@ -125,7 +125,7 @@ async fn artifact_icon_is_admin_only_digest_bound_and_hardened() {
                 .uri(format!(
                     "/api/admin/plugins/artifacts/{digest}/icon?theme=light"
                 ))
-                .header("cookie", "cpr_session=valid-session")
+                .header("cookie", "aicodex_agent_teams_session=valid-session")
                 .header("x-request-id", "req_plugin_icon")
                 .body(Body::empty())
                 .unwrap(),
@@ -155,7 +155,7 @@ async fn artifact_icon_is_admin_only_digest_bound_and_hardened() {
                 .uri(format!(
                     "/api/admin/plugins/artifacts/{digest}/icon?theme=dark"
                 ))
-                .header("cookie", "cpr_session=valid-session")
+                .header("cookie", "aicodex_agent_teams_session=valid-session")
                 .header("x-request-id", "req_plugin_svg_icon")
                 .body(Body::empty())
                 .unwrap(),
@@ -202,7 +202,7 @@ async fn artifact_icon_is_admin_only_digest_bound_and_hardened() {
                     "/api/admin/plugins/artifacts/{}/icon?theme=light",
                     "e".repeat(64)
                 ))
-                .header("cookie", "cpr_session=valid-session")
+                .header("cookie", "aicodex_agent_teams_session=valid-session")
                 .header("x-request-id", "req_plugin_icon_missing")
                 .body(Body::empty())
                 .unwrap(),
@@ -247,7 +247,7 @@ async fn distribution_rate_limit_keeps_its_safe_owner_message() {
                 .method("POST")
                 .uri("/api/admin/plugins/releases/query")
                 .header("content-type", "application/json")
-                .header("cookie", "cpr_session=valid-session")
+                .header("cookie", "aicodex_agent_teams_session=valid-session")
                 .header("x-request-id", "req_plugin_distribution_rate_limit")
                 .body(Body::from(
                     serde_json::json!({
@@ -307,7 +307,7 @@ async fn instance_list_serializes_safe_runtime_diagnostics() {
         .oneshot(
             Request::builder()
                 .uri("/api/admin/plugins/instances")
-                .header("cookie", "cpr_session=valid-session")
+                .header("cookie", "aicodex_agent_teams_session=valid-session")
                 .header("x-request-id", "req_plugin_instance_diagnostics")
                 .body(Body::empty())
                 .unwrap(),
@@ -354,7 +354,7 @@ async fn plugin_upload_endpoints_require_admin_and_bound_raw_bodies() {
                 .header("x-request-id", "req_plugin_upload_limit")
                 .header("content-type", "application/octet-stream");
             if authenticated {
-                request = request.header("cookie", "cpr_session=valid-session");
+                request = request.header("cookie", "aicodex_agent_teams_session=valid-session");
             }
             let response = gateway_api::admin::router::<super::AdminTestState>()
                 .with_state(fixture.state())
@@ -395,7 +395,7 @@ async fn artifact_acceptance_returns_the_flat_install_contract() {
                 .method("POST")
                 .uri("/api/admin/plugins/artifacts/accept")
                 .header("content-type", "application/json")
-                .header("cookie", "cpr_session=valid-session")
+                .header("cookie", "aicodex_agent_teams_session=valid-session")
                 .header("x-request-id", "req_plugin_accept")
                 .body(Body::from(format!(r#"{{"sha256":"{}"}}"#, "a".repeat(64))))
                 .unwrap(),
@@ -465,7 +465,7 @@ async fn removed_instance_policy_fields_and_extra_accept_fields_are_rejected() {
                     .method("POST")
                     .uri(path)
                     .header("content-type", "application/json")
-                    .header("cookie", "cpr_session=valid-session")
+                    .header("cookie", "aicodex_agent_teams_session=valid-session")
                     .header("x-request-id", "req_plugin_strict_input")
                     .body(Body::from(body.to_string()))
                     .unwrap(),
@@ -514,7 +514,7 @@ async fn plugin_mutations_require_admin_and_validate_json_on_static_post_routes(
                 .header("content-type", "application/json")
                 .header("x-request-id", "req_plugin_routes");
             if authenticated {
-                request = request.header("cookie", "cpr_session=valid-session");
+                request = request.header("cookie", "aicodex_agent_teams_session=valid-session");
             }
             let response = gateway_api::admin::router::<super::AdminTestState>()
                 .with_state(fixture.state())
@@ -1014,7 +1014,7 @@ async fn version_plan_requires_admin_and_an_explicit_target() {
             .uri("/api/admin/plugins/instances/version-plan")
             .header("x-request-id", "version-plan");
         if authenticated {
-            request = request.header("cookie", "cpr_session=valid-session");
+            request = request.header("cookie", "aicodex_agent_teams_session=valid-session");
         }
         let response = gateway_api::admin::router::<super::AdminTestState>()
             .with_state(fixture.state())

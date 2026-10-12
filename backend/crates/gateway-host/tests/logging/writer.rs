@@ -60,6 +60,27 @@ fn retention_preserves_complete_dates_across_compression_rotation_and_restart() 
             retained.push(path);
         }
     }
+    let mut legacy_retained = Vec::new();
+    for (prefix, days) in [
+        ("codex-proxy-rs-application", 7),
+        ("codex-proxy-rs-oauth-recovery", 7),
+        ("codex-proxy-rs-request-dump", 1),
+    ] {
+        let boundary = today - chrono::Days::new(days);
+        let old_date = boundary - chrono::Days::new(1);
+        for suffix in ["log", "2.log", "log.gz"] {
+            let path = directory
+                .path()
+                .join(format!("{prefix}.{old_date}.{suffix}"));
+            seed_log(&path, old_date, "expired legacy log\n");
+            expired.push(path);
+            let path = directory
+                .path()
+                .join(format!("{prefix}.{boundary}.{suffix}"));
+            seed_log(&path, boundary, "retained legacy log\n");
+            legacy_retained.push(path);
+        }
+    }
     let unrelated = directory.path().join("unmanaged.log");
     fs::write(&unrelated, "unmanaged\n").unwrap();
     // 归档发布前崩溃会留下原文件，也可能留下未完成的临时文件
@@ -89,6 +110,7 @@ fn retention_preserves_complete_dates_across_compression_rotation_and_restart() 
                 .all(|path| !path.exists() && !path.with_extension("log.gz").exists())
         );
         assert!(unrelated.exists());
+        assert!(legacy_retained.iter().all(|path| path.exists()));
 
         for prefix in [
             APPLICATION_LOG_FILE_PREFIX,

@@ -6,7 +6,7 @@ use std::{fs, path::Path};
 fn manifest_should_depend_only_on_core_protocol_and_http_adapter_layers() {
     let manifest = include_str!("../Cargo.toml");
     let forbidden = [
-        "codex-proxy-rs",
+        "aicodex-agent-teams",
         "gateway-store",
         "provider-",
         "redis",

@@ -349,7 +349,10 @@ async fn service_chain_preserves_onion_order_parent_scope_and_native_results_wit
 
     let directory = tempfile::tempdir().unwrap();
     let records = directory.path().join("onion.jsonl");
-    let worker = std::fs::read(env!("CARGO_BIN_EXE_gateway-plugin-test-middleware")).unwrap();
+    let worker = std::fs::read(env!(
+        "CARGO_BIN_EXE_AICodexAgentTeams-plugin-test-middleware"
+    ))
+    .unwrap();
     let package = crate::support::package_with_contributions(
         &worker,
         Contributions::from([crate::support::contribution(

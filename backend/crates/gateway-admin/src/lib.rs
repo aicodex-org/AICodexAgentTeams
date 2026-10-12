@@ -64,6 +64,7 @@ const WEAK_ADMIN_PASSWORDS: &[&str] = &[
     "changeme",
     "change-me",
     "replace-me",
+    "aicodexagentteams",
     "codex-proxy-rs",
 ];
 

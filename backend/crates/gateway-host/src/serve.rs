@@ -11,7 +11,7 @@ use gateway_core::lifecycle::{ConnectionDraining, ConnectionGuard, ConnectionLif
 const DRAINING_BIT: usize = 1usize << (usize::BITS - 1);
 const ACTIVE_MASK: usize = !DRAINING_BIT;
 
-/// 自重启交接没有显式握手：替换进程按 CPR_RESTART_DELAY_MS 估算等待，
+/// 自重启交接没有显式握手：替换进程按 AICODEX_AGENT_TEAMS_RESTART_DELAY_MS 估算等待，
 /// 可能在旧进程释放监听端口前尝试绑定，因此对 AddrInUse 保留有限重试窗口
 const BIND_RETRY_WINDOW: Duration = Duration::from_secs(10);
 const BIND_RETRY_MAX_DELAY: Duration = Duration::from_secs(1);

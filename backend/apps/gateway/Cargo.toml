@@ -1,11 +1,15 @@
 [package]
-name = "codex-proxy-rs"
+name = "aicodex-agent-teams"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
 rust-version.workspace = true
 autotests = false
+
+[[bin]]
+name = "AICodexAgentTeams"
+path = "src/main.rs"
 
 [[test]]
 name = "main"

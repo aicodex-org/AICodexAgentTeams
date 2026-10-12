@@ -20,7 +20,7 @@ export function pluginBridge(): Plugin {
         build: {
           write: false,
           minify: true,
-          lib: { entry, name: 'CodexProxyPluginBridge', formats: ['iife'] },
+          lib: { entry, name: 'AICodexAgentTeamsPluginBridge', formats: ['iife'] },
         },
       })
       const outputs = (Array.isArray(result) ? result : [result])

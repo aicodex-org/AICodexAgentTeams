@@ -112,6 +112,7 @@ impl PendingAuthorization {
                     .append_pair("principal_type", principal.principal_type())
                     .append_pair("principal_id", principal.principal_id());
             }
+            // 上游授权来源标识属于协议合同，不随界面品牌改名
             query.append_pair("referrer", "codex-proxy-rs");
         }
 

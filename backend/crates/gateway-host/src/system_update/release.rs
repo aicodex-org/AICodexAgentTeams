@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 
 use super::{OperationError, SystemUpdateConfig, conflict, invalid, upstream};
 
-const APP_BINARY_NAME: &str = "codex-proxy-rs";
+const APP_BINARY_NAME: &str = "AICodexAgentTeams";
 const CACHE_TTL: Duration = Duration::from_secs(20 * 60);
 
 #[derive(Debug, Clone, Deserialize)]
@@ -491,7 +491,7 @@ impl SystemUpdateConfig {
             return Some("实验构建必须使用 exp.N 版本，无法在线更新".to_owned());
         }
         let Some(repository) = self.update_repository.as_deref() else {
-            return Some("检查更新需要配置 CPR_UPDATE_REPOSITORY".to_owned());
+            return Some("检查更新需要配置 AICODEX_AGENT_TEAMS_UPDATE_REPOSITORY".to_owned());
         };
         if let Err(error) = validate_repository(repository) {
             return Some(error.to_string());

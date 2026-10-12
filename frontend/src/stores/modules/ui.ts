@@ -17,7 +17,7 @@ export const useUiStore = defineStore(
   },
   {
     persist: {
-      key: 'codex-proxy-rs-ui',
+      key: 'AICodexAgentTeams-ui',
       pick: ['sidebarCollapsed'],
     },
   },

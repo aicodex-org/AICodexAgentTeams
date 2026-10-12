@@ -79,7 +79,7 @@ function resolveDestination(): string {
 
     <section
       class="grid min-h-dvh items-center justify-items-center px-5 py-[clamp(24px,5dvh,64px)] min-[980px]:justify-items-end min-[980px]:pr-[clamp(48px,17.3vw,332px)] max-[560px]:p-4.5"
-      aria-label="Codex Proxy RS 登录"
+      aria-label="AICodexAgentTeams 登录"
     >
       <div class="min-h-120 w-[min(440px,100%)]">
         <LoginPanel

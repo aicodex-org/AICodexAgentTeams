@@ -114,6 +114,7 @@ async fn connect(
     read_only: bool,
     mode: StoreMode,
 ) -> StoreResult<StoreBundle> {
+    // 保留持久化命名空间，改名不能绕过已有租约、会话与限流状态
     const REDIS_NAMESPACE: &str = "codex-proxy-rs";
 
     config.validate_resolved()?;

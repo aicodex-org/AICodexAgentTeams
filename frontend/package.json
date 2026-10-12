@@ -1,5 +1,5 @@
 {
-  "name": "codex-proxy-rs-web",
+  "name": "aicodex-agent-teams-web",
   "type": "module",
   "private": true,
   "packageManager": "pnpm@12.6.0",

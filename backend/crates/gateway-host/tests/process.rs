@@ -5,7 +5,7 @@ use gateway_host::process::{ProcessExit, ProcessSpec, ProcessStartError, Process
 
 #[cfg(unix)]
 fn worker(directory: &std::path::Path, mode: &str) -> ProcessSpec {
-    let executable = env!("CARGO_BIN_EXE_gateway-host-process-worker").into();
+    let executable = env!("CARGO_BIN_EXE_AICodexAgentTeams-host-process-worker").into();
     std::fs::write(directory.join("mode"), mode).unwrap();
     ProcessSpec {
         executable,

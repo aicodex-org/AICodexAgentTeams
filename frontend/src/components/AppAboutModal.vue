@@ -4,6 +4,7 @@ import { ZDialog } from '@codex-proxy/ui'
 import { ExternalLink } from '@lucide/vue'
 
 import { computed } from 'vue'
+import AppBrandMark from '@/components/AppBrandMark.vue'
 
 const props = defineProps<{
   version: { version: string, gitSha: string } | null
@@ -11,8 +12,8 @@ const props = defineProps<{
 
 const open = defineModel<boolean>({ default: false })
 
-const author = 'Zyy'
-const githubUrl = 'https://github.com/zyycn/codex-proxy-rs'
+const author = 'AICodexAgentTeams'
+const githubUrl = 'https://github.com/aicodex-org/AICodexAgentTeams'
 
 function normalizeBuildValue(value: string | undefined) {
   const normalized = value?.trim()
@@ -41,7 +42,7 @@ const versionLine = computed(() => {
 const linkItems = [
   {
     label: 'GitHub',
-    value: 'codex-proxy-rs',
+    value: 'AICodexAgentTeams',
     href: githubUrl,
     icon: Github,
   },
@@ -49,20 +50,20 @@ const linkItems = [
 </script>
 
 <template>
-  <ZDialog v-model="open" title="关于" width="28rem">
+  <ZDialog v-model="open" title="关于" width="min(28rem, calc(100vw - 1rem))">
     <div class="grid gap-5">
       <section class="flex min-w-0 items-center gap-3">
         <span
           class="inline-flex size-9 shrink-0 items-center justify-center rounded-cp bg-cp-fill-quaternary font-mono text-cp-xl leading-none font-extrabold text-cp-text"
         >
-          Z
+          <AppBrandMark class="size-9" />
         </span>
         <div class="min-w-0">
           <p class="m-0 truncate text-cp-xl leading-none font-heavy text-cp-text">
             {{ author }}
           </p>
           <p class="mt-1.5 mb-0 text-cp-sm leading-none font-emphasis text-cp-text-secondary">
-            Built by Zyy · Codex Proxy RS
+            基于 Zyy 的开源网关构建
           </p>
         </div>
       </section>

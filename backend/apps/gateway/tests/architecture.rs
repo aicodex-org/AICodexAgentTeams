@@ -293,8 +293,8 @@ fn gateway_admin_stays_free_of_infrastructure_dependencies() {
 
 /// workspace 包名到冻结成员路径的映射
 const PACKAGE_TO_MEMBER: &[(&str, &str)] = &[
-    ("codex-proxy-rs", "apps/gateway"),
-    ("codex-proxy-plugin-cli", "apps/plugin-cli"),
+    ("aicodex-agent-teams", "apps/gateway"),
+    ("aicodex-agent-teams-plugin-cli", "apps/plugin-cli"),
     ("gateway-admin", "crates/gateway-admin"),
     ("gateway-api", "crates/gateway-api"),
     ("gateway-core", "crates/gateway-core"),
@@ -345,15 +345,15 @@ const ROOT_TEST_SCENARIOS: &[(&str, &[&str])] = &[
 
 /// 冻结的 workspace 内部运行时依赖边；新增/删除任何边都必须同步本表
 const ALLOWED_INTERNAL_EDGES: &[(&str, &str)] = &[
-    ("codex-proxy-plugin-cli", "gateway-plugin-sdk"),
-    ("codex-proxy-rs", "gateway-admin"),
-    ("codex-proxy-rs", "gateway-api"),
-    ("codex-proxy-rs", "gateway-core"),
-    ("codex-proxy-rs", "gateway-host"),
-    ("codex-proxy-rs", "gateway-plugin-runtime"),
-    ("codex-proxy-rs", "gateway-store"),
-    ("codex-proxy-rs", "provider-openai"),
-    ("codex-proxy-rs", "provider-xai"),
+    ("aicodex-agent-teams-plugin-cli", "gateway-plugin-sdk"),
+    ("aicodex-agent-teams", "gateway-admin"),
+    ("aicodex-agent-teams", "gateway-api"),
+    ("aicodex-agent-teams", "gateway-core"),
+    ("aicodex-agent-teams", "gateway-host"),
+    ("aicodex-agent-teams", "gateway-plugin-runtime"),
+    ("aicodex-agent-teams", "gateway-store"),
+    ("aicodex-agent-teams", "provider-openai"),
+    ("aicodex-agent-teams", "provider-xai"),
     ("gateway-admin", "gateway-core"),
     ("gateway-api", "gateway-admin"),
     ("gateway-api", "gateway-core"),

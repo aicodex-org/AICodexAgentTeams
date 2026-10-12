@@ -1,4 +1,4 @@
-name: codex-proxy-rs
+name: aicodex-agent-teams
 
 x-json-logging: &json-logging
   driver: json-file
@@ -21,8 +21,8 @@ services:
       - log_timezone=UTC
     environment:
       TZ: UTC
-      POSTGRES_DB: codex_proxy
-      POSTGRES_USER: codex_proxy
+      POSTGRES_DB: ${AICODEX_AGENT_TEAMS_DATABASE_NAME:-aicodex_agent_teams}
+      POSTGRES_USER: ${AICODEX_AGENT_TEAMS_DATABASE_USER:-aicodex_agent_teams}
       POSTGRES_INITDB_ARGS: --auth-local=scram-sha-256 --auth-host=scram-sha-256
     volumes:
       - type: bind
@@ -33,7 +33,7 @@ services:
     ports:
       - '127.0.0.1:5432:5432'
     healthcheck:
-      test: [CMD-SHELL, pg_isready -U codex_proxy -d codex_proxy]
+      test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
       interval: 5s
       timeout: 5s
       retries: 10
@@ -63,20 +63,20 @@ services:
       - no-new-privileges:true
     logging: *json-logging
 
-  codex-proxy-rs:
+  aicodex-agent-teams:
     extends:
       file: config.yaml
       service: app-runtime
-    image: ${CPR_IMAGE:-ghcr.io/zyycn/codex-proxy-rs:latest}
+    image: ${AICODEX_AGENT_TEAMS_IMAGE:-ghcr.io/aicodex-org/aicodex-agent-teams:latest}
     build:
       context: ..
       dockerfile: deploy/Dockerfile
       target: runtime
       args:
-        CPR_VERSION: ${CPR_VERSION:-}
-        CPR_GIT_SHA: ${CPR_GIT_SHA:-unknown}
-        CPR_BUILD_TIME: ${CPR_BUILD_TIME:-unknown}
-        CPR_BUILD_TYPE: ${CPR_BUILD_TYPE:-release}
+        AICODEX_AGENT_TEAMS_VERSION: ${AICODEX_AGENT_TEAMS_VERSION:-}
+        AICODEX_AGENT_TEAMS_GIT_SHA: ${AICODEX_AGENT_TEAMS_GIT_SHA:-unknown}
+        AICODEX_AGENT_TEAMS_BUILD_TIME: ${AICODEX_AGENT_TEAMS_BUILD_TIME:-unknown}
+        AICODEX_AGENT_TEAMS_BUILD_TYPE: ${AICODEX_AGENT_TEAMS_BUILD_TYPE:-release}
     restart: unless-stopped
     user: '10001:10001'
     init: true
@@ -102,7 +102,7 @@ services:
         bind:
           create_host_path: false
     configs:
-      - source: cpr_config
+      - source: aicodex_agent_teams_config
         target: /app/deploy/config.yaml
     security_opt:
       - no-new-privileges:true
@@ -119,18 +119,18 @@ services:
       start_period: 5m
     environment:
       HOME: /app
-      CPR_SERVER_HOST: 0.0.0.0
-      CPR_SERVER_PORT: '8080'
-      CPR_DATABASE_URL: postgres://codex_proxy@postgres:5432/codex_proxy
-      CPR_REDIS_URL: redis://redis:6379/
-      CPR_DEPLOYMENT_MODE: docker
-      CPR_UPDATE_REPOSITORY: zyycn/codex-proxy-rs
-      CPR_GITHUB_API_BASE: https://api.github.com/repos
-      CPR_UPDATE_EXE_PATH: /app/bin/codex-proxy-rs
-      CPR_WEB_DIST_DIR: /app/web/dist
-      CPR_ENABLE_SELF_RESTART: 'true'
+      AICODEX_AGENT_TEAMS_SERVER_HOST: 0.0.0.0
+      AICODEX_AGENT_TEAMS_SERVER_PORT: '8080'
+      AICODEX_AGENT_TEAMS_DATABASE_URL: postgres://${AICODEX_AGENT_TEAMS_DATABASE_USER:-aicodex_agent_teams}@postgres:5432/${AICODEX_AGENT_TEAMS_DATABASE_NAME:-aicodex_agent_teams}
+      AICODEX_AGENT_TEAMS_REDIS_URL: redis://redis:6379/
+      AICODEX_AGENT_TEAMS_DEPLOYMENT_MODE: docker
+      AICODEX_AGENT_TEAMS_UPDATE_REPOSITORY: aicodex-org/AICodexAgentTeams
+      AICODEX_AGENT_TEAMS_GITHUB_API_BASE: https://api.github.com/repos
+      AICODEX_AGENT_TEAMS_UPDATE_EXE_PATH: /app/bin/AICodexAgentTeams
+      AICODEX_AGENT_TEAMS_WEB_DIST_DIR: /app/web/dist
+      AICODEX_AGENT_TEAMS_ENABLE_SELF_RESTART: 'true'
     logging: *json-logging
 
 configs:
-  cpr_config:
+  aicodex_agent_teams_config:
     file: ./config.yaml

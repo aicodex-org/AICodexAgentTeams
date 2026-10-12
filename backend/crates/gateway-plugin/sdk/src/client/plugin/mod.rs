@@ -41,7 +41,7 @@ pub struct PluginBuilder {
 }
 
 impl PluginBuilder {
-    /// 读取与 `cpr-plugin package --manifest` 相同的作者清单
+    /// 读取与 `AICodexAgentTeams-plugin package --manifest` 相同的作者清单
     ///
     /// # Errors
     ///

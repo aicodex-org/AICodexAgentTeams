@@ -24,7 +24,7 @@
 
 ## 发行准备检查
 
-进入实际发行准备后，读取目标分支的 [release/publish](../../../../release/publish)、[工作流](../../../../.github/workflows/release.yml)与[平台清单](../../../../release/platforms.yaml)，按当前入口执行，不另写脚本或绕过检查
+进入实际发行准备后，读取目标分支的 [release/publish](../../../../release/publish)与[平台清单](../../../../release/platforms.yaml)，先确认发布工作流是否存在；本仓库未配置自动发版时停止远程发布，不绕过入口检查
 
 按[验证要求](../../../../CONTRIBUTING.md#验证)核对目标提交的证据，区分通过、失败、跳过与未执行
 数据库变更同时读取[迁移冻结规则](../../../../backend/migrations/README.md#冻结规则)：

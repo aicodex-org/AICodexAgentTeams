@@ -128,7 +128,7 @@ mod native_tls {
     use super::*;
 
     fn run_isolated_default_tls() -> bool {
-        const CHILD: &str = "CPR_TEST_NATIVE_TLS_RECOVERY";
+        const CHILD: &str = "AICODEX_AGENT_TEAMS_TEST_NATIVE_TLS_RECOVERY";
         if std::env::var_os(CHILD).is_some() {
             return false;
         }

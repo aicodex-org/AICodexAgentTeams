@@ -18,7 +18,10 @@ impl websocket::Sender for Sender {
 async fn mixed_mounts_keep_independent_order_and_fresh_continuations() {
     let records_dir = tempfile::tempdir().unwrap();
     let records = records_dir.path().join("calls");
-    let worker = std::fs::read(env!("CARGO_BIN_EXE_gateway-plugin-test-middleware")).unwrap();
+    let worker = std::fs::read(env!(
+        "CARGO_BIN_EXE_AICodexAgentTeams-plugin-test-middleware"
+    ))
+    .unwrap();
     let package = crate::support::package_with_contributions(
         &worker,
         Contributions::from([crate::support::contribution(

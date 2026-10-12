@@ -16,7 +16,7 @@ async fn api_should_serve_resolved_assets_with_relative_environment_override() {
     use std::{fs, process::Command};
     use tower::ServiceExt as _;
 
-    const CHILD_ENV: &str = "CPR_TEST_ASSET_DIRECTORY";
+    const CHILD_ENV: &str = "AICODEX_AGENT_TEAMS_TEST_ASSET_DIRECTORY";
     let Ok(directory) = std::env::var(CHILD_ENV) else {
         let directory = std::env::temp_dir().join(format!("cpr-assets-{}", uuid::Uuid::now_v7()));
         fs::create_dir_all(directory.join("deploy")).expect("config directory");
@@ -30,7 +30,7 @@ async fn api_should_serve_resolved_assets_with_relative_environment_override() {
             ])
             .current_dir(&directory)
             .env(CHILD_ENV, &directory)
-            .env("CPR_WEB_DIST_DIR", "../web/dist")
+            .env("AICODEX_AGENT_TEAMS_WEB_DIST_DIR", "../web/dist")
             .output()
             .expect("isolated asset directory test");
         fs::remove_dir_all(directory).expect("remove fixture");

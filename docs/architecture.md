@@ -1,4 +1,4 @@
-# Codex Proxy RS 架构
+# AICodexAgentTeams 架构
 
 本文说明模块职责、请求流程、状态存储和必须保持的约束。
 具体 HTTP 字段见 [接口文档](api.md)，部署参数见 [部署文档](../deploy/README.md)；上游 URL、超时、
@@ -13,7 +13,7 @@
 
 ## 1. 系统定位
 
-Codex Proxy RS 是单进程、单副本运行的多 Provider AI 网关，同时提供：
+AICodexAgentTeams 是单进程、单副本运行的多 Provider AI 网关，同时提供：
 
 - 面向客户端的 OpenAI Responses、Images、standalone Search 和模型目录协议
 - 面向管理员的 `/api/admin/*` 控制面和 Vue 管理端
@@ -56,7 +56,7 @@ flowchart TB
 | 路径 | 责任 |
 | --- | --- |
 | `backend/apps/gateway` | 读取顶层配置、连接 Bundle、注册 Provider 与 Worker |
-| `backend/apps/plugin-cli`（包名 `codex-proxy-plugin-cli`） | `cpr-plugin package` 校验作者清单并生成平台元数据、资源摘要与归档；内部仅依赖 SDK，不参与网关运行时加载 |
+| `backend/apps/plugin-cli`（包名 `aicodex-agent-teams-plugin-cli`） | `AICodexAgentTeams-plugin package` 校验作者清单并生成平台元数据、资源摘要与归档；内部仅依赖 SDK，不参与网关运行时加载 |
 | `gateway-protocol` | 跨层共享的 OpenAI wire contract、SSE 编解码与无业务 owner 的解析事实，不依赖其他 workspace crate |
 | `gateway-core` | operation、canonical event、请求快照、路由、admission、attempt 协调、交付边界和计量 |
 | `gateway-admin` | 管理领域、Key 用量查询、Provider/Store 端口、审计语义、备份与历史保留策略 |
@@ -580,7 +580,7 @@ Vue 普通管理请求的错误提示由 `api/request/` 请求封装统一负责
 
 ### 登录与查询身份
 
-管理员和密钥登录共用 `/api/auth/*`、AuthService、Redis 会话结构和 `cpr_session` Cookie。
+管理员和密钥登录共用 `/api/auth/*`、AuthService、Redis 会话结构和 `aicodex_agent_teams_session` Cookie。
 登录类型只选择凭据校验方式，权限来自服务端保存的身份。管理入口只接受管理员身份或部署级管理 API Key；
 AuthService 每次恢复 Key 会话时重新检查 Key 是否存在且启用；Key 会话不能访问管理员页面和管理接口。
 前端只维护一份 Auth Store，不在每个 API 请求上标记身份；401 会话失效、403 权限不足和 503 依赖故障分别处理。
@@ -1048,12 +1048,12 @@ RUST_MIN_STACK=16777216 cargo +1.97.0 clippy --manifest-path backend/Cargo.toml 
 RUST_MIN_STACK=16777216 cargo +1.97.0 test --manifest-path backend/Cargo.toml --test main --locked
 ```
 
-线程栈设置与当前 CI 一致。PostgreSQL/Redis 集成测试需按
+测试线程栈设置为 16 MiB。PostgreSQL/Redis 集成测试需按
 [迁移文档](../backend/migrations/README.md#本地测试库) 配置专用测试库；未设置环境变量时，本地相关测试会跳过。
 其他检查与界面验证按 [贡献与审查](../CONTRIBUTING.md#验证) 执行
 
-插件 Runtime 的真实子进程与持久化测试使用 `CPR_PLUGIN_TEST_DATABASE_URL` 和
-`CPR_PLUGIN_TEST_REDIS_URL` 指向专用实例；未提供插件专用变量时复用 `CPR_TEST_DATABASE_URL` 与 `CPR_TEST_REDIS_URL`。
+插件 Runtime 的真实子进程与持久化测试使用 `AICODEX_AGENT_TEAMS_PLUGIN_TEST_DATABASE_URL` 和
+`AICODEX_AGENT_TEAMS_PLUGIN_TEST_REDIS_URL` 指向专用实例；未提供插件专用变量时复用 `AICODEX_AGENT_TEAMS_TEST_DATABASE_URL` 与 `AICODEX_AGENT_TEAMS_TEST_REDIS_URL`。
 密码及隔离要求与上述 Store 测试一致，CI 缺少服务配置时直接失败。
 
 测试归档缓存在 Cargo 测试临时目录的 `plugin-packages-v1/`，按含 worker 摘要的清单跨进程复用；

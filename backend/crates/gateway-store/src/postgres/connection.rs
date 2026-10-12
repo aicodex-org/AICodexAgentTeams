@@ -35,7 +35,7 @@ pub async fn connect_and_migrate(
         .connect_with(
             connect_options
                 .clone()
-                .application_name("codex-proxy-rs:migration"),
+                .application_name("AICodexAgentTeams:migration"),
         )
         .await
         .map_err(|source| postgres_unavailable("connect PostgreSQL for migrations", source))?;
@@ -118,7 +118,7 @@ async fn connect_pool(
                 Ok(())
             })
         })
-        .connect_with(connect_options.application_name("codex-proxy-rs"))
+        .connect_with(connect_options.application_name("AICodexAgentTeams"))
         .await
         .map_err(|source| postgres_unavailable("connect PostgreSQL", source))?;
     Ok(pool)

@@ -7,7 +7,7 @@ use sqlx::{Connection, PgPool, postgres::PgPoolOptions};
 use tokio::sync::{mpsc, oneshot};
 
 async fn test_pool() -> Option<PgPool> {
-    let url = crate::support::test_env("CPR_TEST_DATABASE_URL")?;
+    let url = crate::support::test_env("AICODEX_AGENT_TEAMS_TEST_DATABASE_URL")?;
     Some(
         PgPoolOptions::new()
             .max_connections(5)

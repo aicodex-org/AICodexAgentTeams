@@ -56,7 +56,10 @@ async fn middleware_preserves_three_state_fast_and_sources() {
             vec!["openai".into()],
             vec!["openai".into()],
         );
-        let worker = std::fs::read(env!("CARGO_BIN_EXE_gateway-plugin-test-middleware")).unwrap();
+        let worker = std::fs::read(env!(
+            "CARGO_BIN_EXE_AICodexAgentTeams-plugin-test-middleware"
+        ))
+        .unwrap();
         let package = crate::support::package_with_contributions(
             &worker,
             Contributions::from([contribution]),

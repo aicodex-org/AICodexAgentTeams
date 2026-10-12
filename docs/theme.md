@@ -1,7 +1,7 @@
 <!-- prettier-ignore -->
 <div align="center">
 
-<img src="../frontend/public/favicon.svg" alt="Codex Proxy RS" width="72" height="72" />
+<img src="../frontend/public/favicon.svg" alt="AICodexAgentTeams" width="72" height="72" />
 
 # 管理端主题系统
 
@@ -136,7 +136,7 @@ interface ThemeCustomization {
 | 风格 | `borderRadius`、`shadowStrength` |
 | 组件尺寸 | `tableRowHeight`、`cardBorderRadius` |
 
-持久化键为 `codex-proxy-rs-theme`。Store 不保存完整色板或 CSS Variables，损坏的模式、颜色与自定义值会在
+持久化键为 `AICodexAgentTeams-theme`。Store 不保存完整色板或 CSS Variables，损坏的模式、颜色与自定义值会在
 初始化时规范化并回退到默认配置
 
 ### Map Token

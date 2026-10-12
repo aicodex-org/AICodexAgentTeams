@@ -212,8 +212,19 @@ fn cleanup_log_files(
     let cutoff = today
         .checked_sub_days(chrono::Days::new(days))
         .unwrap_or(NaiveDate::MIN);
+    let mut files = managed_log_files(directory, prefix)?;
+    // 产品改名不改变既有日志的保留期限，旧前缀只参与清理，不再用于写入
+    let legacy_prefix = match prefix {
+        super::APPLICATION_LOG_FILE_PREFIX => Some("codex-proxy-rs-application"),
+        super::OAUTH_RECOVERY_LOG_FILE_PREFIX => Some("codex-proxy-rs-oauth-recovery"),
+        super::REQUEST_DUMP_LOG_FILE_PREFIX => Some("codex-proxy-rs-request-dump"),
+        _ => None,
+    };
+    if let Some(legacy_prefix) = legacy_prefix {
+        files.extend(managed_log_files(directory, legacy_prefix)?);
+    }
     let mut dates = BTreeMap::<NaiveDate, Vec<PathBuf>>::new();
-    for entry in managed_log_files(directory, prefix)? {
+    for entry in files {
         dates.entry(entry.date).or_default().push(entry.path);
     }
     for (date, paths) in dates {

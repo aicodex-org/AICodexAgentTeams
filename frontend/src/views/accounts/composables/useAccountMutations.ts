@@ -175,7 +175,7 @@ export function useAccountMutations(options: {
         const result = await getAccountModelCatalog({ accountId: account.id })
         const plan = account.planTypeDisplay.trim().replace(/[^\p{L}\p{N}_-]/gu, '_') || 'unknown-plan'
         const name = account.name.trim().replace(/[^\p{L}\p{N}_-]/gu, '_') || 'account'
-        await downloadJson(result.catalog, `cpr-model-catalog-${plan}-${name}.json`)
+        await downloadJson(result.catalog, `AICodexAgentTeams-model-catalog-${plan}-${name}.json`)
         ZNotification.success({ message: `已下载模型目录，共 ${result.modelCount} 个模型` })
       }
       catch {}

@@ -23,7 +23,7 @@ let pendingMutation: Promise<unknown> = Promise.resolve()
 // Cookie 写入由浏览器完成，跨标签页串行认证操作以免晚到的续期覆盖登录或退出
 function withSessionLock<T>(operation: () => Promise<T>): Promise<T> {
   const run = () => navigator.locks
-    ? navigator.locks.request('cpr-session', operation)
+    ? navigator.locks.request('AICodexAgentTeams-session', operation)
     : operation()
   const result = pendingMutation.then(run, run)
   pendingMutation = result.catch(() => {})

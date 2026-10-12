@@ -12,7 +12,7 @@ use gateway_plugin_sdk::{Capability, MANIFEST_VERSION, Manifest, PROTOCOL_VERSIO
 use sha2::{Digest as _, Sha256};
 
 fn cli(arguments: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_cpr-plugin"))
+    Command::new(env!("CARGO_BIN_EXE_AICodexAgentTeams-plugin"))
         .args(arguments)
         .output()
         .unwrap()
@@ -50,7 +50,10 @@ fn root_help_lists_package_command() {
     let output = cli(&["--help"]);
     assert!(output.status.success());
     let help = String::from_utf8(output.stdout).unwrap();
-    assert!(help.contains("cpr-plugin <COMMAND>"), "{help}");
+    assert!(
+        help.contains("AICodexAgentTeams-plugin <COMMAND>"),
+        "{help}"
+    );
     assert!(help.contains("package"), "{help}");
 }
 
@@ -60,7 +63,7 @@ fn version_uses_the_user_command_name() {
     assert!(output.status.success());
     assert_eq!(
         String::from_utf8(output.stdout).unwrap(),
-        format!("cpr-plugin {}\n", env!("CARGO_PKG_VERSION"))
+        format!("AICodexAgentTeams-plugin {}\n", env!("CARGO_PKG_VERSION"))
     );
 }
 
@@ -69,13 +72,13 @@ fn package_help_does_not_require_inputs() {
     let output = cli(&["package", "--help"]);
     assert!(output.status.success());
     let help = String::from_utf8(output.stdout).unwrap();
-    assert!(help.contains("cpr-plugin package"), "{help}");
+    assert!(help.contains("AICodexAgentTeams-plugin package"), "{help}");
     assert!(help.contains("--resource-map"), "{help}");
 }
 
 #[test]
 fn rejects_missing_subcommand() {
-    assert_rejected(&[], "Usage: cpr-plugin");
+    assert_rejected(&[], "Usage: AICodexAgentTeams-plugin");
 }
 
 #[test]
@@ -166,7 +169,7 @@ fn assert_packaged_resources(icon_path: &str, icon_mime: &str, icon: &[u8]) {
     fs::write(project.join("web/dist/app.js"), b"built js").unwrap();
     fs::write(project.join("web/dist/app.css"), b"built css").unwrap();
 
-    let output = Command::new(env!("CARGO_BIN_EXE_cpr-plugin"))
+    let output = Command::new(env!("CARGO_BIN_EXE_AICodexAgentTeams-plugin"))
         .arg("package")
         .arg("--manifest")
         .arg(project.join("plugin.json"))
@@ -246,7 +249,7 @@ fn source_manifest() -> &'static [u8] {
       "version":"0.1.0",
       "description":"test package",
       "license":"Apache-2.0",
-      "engines":{"codex-proxy-rs":">=3.12.0, <4.0.0"},
+      "engines":{"AICodexAgentTeams":">=3.12.0, <4.0.0"},
       "main":"bin/plugin",
       "runtime":"trustedProcess",
       "contributes":{
