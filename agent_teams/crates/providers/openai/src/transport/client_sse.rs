@@ -22,7 +22,7 @@ use crate::transport::{
         catalog_etag, parse_codex_model_catalog,
     },
     diagnostics::CodexUpstreamSendPhase,
-    endpoints::{CODEX_RESPONSES_PATH, endpoint_url},
+    endpoints::endpoint_url,
     headers::websocket_header_pairs,
     profile::CodexWireProfileState,
     protocol::{
@@ -139,7 +139,7 @@ impl CodexBackendClient {
         trace.headers(
             "upstream.request.headers",
             serde_json::json!({
-                "method": "POST", "endpoint": CODEX_RESPONSES_PATH,
+                "method": "POST", "endpoint": self.protocol.responses_path(),
             }),
             headers
                 .iter()

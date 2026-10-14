@@ -423,3 +423,43 @@ async fn renewal_updates_redis_ttl_and_rejects_a_key_that_expired_after_loading(
             .is_none()
     );
 }
+
+#[tokio::test]
+async fn mfa_limit_is_shared_by_account_and_independent_of_global_login_bucket() {
+    let Some((repository, _, _)) = auth_repository().await else {
+        return;
+    };
+    let window = Duration::from_secs(60);
+    let (first, second) = tokio::join!(
+        repository.consume_mfa_attempt("admin", 1, window),
+        repository.consume_mfa_attempt("admin", 1, window)
+    );
+    assert_ne!(first.unwrap().is_some(), second.unwrap().is_some());
+    assert!(
+        repository
+            .consume_mfa_attempt("admin", 1, window)
+            .await
+            .unwrap()
+            .is_some()
+    );
+    assert!(
+        repository
+            .consume_mfa_attempt("other", 1, window)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        repository
+            .consume_login_attempt("ip", 1, 1, window)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        repository
+            .consume_mfa_attempt("admin", 0, window)
+            .await
+            .is_err()
+    );
+}

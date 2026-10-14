@@ -565,7 +565,7 @@ call 与账号的绑定保存在网关进程内，未连接时一小时过期；
 
 | 方法 | 路由 | 请求 | 说明 |
 | --- | --- | --- | --- |
-| `POST` | `/api/auth/login` | `{ mode: "admin", username?, password }` 或 `{ mode: "key", apiKey }` | 验证凭据、创建会话；成功后撤销请求携带的旧会话 |
+| `POST` | `/api/auth/login` | `{ mode: "admin", username?, password, secondFactor? }` 或 `{ mode: "key", apiKey }` | 验证凭据、创建会话；成功后撤销请求携带的旧会话 |
 | `GET` | `/api/auth/status` | 无 | 只读校验 Cookie 对应身份，返回 `{ authenticated, session }` |
 | `POST` | `/api/auth/refresh` | 无 | 校验身份并按管理员策略续期，返回同 status 的结构；有效会话同步设置 Cookie |
 | `POST` | `/api/auth/logout` | 无 | 删除当前会话并清除 Cookie；存储失败返回 503，不假装退出成功 |
@@ -599,6 +599,34 @@ refresh 未认证时返回 `{ authenticated: false, session: null }`，不写 Co
 认证错误共用 `40101`（会话失效）、`40102`（凭据错误）和 `40301`（权限不足）。
 前端在 `40101` 后统一尝试一次会话恢复，并发请求等待同一恢复结果；恢复成功后最多重放一次，确认失效才退出。
 `40102` 和 `40301` 不触发恢复，网络或依赖故障不清除身份
+
+### 管理员双重验证
+
+入口位于系统设置的“安全与访问”，仅管理员会话可管理；Key 会话和管理 API Key 不能替代该会话
+
+| 方法 | 路由 | 请求 | 返回 |
+| --- | --- | --- | --- |
+| `GET` | `/api/auth/mfa` | 无 | `{ enabled, recoveryCodesRemaining }` |
+| `POST` | `/api/auth/mfa/setup` | `{ password }` | `{ secret, qrCode, setupId, recoveryCodes }` |
+| `POST` | `/api/auth/mfa/confirm` | `{ password, setupId, code }` | `{ message }`，清除当前 Cookie |
+| `POST` | `/api/auth/mfa/disable` | `{ password, code }` | `{ message }`，清除当前 Cookie |
+
+未开启时，setup 返回 Base32 密钥、PNG Base64 二维码和 10 个恢复码；绑定信息有效期为 10 分钟，
+再次 setup 会替换待确认绑定。保存恢复码后用验证器动态码 confirm，才正式开启。
+已开启时，setup 只准备新恢复码，secret 与 qrCode 为空；confirm 必须提供现有动态码或未使用的旧恢复码，
+确认前旧恢复码继续有效，确认后全部替换。关闭同样要求当前密码与动态码或恢复码
+
+动态码使用 `totp-rs`，SHA-1、6 位、30 秒周期，允许前后各一个周期的时间偏差；服务器应保持时钟同步。
+已成功使用的时间步不能再次使用。恢复码为 32 位十六进制字符串，每个只能使用一次，并且始终需要管理员密码。
+启用、关闭、重新生成恢复码会撤销全部管理员会话，Key 会话与管理 API Key 不受影响
+
+开启后，正确密码未附带 secondFactor 时，login 返回 HTTP 200 与 `data: { requiresTwoFactor: true }`，
+不创建会话、不设置 Cookie；客户端保留内存中的密码，再携带动态码或恢复码提交登录。
+错误的第二因素返回凭据错误；除来源与全局登录限流外，第二因素校验还受每个管理员每 60 秒 10 次限制。
+前端不持久化密码、绑定密钥或恢复码，恢复码仅在准备时展示，确认后无法再次读取
+
+丢失验证器时，用密码与未使用的恢复码登录，然后在安全设置关闭并重新绑定。
+恢复码不能替代管理员密码；启动配置中的初始密码不会重置现有密码或关闭双重验证
 
 ### Key 用量与客户端配置
 
@@ -723,9 +751,10 @@ OpenAI 主动额度刷新和正常响应携带的明确套餐会同步到账号�
 
 OpenAI 授权通过 `authenticationKind` 选择流程：省略或 `oauth` 为 Codex OAuth，`chatgpt_oauth` 为 ChatGPT OAuth。
 两种流程默认可用，无需环境变量开启；生成授权链接不访问上游，完成授权和刷新仍需要服务端能够连接 OpenAI。
-ChatGPT OAuth 使用动态注册的客户端 ID，回调为 `http://127.0.0.1:1456/auth/callback`，完成接口接收浏览器地址栏中的完整回调 URL。
+ChatGPT OAuth 使用动态注册的客户端 ID，新增与重新授权均显式请求共享授权确认，回调为 `http://127.0.0.1:1456/auth/callback`，完成接口接收浏览器地址栏中的完整回调 URL
 重新授权须传入账号原有的认证类型，不能在同一账号上混换 Codex 与 ChatGPT 凭据。
-ChatGPT 账号只有取得 `chatgpt.tokens.use.direct` 权限后才参与调度，身份授权成功但未开放套餐使用的账号保留为 `unknown`，可通过重新授权补齐权限。
+ChatGPT 账号只有取得 `chatgpt.tokens.use.direct` 权限后才参与调度，未授予共享权限的账号保留为 `unknown`，可通过重新授权补齐权限
+共享权限不保证订阅资格，上游仍可能返回 `subscription_sharing_user_not_eligible`，连接测试保留原始错误码与诊断
 
 ### 账号模型限制
 

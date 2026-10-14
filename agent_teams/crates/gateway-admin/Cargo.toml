@@ -15,6 +15,9 @@ path = "tests/main.rs"
 argon2 = "0.6.0"
 async-trait = "0.1.89"
 base64 = "0.23.0"
+ring = "0.17.14"
+totp-rs = { version = "=6.0.0", default-features = false, features = ["std", "gen_secret", "qr", "zeroize"] }
+zeroize = "1.9"
 bytes = "1.11.1"
 chrono = { version = "0.4.45", features = ["serde"] }
 futures = "0.3.32"

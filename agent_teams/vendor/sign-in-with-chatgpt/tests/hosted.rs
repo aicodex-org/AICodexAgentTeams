@@ -85,8 +85,8 @@ fn authorization_links_need_no_transport_for_registration_or_reauthorization() {
                 .split_whitespace()
                 .any(|s| s == "chatgpt.tokens.use.direct")
         );
+        assert_eq!(query["prompt"], "consent");
         if client_id.is_some() {
-            assert_eq!(query["prompt"], "consent");
             assert!(!query.contains_key("agent_name_hint"));
         } else {
             assert_eq!(query["agent_name_hint"], "AICodexAgentTeams");

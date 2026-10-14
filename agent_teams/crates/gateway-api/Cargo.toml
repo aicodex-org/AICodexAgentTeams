@@ -39,6 +39,7 @@ uuid = { version = "1.23.3", features = ["v7"] }
 zstd = "=0.13.3"
 
 [dev-dependencies]
+totp-rs = { version = "=6.0.0", default-features = false, features = ["std"] }
 async-trait = "0.1.89"
 axum = { version = "0.8.9", default-features = false, features = ["http1", "tokio"] }
 tokio = { version = "1.52.3", default-features = false, features = ["macros", "net", "rt-multi-thread", "test-util"] }

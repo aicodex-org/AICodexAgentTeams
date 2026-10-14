@@ -759,8 +759,24 @@ impl CodexCredentialCatalogService {
             let snapshot = result.map_err(|error| CodexCredentialCatalogError::Upstream {
                 detail: error.to_string(),
             })?;
+            let models = snapshot
+                .models()
+                .iter()
+                .cloned()
+                .map(|model| {
+                    if account.authentication_kind() == super::chatgpt::AUTHENTICATION_KIND {
+                        model.for_chatgpt_subscription().map_err(|error| {
+                            CodexCredentialCatalogError::Upstream {
+                                detail: error.to_string(),
+                            }
+                        })
+                    } else {
+                        Ok(model)
+                    }
+                })
+                .collect::<Result<Vec<_>, _>>()?;
             Ok(FetchedAccountModels {
-                models: snapshot.models().to_vec(),
+                models,
                 etag: snapshot.etag().map(str::to_owned),
             })
         })

@@ -425,6 +425,7 @@ ChatGPT OAuth 使用 `chatgpt_oauth` 凭据类型，与 Codex OAuth 的 `oauth` 
 Provider 通过随仓库保存的 Rust SDK 源码快照完成动态注册、OIDC 验证与刷新，账号和授权事务仍使用网关的 PostgreSQL / Redis 存储。
 SDK 连接记录保存已签发的客户端 ID、身份、授权范围及令牌；刷新 successor 先写 checkpoint，身份验证完成后再恢复调度。
 ChatGPT 请求使用公共 `https://api.openai.com/v1`、HTTP/SSE 和 `store: false`，不查询 Codex backend-api 额度与个人资料。
+订阅账号的模型目录在账号作用域内关闭原生 `supports_search_tool`，保留其他模型字段及 Codex/API Key 目录，不删除请求中的工具或历史输出
 SDK 来源、校验摘要与许可证见 [SDK 说明](../agent_teams/vendor/sign-in-with-chatgpt/INTEGRATION.md)。
 
 - OpenAI 是透明边界。Responses 请求保留未知字段和字段顺序；SSE、WebSocket、Images 与 standalone
@@ -815,6 +816,7 @@ PostgreSQL 周期对账才是正确性基础
 | Client Key 金额窗口与费用事件 | PostgreSQL | 准入与幂等结算的权威账本，独立于请求观测与日志保留策略 |
 | 插件包体、安装来源、制品接受事实、实例配置与私有状态 | PostgreSQL | 完整信任决定绑定已接受摘要；进程内发布集合由持久化事实构建 |
 | admission、lease、cooldown、circuit、会话亲和、continuation、OAuth pending、目录 cache | Redis | 可重建、可过期的协调状态 |
+| 管理员密码哈希、双重验证密钥密文、恢复码摘要与已消费时间步 | PostgreSQL | AuthService 拥有校验策略；状态、密码指纹变更与安全审计原子提交 |
 | 控制面统一登录会话与登录限流桶 | Redis | AuthService 唯一拥有；保存 Admin / Key 身份、绑定 ID、绝对有效期和计数，不保存原始凭据 |
 | 日志、OAuth 恢复记录、在线更新状态、备份暂存 | `.runtime/` | 部署节点本地运行文件 |
 | 重置卡库存与消费结果 | 对应 Provider 的上游 | 后端不建立本地卡库存；前端按账号在浏览器会话期间保留最近查询、未决消费幂等键与发送锁 |
@@ -829,6 +831,20 @@ PostgreSQL 周期对账才是正确性基础
 
 PostgreSQL schema 由迁移目录按编号管理。已应用迁移按字节冻结，后续 schema 变化只能新增编号迁移，
 详见 [迁移规则](../agent_teams/migrations/README.md)
+
+### 管理员双重验证
+
+`gateway-admin` 的 AuthService 管理绑定、验证与恢复码生命周期，`totp-rs` 生成密钥、二维码并校验动态码；
+API 仅转换 HTTP 合同，前端负责分步录入、保存提示和状态展示。密码与第二因素全部验证成功后才创建 Redis 会话
+
+`admin_users.mfa` 保存密钥密文、待确认绑定及其期限、恢复码 SHA-256 摘要和已消费时间步。
+Store 按原密码哈希与完整 MFA 状态比较更新，防止并发消费同一动态码或恢复码；审计与安全变更在同一 PostgreSQL 事务提交。
+安全设置提交通过重新加盐同一密码使会话凭据指纹失效，无需扫描 Redis 会话；并发创建的旧指纹会话同样无法恢复
+
+密钥由 `ring` 的 PBKDF2-HMAC-SHA256（600000 次、随机 16 字节盐）派生密钥，再使用 AES-256-GCM 加密，
+每次使用随机 12 字节 nonce，管理员 ID 为附加认证数据。耗时派生通过 blocking 任务执行；修改密码时在同一事务替换密文和密码哈希。
+数据库不保存解密密码；密文损坏或依赖不可用时拒绝认证，不降级为密码登录。恢复码一次性消费与会话创建分属 PostgreSQL 和 Redis，
+会话写入失败不会撤销已消费证明，客户端需使用下一个动态码或另一恢复码
 
 ## 9. Credential、额度与主动重置
 

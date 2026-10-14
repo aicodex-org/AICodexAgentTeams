@@ -278,6 +278,7 @@ impl SessionState for AdminTestState {
 }
 
 pub(super) struct MemoryAuthStore {
+    mfa: Mutex<gateway_admin::model::auth::MfaState>,
     pub(super) enabled: AtomicBool,
     pub(super) unavailable: AtomicBool,
     password_hash: Mutex<Option<String>>,
@@ -290,6 +291,7 @@ pub(super) struct MemoryAuthStore {
 impl MemoryAuthStore {
     fn new(api_key: Arc<Mutex<Option<AdminApiKey>>>) -> Self {
         Self {
+            mfa: Mutex::new(Default::default()),
             enabled: AtomicBool::new(false),
             unavailable: AtomicBool::new(false),
             password_hash: Mutex::new(None),
@@ -355,6 +357,45 @@ impl MemoryAuthStore {
 
 #[async_trait]
 impl AuthStore for MemoryAuthStore {
+    async fn consume_mfa_attempt(
+        &self,
+        _: &str,
+        _: u32,
+        _: std::time::Duration,
+    ) -> AdminStoreResult<Option<std::time::Duration>> {
+        Ok(None)
+    }
+
+    async fn load_mfa(&self, _: &str) -> AdminStoreResult<gateway_admin::model::auth::MfaState> {
+        Ok(self.mfa.lock().unwrap().clone())
+    }
+    async fn update_mfa(
+        &self,
+        _: &str,
+        expected_hash: &str,
+        expected: &gateway_admin::model::auth::MfaState,
+        next: &gateway_admin::model::auth::MfaState,
+        new_hash: Option<&str>,
+        audit: Option<gateway_admin::model::auth::AdminAuditEvent>,
+    ) -> AdminStoreResult<bool> {
+        if self.fail_audit.load(Ordering::SeqCst) {
+            return Err(unavailable("audit"));
+        }
+        let mut hash = self.password_hash.lock().unwrap();
+        let mut mfa = self.mfa.lock().unwrap();
+        if hash.as_deref() != Some(expected_hash) || &*mfa != expected {
+            return Ok(false);
+        }
+        if let Some(new_hash) = new_hash {
+            *hash = Some(new_hash.to_owned());
+        }
+        *mfa = next.clone();
+        if let Some(audit) = audit {
+            self.audits.lock().unwrap().push(audit);
+        }
+        Ok(true)
+    }
+
     async fn load_password_hash(&self, _: &str) -> AdminStoreResult<Option<String>> {
         Ok(self.password_hash.lock().expect("password hash").clone())
     }

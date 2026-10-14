@@ -111,6 +111,42 @@ impl RedisAuthStateRepository {
         })
     }
 
+    /// 账号维度独立计数，避免一次双重验证重复消费全局登录额度
+    pub async fn consume_mfa_attempt(
+        &self,
+        user: &str,
+        limit: u32,
+        window: Duration,
+    ) -> StoreResult<Option<Duration>> {
+        let millis = u64::try_from(window.as_millis())
+            .ok()
+            .filter(|value| *value > 0 && *value <= MAX_REDIS_EXACT_INTEGER)
+            .ok_or_else(|| auth_invalid("MFA rate limit window is invalid"))?;
+        if limit == 0 {
+            return Err(auth_invalid("MFA rate limit policy is invalid"));
+        }
+        let fingerprint = resource_fingerprint("MFA account", user)?;
+        let mut connection = self.connection.clone();
+        let retry: i64 = Script::new(
+            r#"
+local count = redis.call('INCR', KEYS[1])
+if count == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[2]) end
+if count > tonumber(ARGV[1]) then return math.max(redis.call('PTTL', KEYS[1]), 1) end
+return 0
+"#,
+        )
+        .key(format!("{}:mfa:{{{fingerprint}}}", self.namespace))
+        .arg(limit)
+        .arg(millis)
+        .invoke_async(&mut connection)
+        .await
+        .map_err(|error| redis_unavailable("rate limit MFA account", error))?;
+        Ok(u64::try_from(retry)
+            .ok()
+            .filter(|value| *value > 0)
+            .map(Duration::from_millis))
+    }
+
     fn session_key(&self, session_id: &str) -> StoreResult<String> {
         let fingerprint = resource_fingerprint("authentication session", session_id)?;
         Ok(format!("{}:session:{{{fingerprint}}}", self.namespace))

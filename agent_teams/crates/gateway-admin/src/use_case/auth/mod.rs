@@ -1,5 +1,11 @@
 //! 控制面登录、会话恢复与身份校验的唯一 owner
 
+mod mfa;
+mod secret;
+mod totp;
+
+use crate::model::auth::{MfaProof, MfaSetup, MfaStatus};
+
 use std::{net::IpAddr, sync::Arc, time::Duration as StdDuration};
 
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
@@ -28,6 +34,26 @@ use super::map_store_error;
 /// 所有控制面接口消费同一个会话服务，权限由服务端身份决定
 #[async_trait]
 pub trait AuthService: Send + Sync {
+    async fn mfa_status(&self, session: Option<&str>) -> Result<MfaStatus, AdminError>;
+    async fn mfa_setup(
+        &self,
+        session: Option<&str>,
+        password: &str,
+        source: IpAddr,
+    ) -> Result<MfaSetup, AdminError>;
+    async fn mfa_confirm(
+        &self,
+        session: Option<&str>,
+        proof: MfaProof,
+        source: IpAddr,
+    ) -> Result<(), AdminError>;
+    async fn mfa_disable(
+        &self,
+        session: Option<&str>,
+        proof: MfaProof,
+        source: IpAddr,
+    ) -> Result<(), AdminError>;
+
     async fn change_password(
         &self,
         session_id: Option<&str>,
@@ -106,7 +132,11 @@ impl DefaultAuthService {
 
     async fn authenticate(&self, command: LoginCommand) -> Result<SessionSubject, LoginError> {
         match command {
-            LoginCommand::Admin { username, password } => {
+            LoginCommand::Admin {
+                username,
+                password,
+                second_factor,
+            } => {
                 if username.as_deref().unwrap_or(&self.default_admin_user_id)
                     != self.default_admin_user_id
                 {
@@ -123,6 +153,52 @@ impl DefaultAuthService {
                         .map_err(|_| LoginError::Unavailable)?
                 {
                     return Err(LoginError::InvalidCredentials);
+                }
+                let mfa = self
+                    .store
+                    .load_mfa(&self.default_admin_user_id)
+                    .await
+                    .map_err(|_| LoginError::Unavailable)?;
+                if mfa.enabled {
+                    let code = second_factor
+                        .filter(|code| !code.is_empty())
+                        .ok_or(LoginError::SecondFactorRequired)?;
+                    self.mfa_limit(&self.default_admin_user_id)
+                        .await
+                        .map_err(|error| {
+                            if error.kind() == AdminErrorKind::RateLimited {
+                                LoginError::TooManyAttempts {
+                                    retry_after_seconds: 60,
+                                }
+                            } else {
+                                LoginError::Unavailable
+                            }
+                        })?;
+                    let next =
+                        mfa::verify_factor(&mfa, &password, &self.default_admin_user_id, &code)
+                            .await
+                            .map_err(|error| {
+                                if error.kind() == AdminErrorKind::Invalid {
+                                    LoginError::InvalidCredentials
+                                } else {
+                                    LoginError::Unavailable
+                                }
+                            })?;
+                    if !self
+                        .store
+                        .update_mfa(
+                            &self.default_admin_user_id,
+                            &password_hash,
+                            &mfa,
+                            &next,
+                            None,
+                            None,
+                        )
+                        .await
+                        .map_err(|_| LoginError::Unavailable)?
+                    {
+                        return Err(LoginError::InvalidCredentials);
+                    }
                 }
                 Ok(SessionSubject::Admin {
                     admin_user_id: self.default_admin_user_id.clone(),
@@ -150,6 +226,34 @@ impl DefaultAuthService {
 
 #[async_trait]
 impl AuthService for DefaultAuthService {
+    async fn mfa_status(&self, session: Option<&str>) -> Result<MfaStatus, AdminError> {
+        self.mfa_status_impl(session).await
+    }
+    async fn mfa_setup(
+        &self,
+        session: Option<&str>,
+        password: &str,
+        source: IpAddr,
+    ) -> Result<MfaSetup, AdminError> {
+        self.mfa_setup_impl(session, password, source).await
+    }
+    async fn mfa_confirm(
+        &self,
+        session: Option<&str>,
+        proof: MfaProof,
+        source: IpAddr,
+    ) -> Result<(), AdminError> {
+        self.mfa_confirm_impl(session, proof, source).await
+    }
+    async fn mfa_disable(
+        &self,
+        session: Option<&str>,
+        proof: MfaProof,
+        source: IpAddr,
+    ) -> Result<(), AdminError> {
+        self.mfa_disable_impl(session, proof, source).await
+    }
+
     async fn change_password(
         &self,
         session_id: Option<&str>,
@@ -203,13 +307,36 @@ impl AuthService for DefaultAuthService {
         if command.new_password == command.current_password {
             return Err(AdminError::invalid("新密码不能与当前密码相同"));
         }
+        let previous_mfa = self
+            .store
+            .load_mfa(&admin_user_id)
+            .await
+            .map_err(|error| map_store_error(error, "administrator MFA"))?;
+        let mut next_mfa = previous_mfa.clone();
+        if !previous_mfa.encrypted_secret.is_empty() {
+            let secret = secret::open(
+                &previous_mfa.encrypted_secret,
+                &command.current_password,
+                &admin_user_id,
+            )
+            .await?;
+            next_mfa.encrypted_secret =
+                secret::seal(&secret, &command.new_password, &admin_user_id).await?;
+        }
         let hash = hash_admin_password(&command.new_password)?;
         let mut audit = self.auth_audit("admin.password_changed", &admin_user_id);
         audit.entity_kind = "admin_user".to_owned();
         audit.changed_fields = vec!["password".to_owned()];
         if !self
             .store
-            .change_password(&admin_user_id, &password_hash, &hash, audit)
+            .update_mfa(
+                &admin_user_id,
+                &password_hash,
+                &previous_mfa,
+                &next_mfa,
+                Some(&hash),
+                Some(audit),
+            )
             .await
             .map_err(|error| map_store_error(error, "administrator password"))?
         {

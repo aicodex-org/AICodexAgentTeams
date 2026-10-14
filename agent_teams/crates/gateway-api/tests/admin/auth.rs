@@ -33,6 +33,7 @@ fn login_request_should_deny_unknown_fields_and_redact_password_debug() {
 
     assert!(!format!("{request:?}").contains(password));
     let LoginCommand::Admin {
+        second_factor: None,
         username,
         password: parsed_password,
     } = request.into()
@@ -58,6 +59,7 @@ async fn default_auth_service_should_initialize_login_validate_and_logout() {
     let session = service
         .login(
             LoginCommand::Admin {
+                second_factor: None,
                 username: Some("admin_1".to_owned()),
                 password: "strong-admin-password".to_owned(),
             },
@@ -138,6 +140,7 @@ async fn audit_failure_should_revoke_new_session_before_returning_it() {
             .auth()
             .login(
                 LoginCommand::Admin {
+                    second_factor: None,
                     username: None,
                     password: "strong-admin-password".to_owned(),
                 },

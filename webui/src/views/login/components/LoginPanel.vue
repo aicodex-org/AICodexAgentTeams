@@ -2,7 +2,7 @@
 import { ZButton, ZCard, ZFormItem, ZInput, ZSegmented } from '@codex-proxy/ui'
 
 import { ArrowRight, KeyRound, ShieldCheck, UserRound } from '@lucide/vue'
-import { computed } from 'vue'
+import { computed, nextTick, useTemplateRef, watch } from 'vue'
 import AppBrandMark from '@/components/AppBrandMark.vue'
 
 type LoginRealm = 'admin' | 'key'
@@ -10,6 +10,7 @@ type LoginRealm = 'admin' | 'key'
 const props = defineProps<{
   loading: boolean
   submitDisabled: boolean
+  requiresTwoFactor: boolean
 }>()
 
 const emit = defineEmits<{
@@ -19,6 +20,7 @@ const emit = defineEmits<{
 const realm = defineModel<LoginRealm>('realm', { required: true })
 const username = defineModel<string>('username', { required: true })
 const password = defineModel<string>('password', { required: true })
+const secondFactor = defineModel<string>('secondFactor', { required: true })
 const apiKey = defineModel<string>('apiKey', { required: true })
 
 const realmOptions = [
@@ -26,11 +28,19 @@ const realmOptions = [
   { label: 'API Key 登录', value: 'key', icon: KeyRound },
 ]
 
+const factorInput = useTemplateRef('factorInput')
+watch(() => props.requiresTwoFactor, async (required) => {
+  if (required) {
+    await nextTick()
+    factorInput.value?.focus()
+  }
+})
+
 const isKeyRealm = computed(() => realm.value === 'key')
 const submitLabel = computed(() => {
   if (props.loading)
     return '正在登录...'
-  return isKeyRealm.value ? '查看用量' : '进入控制台'
+  return isKeyRealm.value ? '查看用量' : props.requiresTwoFactor ? '验证并登录' : '进入控制台'
 })
 </script>
 
@@ -94,6 +104,21 @@ const submitLabel = computed(() => {
                 <KeyRound :size="17" />
               </template>
             </ZInput>
+          </ZFormItem>
+          <ZFormItem v-if="requiresTwoFactor" label="验证码或恢复码" for="admin-second-factor">
+            <ZInput
+              id="admin-second-factor"
+              ref="factorInput"
+              v-model="secondFactor"
+              name="one-time-code"
+              aria-label="验证码或恢复码"
+              placeholder="输入 6 位验证码或恢复码"
+              autocomplete="one-time-code"
+              autocapitalize="none"
+              spellcheck="false"
+              maxlength="32"
+              :disabled="loading"
+            />
           </ZFormItem>
         </template>
         <ZFormItem v-else class="login-field" label="API Key" for="client-api-key">

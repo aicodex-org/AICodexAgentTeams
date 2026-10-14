@@ -195,6 +195,25 @@ pub struct CodexCatalogModel {
 }
 
 impl CodexCatalogModel {
+    /// 订阅通道不支持原生工具搜索，不能沿用基础模型目录的能力声明
+    pub fn for_chatgpt_subscription(mut self) -> Result<Self, CodexModelCatalogError> {
+        if self.document.protocol() == "codex" {
+            let mut document: serde_json::Value = serde_json::from_slice(self.document.body())
+                .map_err(|_| CodexModelCatalogError::InvalidWire)?;
+            document["supports_search_tool"] = serde_json::Value::Bool(false);
+            self.document = RawJsonPayload::new(
+                "codex",
+                Bytes::from(
+                    serde_json::to_vec(&document)
+                        .map_err(|_| CodexModelCatalogError::InvalidWire)?,
+                ),
+            )
+            .map_err(|_| CodexModelCatalogError::InvalidWire)?;
+        }
+        self.capabilities.web_search = CodexCatalogCapabilityEvidence::DeclaredUnsupported;
+        Ok(self)
+    }
+
     /// 完整原生对象只用于客户端目录，不写入控制面画像或日志
     #[must_use]
     pub const fn document(&self) -> &RawJsonPayload {

@@ -93,6 +93,7 @@ fn admin_api_key_debug_should_redact_plaintext() {
 #[test]
 fn login_command_debug_should_redact_password() {
     let command = LoginCommand::Admin {
+        second_factor: None,
         username: None,
         password: "secret-password".to_owned(),
     };

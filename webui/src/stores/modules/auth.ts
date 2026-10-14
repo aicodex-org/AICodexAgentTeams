@@ -57,6 +57,8 @@ export const useAuthStore = defineStore('auth', () => {
       const result = await apiLogin(payload)
       revision += 1
       pendingCheck.value = undefined
+      if ('requiresTwoFactor' in result)
+        return result
       session.value = result
       sessionChecked.value = true
       resetUnauthorizedHandling()

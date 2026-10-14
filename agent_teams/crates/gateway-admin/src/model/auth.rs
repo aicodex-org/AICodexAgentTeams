@@ -54,6 +54,7 @@ pub enum LoginCommand {
     Admin {
         username: Option<String>,
         password: String,
+        second_factor: Option<String>,
     },
     Key {
         api_key: String,
@@ -98,6 +99,8 @@ impl std::fmt::Debug for LoginResult {
 pub enum LoginError {
     #[error("invalid login credentials")]
     InvalidCredentials,
+    #[error("second factor required")]
+    SecondFactorRequired,
     #[error("too many login attempts")]
     TooManyAttempts { retry_after_seconds: u64 },
     #[error("authentication is unavailable")]
@@ -169,4 +172,52 @@ pub struct AdminAuditEvent {
     pub config_revision: Option<Revision>,
     pub changed_fields: Vec<String>,
     pub occurred_at: DateTime<Utc>,
+}
+
+/// PostgreSQL 保存的双重验证事实，密钥密文和恢复码摘要不能进入日志或状态接口
+#[derive(Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+pub struct MfaState {
+    pub encrypted_secret: String,
+    pub enabled: bool,
+    pub setup_expires_at: i64,
+    pub last_used_step: Option<u64>,
+    pub recovery_hashes: Vec<String>,
+    pub pending_recovery_hashes: Vec<String>,
+    pub setup_id: String,
+}
+
+impl std::fmt::Debug for MfaState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("MfaState([REDACTED])")
+    }
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MfaStatus {
+    pub enabled: bool,
+    pub recovery_codes_remaining: usize,
+}
+
+/// 绑定材料只在验证当前密码后返回，不写入审计
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MfaSetup {
+    pub secret: String,
+    pub qr_code: String,
+    pub setup_id: String,
+    pub recovery_codes: Vec<String>,
+}
+
+pub struct MfaProof {
+    pub setup_id: Option<String>,
+    pub password: String,
+    pub code: String,
+}
+
+impl std::fmt::Debug for MfaProof {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("MfaProof([REDACTED])")
+    }
 }

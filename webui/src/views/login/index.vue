@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ArrowLeft } from '@lucide/vue'
-import { computed, shallowRef } from 'vue'
+import { computed, shallowRef, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 
 import { useAuthStore } from '@/stores/modules/auth'
@@ -20,11 +20,18 @@ const realm = shallowRef<LoginRealm>(normalizeRealm(window.history.state?.loginM
 const username = shallowRef('')
 const password = shallowRef('')
 const apiKey = shallowRef('')
+const secondFactor = shallowRef('')
+const requiresTwoFactor = shallowRef(false)
+
+watch([realm, username, password], () => {
+  requiresTwoFactor.value = false
+  secondFactor.value = ''
+})
 const loginPending = shallowRef(false)
 
 const canSubmit = computed(() => realm.value === 'key'
   ? Boolean(apiKey.value.trim())
-  : Boolean(username.value.trim() && password.value))
+  : Boolean(username.value.trim() && password.value && (!requiresTwoFactor.value || secondFactor.value.trim())))
 const loginLoading = computed(() => authStore.loading || loginPending.value)
 const submitDisabled = computed(() => loginLoading.value || !canSubmit.value)
 
@@ -40,6 +47,7 @@ async function handleSubmit(): Promise<void> {
         mode: 'admin',
         username: username.value.trim(),
         password: password.value,
+        secondFactor: secondFactor.value.trim() || undefined,
       })
 
   if (!result) {
@@ -47,6 +55,13 @@ async function handleSubmit(): Promise<void> {
     return
   }
 
+  if ('requiresTwoFactor' in result) {
+    requiresTwoFactor.value = true
+    loginPending.value = false
+    return
+  }
+  password.value = ''
+  secondFactor.value = ''
   try {
     if (result.role === 'admin')
       await router.push(resolveDestination())
@@ -86,6 +101,8 @@ function resolveDestination(): string {
         v-model:username="username"
         v-model:password="password"
         v-model:api-key="apiKey"
+        v-model:second-factor="secondFactor"
+        :requires-two-factor="requiresTwoFactor"
         :loading="loginLoading"
         :submit-disabled="submitDisabled"
         @submit="handleSubmit"

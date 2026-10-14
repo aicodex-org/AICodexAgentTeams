@@ -25,6 +25,54 @@ fn traced_context(trace: &TraceContext, cancellation: CancellationToken) -> Atte
     )
 }
 
+#[tokio::test]
+async fn http_trace_endpoint_matches_selected_upstream_protocol() {
+    for (api_key, endpoint) in [(false, "/codex/responses"), (true, "/responses")] {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path(endpoint))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_raw(CAPTURE_COMPLETED_SSE, "text/event-stream"),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        let store = Arc::new(MemoryAccountStore::default());
+        if api_key {
+            store
+                .seed_api_key(
+                    "acct_provider_contract",
+                    server.uri(),
+                    provider_openai::credential::ResponsesTransport::Http,
+                )
+                .await;
+        } else {
+            create_account(&store, "acct_provider_contract").await;
+        }
+        let trace = TraceContext::new("req_endpoint_trace");
+        let mut stream = provider_with_base_url(&store, server.uri())
+            .execute(
+                planned_request("openai", http_generate_operation()),
+                traced_context(&trace, CancellationToken::new()),
+            )
+            .await
+            .unwrap();
+        while let Some(event) = stream.next().await {
+            event.expect("successful upstream completion");
+        }
+        let requests = server.received_requests().await.unwrap();
+        assert_eq!(requests.len(), 1);
+        let snapshot = trace.snapshot().unwrap();
+        let headers = snapshot["events"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|event| event["stage"] == "upstream.request.headers")
+            .expect("request headers trace");
+        assert_eq!(headers["data"]["endpoint"], requests[0].url.path());
+    }
+}
+
 fn structural_event(kind: &str, bytes: usize) -> Value {
     let mut event = json!({
         "type": kind,

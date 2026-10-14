@@ -131,6 +131,16 @@ function parseConnectionTestEvent(raw: string): ConnectionTestEvent | null {
 }
 
 function connectionTestFailureText(event: ConnectionTestFailureEvent) {
+  if (event.source === 'upstream') {
+    if (event.providerErrorCode === 'subscription_sharing_user_not_eligible'
+      || event.providerErrorCode === 'subscription_sharing_v2_user_not_eligible') {
+      return '该 ChatGPT 账号或工作区暂不具备订阅共享资格'
+    }
+    if (event.providerErrorCode === 'subscription_sharing_unsupported_capability')
+      return 'ChatGPT 订阅通道不支持本次请求使用的能力'
+    if (event.upstreamStatus === 403)
+      return '上游拒绝访问，请检查账号权限与授权范围'
+  }
   return event.gatewayErrorCode
     ? CONNECTION_TEST_FAILURE_TEXT[event.gatewayErrorCode] || '未分类错误'
     : '测试连接失败'

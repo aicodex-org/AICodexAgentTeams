@@ -1,5 +1,7 @@
 //! 控制面统一登录、会话恢复与退出；身份由认证用例返回
 
+mod mfa;
+
 use std::{fmt, net::SocketAddr};
 
 use axum::{
@@ -32,6 +34,8 @@ pub enum LoginRequest {
     Admin {
         username: Option<String>,
         password: String,
+        #[serde(rename = "secondFactor")]
+        second_factor: Option<String>,
     },
     Key {
         #[serde(rename = "apiKey")]
@@ -71,7 +75,15 @@ impl fmt::Debug for LoginRequest {
 impl From<LoginRequest> for LoginCommand {
     fn from(request: LoginRequest) -> Self {
         match request {
-            LoginRequest::Admin { username, password } => Self::Admin { username, password },
+            LoginRequest::Admin {
+                username,
+                password,
+                second_factor,
+            } => Self::Admin {
+                username,
+                password,
+                second_factor,
+            },
             LoginRequest::Key { api_key } => Self::Key { api_key },
         }
     }
@@ -112,6 +124,7 @@ where
     S: SessionState + Clone + Send + Sync + 'static,
 {
     Router::new()
+        .merge(mfa::router::<S>())
         .route("/api/auth/login", post(login::<S>))
         .route("/api/auth/status", get(session_status::<S>))
         .route("/api/auth/refresh", post(refresh_session::<S>))
@@ -140,8 +153,18 @@ where
             peer.ip(),
             session_cookie::value(&headers).as_deref(),
         )
-        .await
-        .map_err(map_login_error)?;
+        .await;
+    let result = match result {
+        Ok(result) => result,
+        Err(LoginError::SecondFactorRequired) => {
+            return Ok(AdminResponse::new(
+                StatusCode::OK,
+                AdminEnvelope::ok(serde_json::json!({"requiresTwoFactor": true})),
+            )
+            .into_response());
+        }
+        Err(error) => return Err(map_login_error(error)),
+    };
     set_session_cookie(
         AdminResponse::new(
             StatusCode::OK,
@@ -299,7 +322,9 @@ fn clear_session_cookie(
 
 fn map_login_error(error: LoginError) -> AdminError {
     match error {
-        LoginError::InvalidCredentials => AdminError::invalid_credentials(),
+        LoginError::SecondFactorRequired | LoginError::InvalidCredentials => {
+            AdminError::invalid_credentials()
+        }
         LoginError::TooManyAttempts {
             retry_after_seconds,
         } => AdminError::too_many_login_attempts().with_retry_after(retry_after_seconds),

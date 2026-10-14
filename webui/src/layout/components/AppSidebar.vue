@@ -386,7 +386,7 @@ onBeforeUnmount(() => {
     ]"
   >
     <div
-      class="mx-4 mt-6 grid h-12 shrink-0 grid-cols-[44px_minmax(0,1fr)] items-center"
+      class="mx-4 mt-6 grid min-h-12 shrink-0 grid-cols-[44px_minmax(0,1fr)] items-center"
       :class="isCollapsed ? 'w-11 justify-start' : 'self-stretch gap-3'"
     >
       <ZMotionIcon
@@ -414,6 +414,12 @@ onBeforeUnmount(() => {
             <span>{{ versionLabel }}</span>
             <ArrowUpCircle v-if="hasUpdate" class="size-3 shrink-0 text-cp-success" />
           </button>
+        </span>
+        <span
+          class="mt-1.5 inline-flex h-5 w-fit items-center gap-1.5 whitespace-nowrap rounded-lg bg-cp-success-container px-2 text-xs leading-none font-emphasis text-cp-success-on-container"
+        >
+          <i class="size-1.5 rounded-full bg-cp-success" />
+          在线
         </span>
       </span>
     </div>
@@ -550,16 +556,8 @@ onBeforeUnmount(() => {
     <div class="mx-4 mb-6 shrink-0" :class="isCollapsed ? 'w-11' : 'self-stretch'">
       <div
         class="bg-cp-fill-quaternary"
-        :class="isCollapsed ? 'grid gap-1 rounded-cp p-1' : 'flex h-11 items-center justify-between rounded-cp-lg px-2'"
+        :class="isCollapsed ? 'grid gap-1 rounded-cp p-1' : 'flex h-11 items-center justify-center rounded-cp-lg px-2'"
       >
-        <span
-          v-if="!isCollapsed"
-          class="inline-flex whitespace-nowrap h-7 items-center gap-1.5 rounded-lg bg-cp-success-container px-2.5 text-xs leading-none font-emphasis text-cp-success-on-container"
-        >
-          <i class="size-1.5 rounded-full bg-cp-success" />
-          在线
-        </span>
-
         <div class="flex items-center" :class="isCollapsed ? 'grid gap-1' : 'gap-1'">
           <ZIconButton
             v-if="isCollapsed && hasUpdate"

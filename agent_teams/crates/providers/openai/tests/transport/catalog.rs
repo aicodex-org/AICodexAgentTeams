@@ -15,6 +15,40 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 const OFFICIAL_FIXTURE: &[u8] = include_bytes!("fixtures/official_models_snapshot.json");
 
 #[test]
+fn chatgpt_subscription_catalog_disables_tool_search_without_changing_base_models() {
+    let original = json!({
+        "slug": "gpt-subscription", "display_name": "Subscription",
+        "supports_search_tool": true, "supports_parallel_tool_calls": true,
+        "base_instructions": "preserve instructions", "future_field": {"keep": true}
+    });
+    let snapshot = parse_codex_model_catalog(
+        &serde_json::to_vec(&json!({"models": [original]})).unwrap(),
+        None,
+    )
+    .unwrap();
+    let base = &snapshot.models()[0];
+    let subscription = base.clone().for_chatgpt_subscription().unwrap();
+    let mut expected = original.clone();
+    expected["supports_search_tool"] = json!(false);
+    assert_eq!(
+        serde_json::from_slice::<Value>(subscription.document().body()).unwrap(),
+        expected
+    );
+    assert_eq!(
+        serde_json::from_slice::<Value>(base.document().body()).unwrap(),
+        original
+    );
+    assert_eq!(
+        subscription.capabilities().web_search(),
+        CodexCatalogCapabilityEvidence::DeclaredUnsupported
+    );
+    assert_eq!(
+        base.capabilities().web_search(),
+        CodexCatalogCapabilityEvidence::DeclaredNative
+    );
+}
+
+#[test]
 fn native_document_keeps_unknown_nested_fields_nulls_and_model_instructions() {
     let original = json!({
         "slug": "gpt-native", "display_name": "Native",

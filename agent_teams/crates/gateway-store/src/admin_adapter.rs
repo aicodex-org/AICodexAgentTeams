@@ -224,6 +224,46 @@ pub(crate) fn store_model_mappings(
 
 #[async_trait::async_trait]
 impl AuthStore for AuthStoreAdapter {
+    async fn consume_mfa_attempt(
+        &self,
+        user: &str,
+        limit: u32,
+        window: std::time::Duration,
+    ) -> AdminStoreResult<Option<std::time::Duration>> {
+        self.state
+            .consume_mfa_attempt(user, limit, window)
+            .await
+            .map_err(|error| admin_store_error("MFA account limit", error))
+    }
+
+    async fn load_mfa(&self, user: &str) -> AdminStoreResult<gateway_admin::model::auth::MfaState> {
+        self.security
+            .load_mfa(user)
+            .await
+            .map_err(|error| admin_store_error("administrator MFA", error))
+    }
+    async fn update_mfa(
+        &self,
+        user: &str,
+        expected_hash: &str,
+        expected: &gateway_admin::model::auth::MfaState,
+        next: &gateway_admin::model::auth::MfaState,
+        new_hash: Option<&str>,
+        audit: Option<AdminAuditModel>,
+    ) -> AdminStoreResult<bool> {
+        self.security
+            .update_mfa(
+                user,
+                expected_hash,
+                expected,
+                next,
+                new_hash,
+                audit.map(auth_audit_record).transpose()?,
+            )
+            .await
+            .map_err(|error| admin_store_error("administrator MFA", error))
+    }
+
     async fn load_password_hash(&self, admin_user_id: &str) -> AdminStoreResult<Option<String>> {
         postgres::AdminSecurityAuditRepository::password_hash(&self.security, admin_user_id)
             .await

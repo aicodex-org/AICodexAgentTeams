@@ -241,6 +241,30 @@ impl MemoryKeyAuthStore {
 
 #[async_trait]
 impl AuthStore for MemoryKeyAuthStore {
+    async fn consume_mfa_attempt(
+        &self,
+        _: &str,
+        _: u32,
+        _: std::time::Duration,
+    ) -> AdminStoreResult<Option<std::time::Duration>> {
+        Ok(None)
+    }
+
+    async fn load_mfa(&self, _: &str) -> AdminStoreResult<gateway_admin::model::auth::MfaState> {
+        Ok(Default::default())
+    }
+    async fn update_mfa(
+        &self,
+        _: &str,
+        _: &str,
+        _: &gateway_admin::model::auth::MfaState,
+        _: &gateway_admin::model::auth::MfaState,
+        _: Option<&str>,
+        _: Option<gateway_admin::model::auth::AdminAuditEvent>,
+    ) -> AdminStoreResult<bool> {
+        Ok(false)
+    }
+
     async fn load_password_hash(&self, _: &str) -> AdminStoreResult<Option<String>> {
         Ok(None)
     }

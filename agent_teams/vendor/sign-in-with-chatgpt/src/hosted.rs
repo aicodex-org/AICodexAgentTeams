@@ -60,12 +60,11 @@ impl OAuthClient {
             ("code_challenge_method", "S256"),
             ("code_challenge", &challenge),
             ("ext_agent_host_id", &request.host_id),
+            ("prompt", "consent"),
         ]);
         if request.client_id.is_none() {
             url.query_pairs_mut()
                 .append_pair("agent_name_hint", app_name);
-        } else {
-            url.query_pairs_mut().append_pair("prompt", "consent");
         }
         Ok(url.into())
     }

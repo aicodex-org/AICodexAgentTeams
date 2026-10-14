@@ -572,6 +572,15 @@ docker compose -f deploy/compose.yaml up -d --no-build --wait
 
 升级后通过管理端版本接口或容器 image digest 确认运行实例的版本和 revision
 
+固定平台的本地构建可运行 `bash deploy/build_amd64.sh` 或 `bash deploy/build_arm64.sh`，
+默认将镜像加载为 `yangjianbo/aicodex-agent-teams:<release/version.yaml 中的版本号>`；位置参数可指定镜像名，
+编译版本仍取自 `release/version.yaml`。启动 Compose 时通过 `AICODEX_AGENT_TEAMS_IMAGE` 选择刚构建的镜像
+
+`deploy/docker-compose.yaml` 使用 Docker 命名卷，项目名为 `aicodex-agent-teams-volumes`；
+`deploy/compose.yaml` 使用宿主机 `.runtime` 目录。两者的数据独立，切换文件不会迁移已有数据。
+命名卷方案同样读取 `deploy/config.yaml`，默认端口相同，不能直接与目录挂载方案同时启动；
+不要用相同的 `-p` 或 `COMPOSE_PROJECT_NAME` 覆盖两者项目名，保留数据时不要执行 `down --volumes`
+
 构建元数据通过一次性进程环境传入：
 
 ```bash

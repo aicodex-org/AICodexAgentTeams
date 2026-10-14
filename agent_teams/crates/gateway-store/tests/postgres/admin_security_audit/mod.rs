@@ -83,3 +83,5 @@ fn audit_event_rejects_more_than_sixty_four_changed_fields() {
     };
     assert!(event.validate().is_err());
 }
+
+mod mfa;

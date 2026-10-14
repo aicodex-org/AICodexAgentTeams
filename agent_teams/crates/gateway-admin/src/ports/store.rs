@@ -271,6 +271,27 @@ pub trait AccountRuntimeStore: Send + Sync {
 /// 控制面凭据、统一会话、登录限流与管理员安全审计
 #[async_trait]
 pub trait AuthStore: Send + Sync {
+    async fn consume_mfa_attempt(
+        &self,
+        user: &str,
+        limit: u32,
+        window: Duration,
+    ) -> AdminStoreResult<Option<Duration>>;
+
+    async fn load_mfa(&self, admin_user_id: &str)
+    -> AdminStoreResult<crate::model::auth::MfaState>;
+
+    /// 密码、双重验证事实与审计在同一事务比较并更新，防止并发消费验证码或覆盖改密
+    async fn update_mfa(
+        &self,
+        admin_user_id: &str,
+        expected_password_hash: &str,
+        expected: &crate::model::auth::MfaState,
+        next: &crate::model::auth::MfaState,
+        new_password_hash: Option<&str>,
+        audit: Option<crate::model::auth::AdminAuditEvent>,
+    ) -> AdminStoreResult<bool>;
+
     async fn load_password_hash(&self, admin_user_id: &str) -> AdminStoreResult<Option<String>>;
 
     /// 密码更新与审计必须在同一事务提交；旧哈希不匹配时不写入

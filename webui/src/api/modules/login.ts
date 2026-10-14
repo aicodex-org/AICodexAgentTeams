@@ -6,7 +6,7 @@ export interface AuthSession {
 }
 
 export type LoginParam
-  = | { mode: 'admin', username: string, password: string }
+  = | { mode: 'admin', username: string, password: string, secondFactor?: string }
     | { mode: 'key', apiKey: string }
 
 export interface AuthStatusResponse {
@@ -31,7 +31,7 @@ function withSessionLock<T>(operation: () => Promise<T>): Promise<T> {
 }
 
 export function login(data: LoginParam) {
-  return withSessionLock(() => request<AuthSession>({
+  return withSessionLock(() => request<AuthSession | { requiresTwoFactor: true }>({
     url: '/api/auth/login',
     method: 'POST',
     skipSessionRecovery: true,
@@ -74,5 +74,51 @@ export function changeAdminPassword(data: { currentPassword: string, newPassword
     method: 'POST',
     skipSessionRecovery: true,
     data,
+  }))
+}
+
+export interface MfaStatus {
+  enabled: boolean
+  recoveryCodesRemaining: number
+}
+
+export interface MfaSetup {
+  secret: string
+  qrCode: string
+  setupId: string
+  recoveryCodes: string[]
+}
+
+export function getMfaStatus() {
+  return request<MfaStatus>({
+    url: '/api/auth/mfa',
+    method: 'GET',
+  })
+}
+
+export function setupMfa(password: string) {
+  return request<MfaSetup>({
+    url: '/api/auth/mfa/setup',
+    method: 'POST',
+    data: { password },
+    skipSessionRecovery: true,
+  })
+}
+
+export function confirmMfa(password: string, code: string, setupId: string) {
+  return withSessionLock(() => request<{ message: string }>({
+    url: '/api/auth/mfa/confirm',
+    method: 'POST',
+    data: { password, code, setupId },
+    skipSessionRecovery: true,
+  }))
+}
+
+export function disableMfa(password: string, code: string) {
+  return withSessionLock(() => request<{ message: string }>({
+    url: '/api/auth/mfa/disable',
+    method: 'POST',
+    data: { password, code },
+    skipSessionRecovery: true,
   }))
 }

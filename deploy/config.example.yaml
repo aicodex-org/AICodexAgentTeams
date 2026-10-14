@@ -9,6 +9,7 @@ schema_version: 1
 
 host:
   # 统一展示、查询日期、限额重置和定时任务的 IANA 时区，修改后重启生效。
+  # 时区示例：中国 Asia/Shanghai；美国加州 America/Los_Angeles（自动适配夏令时）
   timezone: 'Asia/Shanghai'
   listen:
     # 本地 cargo run 使用；Docker 内由 AICODEX_AGENT_TEAMS_SERVER_HOST/PORT 覆盖。

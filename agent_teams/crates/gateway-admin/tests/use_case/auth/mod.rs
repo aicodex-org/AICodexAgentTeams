@@ -1,5 +1,7 @@
 //! 验证管理员认证、密码变更、会话绑定与限流行为
 
+mod mfa;
+
 use std::{collections::BTreeMap, sync::Mutex};
 
 use async_trait::async_trait;
@@ -15,6 +17,8 @@ use gateway_admin::{
 
 #[derive(Default)]
 struct MemoryAuthStore {
+    mfa: Mutex<gateway_admin::model::auth::MfaState>,
+    mfa_retry_after: Mutex<Option<std::time::Duration>>,
     retry_after: Mutex<Option<std::time::Duration>>,
     unavailable: std::sync::atomic::AtomicBool,
     reject_delete: Mutex<Option<String>>,
@@ -35,6 +39,7 @@ async fn password_change_obeys_rate_limit_and_rejects_unbound_legacy_sessions() 
     let login = auth
         .login(
             LoginCommand::Admin {
+                second_factor: None,
                 username: None,
                 password: "strong-test-password".into(),
             },
@@ -78,6 +83,42 @@ async fn password_change_obeys_rate_limit_and_rejects_unbound_legacy_sessions() 
 
 #[async_trait]
 impl AuthStore for MemoryAuthStore {
+    async fn consume_mfa_attempt(
+        &self,
+        _: &str,
+        _: u32,
+        _: std::time::Duration,
+    ) -> AdminStoreResult<Option<std::time::Duration>> {
+        Ok(*self.mfa_retry_after.lock().unwrap())
+    }
+
+    async fn load_mfa(&self, _: &str) -> AdminStoreResult<gateway_admin::model::auth::MfaState> {
+        Ok(self.mfa.lock().unwrap().clone())
+    }
+    async fn update_mfa(
+        &self,
+        _: &str,
+        expected_hash: &str,
+        expected: &gateway_admin::model::auth::MfaState,
+        next: &gateway_admin::model::auth::MfaState,
+        new_hash: Option<&str>,
+        audit: Option<gateway_admin::model::auth::AdminAuditEvent>,
+    ) -> AdminStoreResult<bool> {
+        let mut hash = self.password_hash.lock().unwrap();
+        let mut mfa = self.mfa.lock().unwrap();
+        if hash.as_deref() != Some(expected_hash) || &*mfa != expected {
+            return Ok(false);
+        }
+        if let Some(new_hash) = new_hash {
+            *hash = Some(new_hash.to_owned());
+        }
+        *mfa = next.clone();
+        if let Some(audit) = audit {
+            self.audits.lock().unwrap().push(audit);
+        }
+        Ok(true)
+    }
+
     async fn load_password_hash(&self, _: &str) -> AdminStoreResult<Option<String>> {
         Ok(self.password_hash.lock().expect("password hash").clone())
     }
@@ -196,6 +237,7 @@ async fn successful_login_should_create_expiring_session_and_audit() {
         .auth()
         .login(
             LoginCommand::Admin {
+                second_factor: None,
                 username: Some("admin".to_owned()),
                 password: "strong-test-password".to_owned(),
             },
@@ -235,6 +277,7 @@ async fn repeated_default_initialization_should_not_replace_password() {
             .auth()
             .login(
                 LoginCommand::Admin {
+                    second_factor: None,
                     username: Some("admin".to_owned()),
                     password: "first-strong-password".to_owned(),
                 },
@@ -260,6 +303,7 @@ async fn login_with_huge_session_ttl_should_clamp_expiry_instead_of_panicking() 
         .auth()
         .login(
             LoginCommand::Admin {
+                second_factor: None,
                 username: Some("admin".to_owned()),
                 password: "strong-test-password".to_owned(),
             },
@@ -327,6 +371,7 @@ async fn both_login_types_share_the_login_limit_before_credentials_are_checked()
     let services = super::AdminHarness::new().auth(store).build().await;
     for command in [
         LoginCommand::Admin {
+            second_factor: None,
             username: None,
             password: "wrong-password".to_owned(),
         },
@@ -353,6 +398,7 @@ async fn failed_rotation_discards_the_new_session_and_leaves_the_old_session_ret
     let store = std::sync::Arc::new(MemoryAuthStore::default());
     let services = super::AdminHarness::new().auth(store.clone()).build().await;
     let command = || LoginCommand::Admin {
+        second_factor: None,
         username: None,
         password: "strong-test-password".to_owned(),
     };
@@ -403,6 +449,7 @@ async fn renewal_is_throttled_and_capped_by_the_original_absolute_expiry() {
     let login = auth
         .login(
             LoginCommand::Admin {
+                second_factor: None,
                 username: None,
                 password: "strong-test-password".into(),
             },
@@ -443,6 +490,7 @@ async fn renewal_never_revives_expired_revoked_or_legacy_sessions() {
     let login = auth
         .login(
             LoginCommand::Admin {
+                second_factor: None,
                 username: None,
                 password: "strong-test-password".into(),
             },

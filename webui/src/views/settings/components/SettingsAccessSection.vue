@@ -3,6 +3,7 @@ import { ZConfirmDialog } from '@codex-proxy/ui'
 import { onMounted } from 'vue'
 import { useAdminApiKey } from '../composables/useAdminApiKey'
 import AdminApiKeyCard from './AdminApiKeyCard.vue'
+import AdminMfaCard from './AdminMfaCard.vue'
 import AdminPasswordCard from './AdminPasswordCard.vue'
 import ClientVersionSettings from './client-version/index.vue'
 import ResponseBodyLimitCard from './ResponseBodyLimitCard.vue'
@@ -37,6 +38,7 @@ onMounted(loadStatus)
 <template>
   <div class="grid min-w-0 gap-5">
     <AdminPasswordCard />
+    <AdminMfaCard />
 
     <AdminApiKeyCard
       :status="status"

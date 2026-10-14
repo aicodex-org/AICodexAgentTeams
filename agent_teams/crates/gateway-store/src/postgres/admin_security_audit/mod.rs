@@ -1,5 +1,7 @@
 //! `admin_users` 与 `admin_audit_events` 的唯一 PostgreSQL owner
 
+mod mfa;
+
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Postgres, Transaction};

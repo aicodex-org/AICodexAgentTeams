@@ -41,6 +41,7 @@ pub(super) async fn publish_credentials_and_observe_quota(
                     rolling_usage: None,
                 })
                 .await
+                && error.kind() != crate::ports::provider::ProviderAdminErrorKind::Unsupported
             {
                 tracing::warn!(
                     request_id,
