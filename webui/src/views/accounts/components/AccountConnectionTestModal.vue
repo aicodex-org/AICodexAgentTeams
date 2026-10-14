@@ -28,6 +28,8 @@ const emit = defineEmits<{
   refreshModels: []
 }>()
 const open = defineModel<boolean>({ default: false })
+const protocol = defineModel<string>('protocol', { required: true })
+const protocolOptions = [{ label: 'Chat Completions', value: 'openai-chat' }, { label: 'Responses', value: 'openai' }, { label: 'Messages', value: 'anthropic' }]
 const selectedModel = defineModel<string>('selectedModel', { required: true })
 
 function connectionLogClass(tone: string) {
@@ -69,6 +71,10 @@ function connectionLogClass(tone: string) {
 
       <section class="rounded-cp-card bg-cp-fill-quaternary px-4 py-3">
         <div class="grid gap-2">
+          <template v-if="account.provider === 'deepseek'">
+            <span class="text-cp-sm font-heavy text-cp-text-quaternary">测试协议</span>
+            <ZSelect v-model="protocol" aria-label="测试协议" :options="protocolOptions" :disabled="status === 'running'" />
+          </template>
           <div class="flex min-h-8 items-center justify-between gap-3">
             <span class="text-cp-sm font-heavy text-cp-text-quaternary">
               测试模型

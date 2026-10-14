@@ -583,3 +583,47 @@ fn attempt_middleware_preserves_multi_value_and_authentication_headers() {
         assert_eq!(calls.load(Ordering::SeqCst), 1);
     });
 }
+
+#[test]
+fn native_protocol_capability_declarations_revalidate_rewritten_body() {
+    use gateway_core::{engine::middleware::MiddlewareCapabilityDeclaration, operation::Feature};
+    for (protocol, original, rewritten) in [
+        (
+            "openai-chat",
+            json!({"messages":[],"response_format":{"type":"json_schema"}}),
+            json!({"messages":[{"content":[{"type":"image_url"}]}]}),
+        ),
+        (
+            "anthropic",
+            json!({"messages":[],"output_config":{"format":{"type":"json_schema"}}}),
+            json!({"messages":[{"content":[{"type":"image"}]}]}),
+        ),
+    ] {
+        let request = MiddlewareRequest::new(
+            protocol,
+            vec![],
+            serde_json::to_vec(&original).unwrap().into(),
+        )
+        .replace_parts(
+            protocol.into(),
+            vec![],
+            serde_json::to_vec(&rewritten).unwrap().into(),
+            Some(MiddlewareCapabilityDeclaration {
+                handled: [Feature::JsonSchema].into(),
+                required: Default::default(),
+            }),
+        )
+        .unwrap();
+        let operation = Operation::Generate(GenerateRequest::from_protocol_payload(
+            ProtocolPayload::json_object(protocol, rewritten.as_object().unwrap().clone()).unwrap(),
+        ));
+        assert_eq!(
+            request
+                .apply_capabilities(operation)
+                .unwrap()
+                .capability_requirements()
+                .features(),
+            &[Feature::Vision].into()
+        );
+    }
+}

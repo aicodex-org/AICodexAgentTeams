@@ -15,13 +15,13 @@
 
 AICodexAgentTeams 是单进程、单副本运行的多 Provider AI 网关，同时提供：
 
-- 面向客户端的 OpenAI Responses、Images、standalone Search 和模型目录协议
+- 面向客户端的 OpenAI Responses、Chat Completions、Anthropic Messages、Images、standalone Search 和模型目录协议
 - 面向管理员的 `/api/admin/*` 控制面和 Vue 管理端
 - 面向 Key 持有者的 `/api/key-usage/*` 用量与客户端配置接口、独立 `/key-usage` 页面，以及复用数据面认证的 `/v1/usage` 额度查询
-- 固定的 OpenAI 与 xAI 两个编译期 Provider，以及插件提供的认证、中间件和管理扩展
+- 固定的 OpenAI、xAI 与 DeepSeek 三个编译期 Provider，以及插件提供的认证、中间件和管理扩展
 - PostgreSQL 持久化、Redis 协调状态以及 S3/R2 数据库备份
 
-系统不提供 `/v1/chat/completions`，不存在 Provider Instance 层，也不支持通过复制应用容器进行多副本
+系统不存在 Provider Instance 层，也不支持通过复制应用容器进行多副本
 扩容。Client Key 限定账号分组，而不是绑定某个 Provider；一次请求的 Provider 候选由账号范围、模型
 能力和运行时健康共同决定
 
@@ -35,7 +35,7 @@ flowchart TB
   API --> Admin[gateway-admin<br/>管理用例]
   Core --> Registry[Provider Registry]
   Admin --> Registry
-  Registry --> Builtin[OpenAI / xAI]
+  Registry --> Builtin[OpenAI / xAI / DeepSeek]
   Registry --> Plugins[Plugin Runtime / 插件进程]
   Builtin --> Upstream[上游服务]
   Plugins --> Upstream
@@ -67,6 +67,7 @@ flowchart TB
 | `gateway-plugin/runtime`（包名 `gateway-plugin-runtime`） | 插件包校验、能力适配、双向 RPC 与发布集合；通过 Host 管理子进程和受管 HTTP |
 | `providers/openai` | OpenAI OAuth、账号选择、目录、额度、Responses/Images/Search transport |
 | `providers/xai` | xAI OAuth session、账号选择、目录、额度和 Grok/Responses 转换 |
+| `providers/deepseek` | 单账号 API Key、三协议原生 HTTP、账号选择、模型目录和货币余额 |
 | `webui` | Vue 管理端与 Key 用量页，仅通过各自身份允许的控制面 API 访问状态 |
 | 独立仓库 `codex-proxy-ui` | 管理端与插件页面共用的 Vue 基础组件、纯主题算法和样式，不依赖宿主业务状态、路由或 API |
 | 独立仓库 `codex-proxy-plugins` | 官方维护综合示例，依赖公开 SDK，Rust 处理器和已构建页面合成一个可安装包，不随宿主构建发版 |
@@ -155,7 +156,7 @@ flowchart LR
   能力适配器将已确认的响应合同错误交给 RPC 会话统一停止进程和记录脱敏诊断，正常业务拒绝与上游错误不触发实例停止。
   故障绑定保留原有作用范围和拒绝／委托策略，入口认证故障不降级为其他认证方式；宿主配置存储与 revision 无法确认时仍停止新请求
 - **宿主持有业务事实**：插件返回能力结果，Core 继续决定账号资格、发送状态、标准用量与费用；账号变更由 Admin / Store
-  执行版本校验、事务和审计。Provider 由组合根静态注册为 OpenAI 与 xAI；插件停用不删除账号或历史记录，失败的观察回调不改变响应和账单
+  执行版本校验、事务和审计。Provider 由组合根静态注册为 OpenAI、xAI 与 DeepSeek；插件停用不删除账号或历史记录，失败的观察回调不改变响应和账单
 - **能力开放不承接插件业务**：宿主向插件提供独立、可组合的原生能力，负责类型校验、资源生命周期、事务与审计。
   插件自身的触发条件、跨资源业务关联、策略和流程编排归插件所有；宿主不能因某个插件的使用场景代为实现这些流程
 
@@ -385,7 +386,7 @@ Client Key 鉴权完成后，API adapter 从有界请求头识别客户端，Cor
   原生 Responses Lite WebSocket 及时交付正常事件，仅 Provider 明确标记的可替换前导保留重试资格；Core 单独维护重放屏障，
   仍检查错误分类、续接归属、发送状态、副作用及预算。中间件链不启用此前导例外
 - API 在最终错误编码出口投影客户端恢复信号；该投影不修改 Provider 上游事实，也不改变 Core 的
-  重试与提交边界。具体错误合同见 [数据面接口](api.md#3-openai-数据面与模型目录)
+  重试与提交边界。具体错误合同见 [数据面接口](api.md#3-模型数据面与模型目录)
 - Provider 可将明确容量拒绝标记为有界同账号退避，Core 在既有安全重放边界内执行，按账号维护请求内
   预算，耗尽后复用普通换号路径。该退避消耗总路由预算，与 WS 传输恢复、OAuth 刷新及账号额度冷却分开
 - OpenAI Provider 在原生 Responses Lite WebSocket 上不等待后续事件再交付正常帧；
@@ -446,7 +447,7 @@ SDK 来源、校验摘要与许可证见 [SDK 说明](../agent_teams/vendor/sign
   由 Provider 在选定 Codex/OAuth 账号后、HTTP/WS 分流前调用；API Key 上游跳过该入口。
   `transport/headers.rs` 负责上游身份保护和官方头组装。
   会话别名只规范化请求头，不清除正文身份字段；未知业务扩展与响应诊断头不受影响，字段见
-  [Responses 合同](api.md#3-openai-数据面与模型目录)。Grok 专属请求标记和已知指令开场白的兼容只在
+  [Responses 合同](api.md#3-模型数据面与模型目录)。Grok 专属请求标记和已知指令开场白的兼容只在
   `downstream/grok.rs` 内判断，且仅用于 Codex/OAuth 上游；普通请求的提示词、工具及业务正文不做品牌清洗
 - xAI 是翻译边界。Provider 把 Grok wire 转换为 Responses wire；上游结构化错误的 message/code/type
   可以透出，但账号指纹会先脱敏
@@ -472,7 +473,7 @@ xAI Provider 负责 Codex custom 工具与 Grok function 工具的双向转换�
 
 Admin 拥有进程内导入任务、管理员归属、条目状态与有界队列，以 `account_import` Daemon 贡献给 Host。
 API 只校验任务信封、生成完整输入摘要并投影安全结果，不解释 Provider 文档；每个执行条目复用已有
-OpenAI / xAI 导入用例。并发槽位由单个 Worker 统一管理，条目状态是进度统计的唯一来源。
+OpenAI / xAI / DeepSeek 导入用例。并发槽位由单个 Worker 统一管理，条目状态是进度统计的唯一来源。
 停止只跳过待执行输入；Host 关闭时停止接收新任务并在关闭预算内等待已开始条目完成。
 完成或跳过即释放原始输入，终态记录有时限和数量上限，不写 PostgreSQL 或 Redis。
 前端通过当前管理员的任务列表恢复视图，轮询与任务执行互不拥有生命周期。接口、限额与重启语义见
@@ -529,7 +530,7 @@ OpenAI Provider 将 OAuth 套餐资格作为 Images 选号条件，复用账号�
 
 错误信息按用途分成三层，不能用同一个 `message` 同时承担协议、界面和诊断职责：
 
-1. **数据面协议错误**：`/v1/*` 继续遵守 OpenAI/xAI wire 合同。可交付原始上游响应时保留其状态、headers、
+1. **数据面协议错误**：`/v1/*` 遵守对应的 Responses、Chat Completions 或 Messages wire 合同。可交付原始上游响应时保留其状态、headers、
    content type 和 body；原生续写额度恢复由 Provider 单独投影客户端响应，真实上游事实仍用于诊断和记账。
    本地 fallback 使用数据面稳定机器码与安全英文，不受管理端中文化影响
 2. **控制面展示错误**：`/api/admin/*` 由 API 统一 HTTP 状态与数值业务码，由 Admin/API owner 提供安全中文
@@ -661,7 +662,7 @@ Continuation 受原请求的 Client Key、账号范围、Provider 和发送/交�
   完整历史。体积测量复用 WS 编码结构，Provider session state 仍只携带元数据，不保存 transcript
 - OpenAI 在有效输出交付前收到可安全重放的明确额度拒绝时，先隔离账号，再投影 `ClientReplayRequired`；
   丢弃未交付的原错误帧，由客户端提交完整历史开启新链，不把原增量输入交给其他账号。
-  真实错误分类、状态码、发送状态和上游诊断保持不变，客户端合同见 [Responses API](api.md#3-openai-数据面与模型目录)
+  真实错误分类、状态码、发送状态和上游诊断保持不变，客户端合同见 [Responses API](api.md#3-模型数据面与模型目录)
 - OpenAI 按 native → replay owner → replay any 推进，并保留官方 `previous_response_id` 语义；
   已知为 connection-local 的原生续接进入重放阶段时，在选号前返回 `ClientReplayRequired`，不认领或迁移会话绑定。
   正常 native 续接仍由连接池核对原连接及 response ID 是否可用
@@ -927,7 +928,7 @@ Store 按生命周期原子更新所属分组，保留其他阶段的事实；�
 进程退出后停止刷新，Worker 按过期租约收敛遗留的 running 记录；该观测续期失败不取消客户端执行
 
 模型执行以 `model_requests.id` 标识，上游身份由 `upstream_request_id` 保存。
-API 输出模型执行与上游请求的关联信息，具体响应头规则见 [数据面接口](api.md#3-openai-数据面与模型目录)。
+API 输出模型执行与上游请求的关联信息，具体响应头规则见 [数据面接口](api.md#3-模型数据面与模型目录)。
 入口 middleware 的 ID 用于入口日志，不作为模型请求的主键或检索映射。
 失败终态及中间失败的上游请求 ID 优先取对应 `ProviderError`，缺失时再取该 attempt 的响应
 observation、调用 metadata；最终失败的关联头不与 opening 身份混合

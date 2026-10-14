@@ -155,6 +155,21 @@ pub trait AccountsService: Send + Sync {
         account_id: ProviderAccountId,
         upstream_model: UpstreamModelId,
     ) -> Result<AccountConnectionTestEventStream, AdminError>;
+
+    async fn test_connection_with_protocol(
+        &self,
+        account_id: ProviderAccountId,
+        upstream_model: UpstreamModelId,
+        protocol: Option<String>,
+    ) -> Result<AccountConnectionTestEventStream, AdminError> {
+        if protocol.is_some() {
+            return Err(AdminError::new(
+                crate::model::AdminErrorKind::Invalid,
+                "不支持指定测试协议",
+            ));
+        }
+        self.test_connection(account_id, upstream_model).await
+    }
 }
 
 pub(crate) struct DefaultAccountsService {
@@ -970,11 +985,25 @@ impl AccountsService for DefaultAccountsService {
         account_id: ProviderAccountId,
         upstream_model: UpstreamModelId,
     ) -> Result<AccountConnectionTestEventStream, AdminError> {
+        self.test_connection_with_protocol(account_id, upstream_model, None)
+            .await
+    }
+
+    async fn test_connection_with_protocol(
+        &self,
+        account_id: ProviderAccountId,
+        upstream_model: UpstreamModelId,
+        protocol: Option<String>,
+    ) -> Result<AccountConnectionTestEventStream, AdminError> {
         let (stored, provider) = self.provider_for_account(&account_id).await?;
         let account = stored.account;
         let model = upstream_model.as_str().to_owned();
         let operation = provider
-            .connection_test_operation(&upstream_model, CONNECTION_TEST_INPUT)
+            .connection_test_operation_for_protocol(
+                &upstream_model,
+                CONNECTION_TEST_INPUT,
+                protocol.as_deref(),
+            )
             .await
             .map_err(|error| map_provider_error(error, "provider connection test"))?;
         let initial = vec![
@@ -1052,6 +1081,7 @@ fn map_reset_credits_error_after_refresh(
 /// 账号目录中单个账号 quota 读取失败时使用的空额度投影
 fn empty_quota() -> ProviderQuota {
     ProviderQuota {
+        balances: Vec::new(),
         credits: None,
         plan_type: None,
         observed_at: None,

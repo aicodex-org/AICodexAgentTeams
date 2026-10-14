@@ -42,6 +42,7 @@ dependencies = [
  "gateway-host",
  "gateway-plugin-runtime",
  "gateway-store",
+ "provider-deepseek",
  "provider-openai",
  "provider-xai",
  "serde",
@@ -3301,6 +3302,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8fd00f0bb2e90d81d1044c2b32617f68fcb9fa3bb7640c23e9c748e53fb30934"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "provider-deepseek"
+version = "0.0.0"
+dependencies = [
+ "async-stream",
+ "async-trait",
+ "base64 0.23.1",
+ "bytes",
+ "chrono",
+ "futures",
+ "gateway-admin",
+ "gateway-core",
+ "gateway-protocol",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "url",
+ "uuid",
+ "wiremock",
 ]
 
 [[package]]

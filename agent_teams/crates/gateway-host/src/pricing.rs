@@ -53,7 +53,7 @@ pub fn decode_catalog(body: &[u8]) -> Result<PricingSyncPreview, AdminError> {
         prices: BTreeMap::new(),
         skipped: Vec::new(),
     };
-    for provider in ["openai", "xai"] {
+    for provider in ["openai", "xai", "deepseek"] {
         let models = catalog
             .get(provider)
             .and_then(|p| p.get("models"))
@@ -104,7 +104,11 @@ fn model_price(provider: &str, model: &Value) -> Option<ModelPriceOverride> {
             return None;
         }
         if let Some(tier) = tiers.first() {
-            let expected = if provider == "xai" { 200_000 } else { 272_000 };
+            let expected = match provider {
+                "xai" => 200_000,
+                "openai" => 272_000,
+                _ => return None,
+            };
             if tier.pointer("/tier/size")?.as_u64()? != expected {
                 return None;
             }

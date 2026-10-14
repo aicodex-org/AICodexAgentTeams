@@ -128,6 +128,7 @@ const {
   loadingConnectionTestModels,
   refreshingConnectionTestModels,
   connectionTestSelectedModel,
+  connectionTestProtocol,
   connectionTestModelOptions,
   connectionTestStatusView,
   openConnectionTest,
@@ -371,6 +372,7 @@ const {
     <AccountConnectionTestModal
       v-model="showConnectionTestModal"
       v-model:selected-model="connectionTestSelectedModel"
+      v-model:protocol="connectionTestProtocol"
       :account="testingAccount"
       :duration-ms="connectionTestDurationMs"
       :error="connectionTestError"

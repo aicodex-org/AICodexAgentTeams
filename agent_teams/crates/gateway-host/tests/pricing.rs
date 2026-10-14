@@ -14,6 +14,10 @@ fn source_selects_supported_providers_and_preserves_free_prices() {
             "wrong-tier":{"modalities":{"output":["text"]},"cost":{"input":1,"output":2,"tiers":[{"tier":{"size":200000},"input":2,"output":4}]}}
         }},
         "xai":{"models":{}},
+        "deepseek":{"models":{
+            "deepseek-model":{"modalities":{"output":["text"]},"cost":{"input":0.28,"output":0.42,"cache_read":0.028}},
+            "unknown-tier":{"modalities":{"output":["text"]},"cost":{"input":1,"output":2,"tiers":[{"tier":{"size":272000},"input":2,"output":4}]}}
+        }},
         "unrelated":{"models":{"secret":{}}}
     });
     let result = decode_catalog(&serde_json::to_vec(&catalog).unwrap()).unwrap();
@@ -26,7 +30,13 @@ fn source_selects_supported_providers_and_preserves_free_prices() {
             .ticks_per_token(),
         2500
     );
-    assert_eq!(result.skipped.len(), 3);
+    assert_eq!(result.skipped.len(), 4);
+    assert_eq!(
+        result.prices["deepseek"]["deepseek-model"].bands["standard"]
+            .cache_read
+            .ticks_per_token(),
+        280
+    );
     assert!(!result.prices.contains_key("unrelated"));
 }
 

@@ -379,7 +379,11 @@ async fn compile_runtime_snapshot(
     let mut provider_models = Vec::new();
     let mut catalog_accounts = BTreeMap::new();
     let mut exhaustive_provider_catalogs = BTreeSet::new();
+    let mut provider_protocols = BTreeMap::new();
     for provider in &provider_kinds {
+        if let Some(protocols) = catalogs.supported_protocols(provider) {
+            provider_protocols.insert(provider.clone(), protocols);
+        }
         if let Some(previous) = previous {
             if let Some(accounts) = previous.model_catalog_accounts.get(provider) {
                 catalog_accounts.insert(provider.clone(), accounts.clone());
@@ -546,6 +550,7 @@ async fn compile_runtime_snapshot(
         snapshot
             .with_account_directory(account_directory)
             .with_exhaustive_provider_catalogs(exhaustive_provider_catalogs)
+            .with_provider_protocols(provider_protocols)
             .with_model_catalog_accounts(catalog_accounts)
     })
 }
@@ -563,6 +568,7 @@ pub struct RuntimeSnapshot {
         Arc<BTreeMap<ProviderKind, BTreeMap<UpstreamModelId, super::ModelPresentation>>>,
     provider_catalog_generations: Arc<BTreeMap<ProviderKind, ProviderCatalogGeneration>>,
     exhaustive_provider_catalogs: Arc<BTreeSet<ProviderKind>>,
+    provider_protocols: Arc<BTreeMap<ProviderKind, BTreeSet<String>>>,
     model_catalog_accounts: Arc<ModelCatalogAccounts>,
     account_directory: Arc<RuntimeAccountDirectory>,
     client_policies: Arc<BTreeMap<ClientApiKeyId, ClientPolicy>>,
@@ -774,6 +780,7 @@ impl RuntimeSnapshot {
             provider_model_presentations: Arc::new(presentation_map),
             provider_catalog_generations: Arc::new(BTreeMap::new()),
             exhaustive_provider_catalogs: Arc::new(exhaustive_provider_catalogs),
+            provider_protocols: Arc::default(),
             model_catalog_accounts: Arc::default(),
             account_directory: Arc::new(RuntimeAccountDirectory::default()),
             client_policies: Arc::new(client_policy_map),
@@ -790,6 +797,22 @@ impl RuntimeSnapshot {
     fn with_exhaustive_provider_catalogs(mut self, providers: BTreeSet<ProviderKind>) -> Self {
         self.exhaustive_provider_catalogs = Arc::new(providers);
         self
+    }
+
+    /// 冻结 Provider 协议资格，模型目录缺项时仍执行相同校验
+    #[must_use]
+    pub fn with_provider_protocols(
+        mut self,
+        protocols: BTreeMap<ProviderKind, BTreeSet<String>>,
+    ) -> Self {
+        self.provider_protocols = Arc::new(protocols);
+        self
+    }
+
+    fn provider_supports_protocol(&self, provider: &ProviderKind, protocol: &str) -> bool {
+        self.provider_protocols
+            .get(provider)
+            .is_none_or(|protocols| protocols.contains(protocol))
     }
 
     fn with_model_catalog_accounts(mut self, accounts: ModelCatalogAccounts) -> Self {
@@ -1129,6 +1152,9 @@ impl RuntimeSnapshot {
             {
                 continue;
             }
+            if !self.provider_supports_protocol(provider, operation.protocol()) {
+                continue;
+            }
             let requested_model = public_model.as_str();
             let mapped_model = self.mapped_model(requested_model);
             let upstream_model = if self
@@ -1155,6 +1181,9 @@ impl RuntimeSnapshot {
                 .and_then(|models| models.get(&upstream_model));
             let emulated_features = match capabilities {
                 Some(capabilities) => {
+                    if !capabilities.supports_protocol(operation.protocol()) {
+                        continue;
+                    }
                     let Some(emulated) = capabilities.match_requirements(&requirements) else {
                         continue;
                     };
@@ -1238,6 +1267,7 @@ impl RuntimeSnapshot {
                 .is_none_or(|required| required == provider)
             && !context.blocked_providers.contains(provider);
         if !available
+            || !self.provider_supports_protocol(provider, operation.protocol())
             || upstream_model
                 .is_some_and(|model| !account_scope.allows_provider_model(provider, model.as_str()))
         {
@@ -1258,9 +1288,12 @@ impl RuntimeSnapshot {
                 .get(provider)
                 .and_then(|models| models.get(model))
             {
-                Some(capabilities) => capabilities
-                    .match_requirements(&operation.capability_requirements())
-                    .is_some(),
+                Some(capabilities) => {
+                    capabilities.supports_protocol(operation.protocol())
+                        && capabilities
+                            .match_requirements(&operation.capability_requirements())
+                            .is_some()
+                }
                 None => !self.exhaustive_provider_catalogs.contains(provider),
             }
         });

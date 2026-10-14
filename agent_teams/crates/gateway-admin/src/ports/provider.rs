@@ -218,6 +218,20 @@ pub trait ProviderAdmin: Send + Sync {
         input_text: &str,
     ) -> Result<Operation, ProviderAdminError>;
 
+    /// 按客户端协议生成连接测试，旧 Provider 保持默认测试路径
+    async fn connection_test_operation_for_protocol(
+        &self,
+        upstream_model: &UpstreamModelId,
+        input_text: &str,
+        protocol: Option<&str>,
+    ) -> Result<Operation, ProviderAdminError> {
+        if protocol.is_some() {
+            return Err(ProviderAdminError::new(ProviderAdminErrorKind::Unsupported));
+        }
+        self.connection_test_operation(upstream_model, input_text)
+            .await
+    }
+
     /// 返回该 Provider 实际持有的 Dashboard 上游身份画像
     fn dashboard_wire_profile(&self) -> Option<DashboardWireProfile>;
 

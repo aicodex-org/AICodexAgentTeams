@@ -373,6 +373,10 @@ impl fmt::Debug for CodexProvider {
 
 #[async_trait]
 impl Provider for CodexProvider {
+    fn supported_protocols(&self) -> Option<std::collections::BTreeSet<String>> {
+        Some(std::collections::BTreeSet::from(["openai".to_owned()]))
+    }
+
     fn compile_privacy_policy(
         &self,
         policy: &gateway_core::settings::privacy::CodexPrivacyPolicy,

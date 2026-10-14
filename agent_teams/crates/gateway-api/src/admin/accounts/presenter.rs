@@ -247,6 +247,16 @@ pub(super) fn account_quota_view(
             rate_limit_reason,
             recovery_probe_required,
             windows,
+            balances: quota
+                .balances
+                .into_iter()
+                .map(|balance| AccountMonetaryBalanceView {
+                    currency: balance.currency,
+                    total_balance: balance.total_balance,
+                    granted_balance: balance.granted_balance,
+                    topped_up_balance: balance.topped_up_balance,
+                })
+                .collect(),
             credits: quota.credits.map(|credits| AccountQuotaCreditsView {
                 has_credits: credits.has_credits,
                 unlimited: credits.unlimited,

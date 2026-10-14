@@ -850,9 +850,19 @@ pub struct ProviderQuota {
     pub refresh_token_expires_at: Option<DateTime<Utc>>,
     pub windows: Vec<ProviderQuotaWindow>,
     pub credits: Option<ProviderQuotaCredits>,
+    pub balances: Vec<ProviderMonetaryBalance>,
     /// 展示用快照级触顶事实（顶层或任一窗口触顶）；不参与账号五态派生
     pub limit_reached: bool,
     pub provider_data: Option<ProviderDocument>,
+}
+
+/// 上游货币余额保留币种与十进制文本，不与点数混用
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProviderMonetaryBalance {
+    pub currency: String,
+    pub total_balance: String,
+    pub granted_balance: Option<String>,
+    pub topped_up_balance: Option<String>,
 }
 
 /// 上游点数余额的展示事实，保留原始十进制文本以避免精度损失

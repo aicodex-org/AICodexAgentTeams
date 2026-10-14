@@ -449,3 +449,77 @@ fn image_request_should_preserve_generation_and_edit_payloads_opaque() {
     );
     assert!(!format!("{edit:?}").contains("data:image/png"));
 }
+
+#[test]
+fn native_chat_and_messages_extract_capabilities_without_responses_field_leakage() {
+    for (protocol, body, tokens) in [
+        (
+            "openai-chat",
+            json!({
+                "messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"data:image/png;base64,test"}}]}],
+                "tools":[{"type":"function","function":{"name":"lookup"}}],
+                "reasoning_effort":"high",
+                "response_format":{"type":"json_schema","json_schema":{"name":"answer","schema":{}}},
+                "max_completion_tokens":100, "max_tokens":50,
+                "previous_response_id":"ignored", "max_output_tokens":999
+            }),
+            100,
+        ),
+        (
+            "anthropic",
+            json!({
+                "messages":[{"role":"user","content":[{"type":"image","source":{"type":"base64","data":"test"}}]}],
+                "tools":[{"name":"lookup","input_schema":{}}],
+                "thinking":{"type":"adaptive"},
+                "output_config":{"format":{"type":"json_schema","schema":{}}},
+                "max_tokens":200, "max_output_tokens":999, "previous_response_id":"ignored"
+            }),
+            200,
+        ),
+    ] {
+        let request = GenerateRequest::from_protocol_payload(
+            ProtocolPayload::json_object(protocol, body.as_object().unwrap().clone()).unwrap(),
+        );
+        assert_eq!(request.max_output_tokens(), Some(tokens));
+        assert!(!request.native_continuation_requested());
+        assert_eq!(request.protocol_payload().body(), body.as_object().unwrap());
+        let requirements = Operation::Generate(request).capability_requirements();
+        assert_eq!(requirements.requested_output_tokens(), Some(tokens));
+        assert_eq!(
+            requirements.features(),
+            &[
+                Feature::Tools,
+                Feature::Vision,
+                Feature::Reasoning,
+                Feature::JsonSchema
+            ]
+            .into()
+        );
+    }
+}
+
+#[test]
+fn disabled_thinking_and_empty_tools_do_not_require_model_capabilities() {
+    for protocol in ["openai-chat", "anthropic"] {
+        let request = GenerateRequest::from_protocol_payload(
+            ProtocolPayload::json_object(
+                protocol,
+                json!({
+                    "messages":[{"role":"user","content":"hello"}],
+                    "tools":[], "thinking":{"type":"disabled"}, "reasoning_effort":"none",
+                    "input":[{"type":"input_image"}], "text":{"format":{"type":"json_schema"}}
+                })
+                .as_object()
+                .unwrap()
+                .clone(),
+            )
+            .unwrap(),
+        );
+        assert!(
+            Operation::Generate(request)
+                .capability_requirements()
+                .features()
+                .is_empty()
+        );
+    }
+}

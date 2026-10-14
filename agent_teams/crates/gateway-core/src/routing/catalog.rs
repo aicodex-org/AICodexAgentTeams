@@ -138,6 +138,14 @@ pub struct ProviderCatalogUnavailable;
 
 /// 快照编译与对账使用的对象安全目录端口
 pub trait ProviderCatalogPort: Send + Sync {
+    /// Provider 原生入口协议；未声明时沿用扩展自身的协议校验
+    fn supported_protocols(
+        &self,
+        _provider: &ProviderKind,
+    ) -> Option<std::collections::BTreeSet<String>> {
+        None
+    }
+
     /// 目录是否完整到足以根据缺项拒绝请求；发现型目录交由上游验证模型名
     fn model_catalog_is_exhaustive(&self, _provider: &ProviderKind) -> bool {
         true

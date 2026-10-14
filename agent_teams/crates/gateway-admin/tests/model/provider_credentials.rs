@@ -86,6 +86,7 @@ fn selected_usage_window(quota: &ProviderQuota) -> Option<(&str, AccountUsagePer
 
 fn usage_quota(windows: Vec<ProviderQuotaWindow>) -> ProviderQuota {
     ProviderQuota {
+        balances: Vec::new(),
         credits: None,
         plan_type: None,
         observed_at: None,
@@ -136,6 +137,7 @@ fn usage_window(key: &str, group: &str, seconds: u64) -> ProviderQuotaWindow {
 #[test]
 fn dashboard_quota_should_preserve_unknown_and_actual_window_facts() {
     let mut quota = ProviderQuota {
+        balances: Vec::new(),
         credits: None,
         plan_type: None,
         observed_at: None,

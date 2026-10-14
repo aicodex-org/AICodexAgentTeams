@@ -247,13 +247,13 @@ where
     let (command, connection) = request.into_command().map_err(map_wire_error)?;
     let context = auth.context().mutation_context();
     let result = if let Some(provider_material) = connection {
-        let provider = ProviderKind::new("openai").map_err(|_| AdminError::internal())?;
         let account_id = ProviderAccountId::new(command.account_id.clone())
             .map_err(|_| AdminError::internal())?;
         let result = state
             .admin_services()
             .credentials()
-            .for_provider(&provider)
+            .for_account(&account_id)
+            .await
             .map_err(map_service_error)?
             .rotate(RotateCredential {
                 mutation: CredentialMutation {
@@ -611,11 +611,11 @@ where
     S: SessionState + Send + Sync,
 {
     let time = crate::time::TimePresenter::new(state.admin_services().timezone());
-    let (account_id, upstream_model) = query.into_command().map_err(map_wire_error)?;
+    let (account_id, upstream_model, protocol) = query.into_command().map_err(map_wire_error)?;
     let stream = state
         .admin_services()
         .accounts()
-        .test_connection(account_id, upstream_model)
+        .test_connection_with_protocol(account_id, upstream_model, protocol)
         .await
         .map_err(map_service_error)?
         .map(move |event| {

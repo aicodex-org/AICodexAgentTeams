@@ -1282,6 +1282,23 @@ fn provider_registry_should_reject_duplicate_kind() {
 }
 
 #[tokio::test]
+async fn connection_test_rejects_unsupported_explicit_protocol_before_probe() {
+    let provider = FakeProviderAdmin::new("xai", events());
+    let store = FakeAccountStore::with_account(account_record("xai"), events());
+    let services =
+        accounts_service_with_probe(provider, store, Arc::new(FailingAccountProbe)).await;
+    let result = services
+        .accounts()
+        .test_connection_with_protocol(
+            ProviderAccountId::new("acct_test").unwrap(),
+            gateway_core::routing::UpstreamModelId::new("grok-4.5").unwrap(),
+            Some("anthropic".to_owned()),
+        )
+        .await;
+    assert!(result.is_err(), "不应静默退回默认协议");
+}
+
+#[tokio::test]
 async fn connection_test_should_probe_unavailable_account() {
     let provider = FakeProviderAdmin::new("xai", events());
     let mut account = account_record("xai");
@@ -1673,6 +1690,7 @@ async fn accounts_recover_disabled_should_only_enable_scheduling_and_preserve_qu
             );
         }
         let quota = ProviderQuota {
+            balances: Vec::new(),
             credits: None,
             observed_at: Some(Utc::now()),
             windows: vec![ProviderQuotaWindow {
@@ -2020,6 +2038,7 @@ async fn accounts_list_should_degrade_quota_failure_to_empty_window_without_drop
     let events = events();
     let openai = FakeProviderAdmin::new("openai", events.clone());
     openai.set_quota(ProviderQuota {
+        balances: Vec::new(),
         credits: None,
         plan_type: None,
         observed_at: Some(Utc::now()),
@@ -2153,6 +2172,7 @@ async fn accounts_list_should_map_unknown_credential_to_error_not_normal() {
 async fn accounts_list_should_not_derive_rate_limited_from_provider_quota_view() {
     let provider = FakeProviderAdmin::new("openai", events());
     provider.set_quota(ProviderQuota {
+        balances: Vec::new(),
         credits: None,
         plan_type: None,
         observed_at: Some(Utc::now()),
@@ -2202,6 +2222,7 @@ async fn accounts_list_should_not_derive_rate_limited_from_provider_quota_view()
 async fn accounts_list_should_not_derive_exhaustion_from_provider_quota_view() {
     let provider = FakeProviderAdmin::new("openai", events());
     provider.set_quota(ProviderQuota {
+        balances: Vec::new(),
         credits: None,
         plan_type: None,
         observed_at: Some(Utc::now()),
@@ -2254,6 +2275,7 @@ async fn quota_forecast_reads_raw_snapshot_and_limits_usage_to_observation_time(
     let observed = now - TimeDelta::hours(1);
     let reset = now + TimeDelta::days(1);
     provider.set_quota(ProviderQuota {
+        balances: Vec::new(),
         credits: None,
         observed_at: Some(observed),
         limit_reached: true,
@@ -2409,6 +2431,7 @@ async fn quota_forecast_mid_cycle_sampling_accepts_small_reset_jitter_but_not_a_
     let added = now - TimeDelta::hours(5);
     let provider = FakeProviderAdmin::new("openai", events());
     provider.set_quota(ProviderQuota {
+        balances: Vec::new(),
         credits: None,
         plan_type: Some("pro".to_owned()),
         observed_at: Some(observed),
@@ -2556,6 +2579,7 @@ async fn accounts_list_should_attach_local_usage_to_quota_windows() {
     let provider = FakeProviderAdmin::new("openai", events());
     let reset_at = Utc::now() + TimeDelta::hours(1);
     provider.set_quota(ProviderQuota {
+        balances: Vec::new(),
         credits: None,
         plan_type: None,
         observed_at: Some(Utc::now()),
@@ -2714,6 +2738,7 @@ async fn accounts_list_should_not_attach_account_usage_to_model_specific_quota_w
     let provider = FakeProviderAdmin::new("openai", events());
     let reset_at = Utc::now() + TimeDelta::days(7);
     provider.set_quota(ProviderQuota {
+        balances: Vec::new(),
         credits: None,
         plan_type: None,
         observed_at: Some(Utc::now()),
@@ -3016,6 +3041,7 @@ pub(super) fn document() -> ProviderDocument {
 
 fn empty_quota() -> ProviderQuota {
     ProviderQuota {
+        balances: Vec::new(),
         credits: None,
         plan_type: None,
         observed_at: None,
@@ -3581,4 +3607,33 @@ async fn account_capacity_should_batch_page_ids_and_distinguish_idle_from_unavai
             }
         }
     }
+}
+
+#[tokio::test]
+async fn connection_rotation_resolves_saved_non_openai_provider() {
+    let events = events();
+    let provider = FakeProviderAdmin::new("deepseek", events.clone());
+    let store = FakeAccountStore::with_account(account_record("deepseek"), events.clone());
+    let services =
+        accounts_service_with_probe(provider, store, Arc::new(FailingAccountProbe)).await;
+    let account_id = ProviderAccountId::new("acct_test").unwrap();
+    services
+        .credentials()
+        .for_account(&account_id)
+        .await
+        .unwrap()
+        .rotate(
+            gateway_admin::model::provider_credentials::RotateCredential {
+                mutation: gateway_admin::model::provider_credentials::CredentialMutation {
+                    context: context("rotate-deepseek"),
+                    account_id,
+                },
+                settings: None,
+                provider_material: document(),
+            },
+        )
+        .await
+        .expect("resolve and rotate saved DeepSeek account");
+    assert!(recorded(&events).contains(&"provider.prepare_rotation"));
+    assert!(recorded(&events).contains(&"store.commit_rotation"));
 }

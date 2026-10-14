@@ -10,6 +10,7 @@ members = [
     "crates/gateway-plugin/sdk",
     "crates/gateway-protocol",
     "crates/gateway-store",
+    "crates/providers/deepseek",
     "crates/providers/openai",
     "crates/providers/xai",
 ]

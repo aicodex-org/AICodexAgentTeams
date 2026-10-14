@@ -15,6 +15,22 @@ use serde_json::{Map, Value};
 
 use crate::validation::{OperationError, validate_text};
 
+/// 既有 OpenAI Responses 协议标识
+pub const OPENAI_RESPONSES: &str = "openai";
+/// OpenAI Chat Completions 协议标识
+pub const OPENAI_CHAT: &str = "openai-chat";
+/// Anthropic Messages 协议标识
+pub const ANTHROPIC_MESSAGES: &str = "anthropic";
+
+/// 宿主能够提取生成能力事实的协议
+#[must_use]
+pub fn is_known_generate_protocol(protocol: &str) -> bool {
+    matches!(
+        protocol,
+        OPENAI_RESPONSES | OPENAI_CHAT | ANTHROPIC_MESSAGES
+    )
+}
+
 /// 网关支持的稳定 operation 分类
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
@@ -464,10 +480,15 @@ impl GenerateRequest {
     /// 返回最大输出 token 数
     #[must_use]
     pub fn max_output_tokens(&self) -> Option<u64> {
-        self.body()
-            .get("max_output_tokens")
-            .and_then(Value::as_u64)
-            .filter(|tokens| *tokens > 0)
+        let value = match self.protocol_payload().protocol() {
+            OPENAI_CHAT => self
+                .body()
+                .get("max_completion_tokens")
+                .or_else(|| self.body().get("max_tokens")),
+            ANTHROPIC_MESSAGES => self.body().get("max_tokens"),
+            _ => self.body().get("max_output_tokens"),
+        };
+        value.and_then(Value::as_u64).filter(|tokens| *tokens > 0)
     }
 
     /// 返回客户端提供的 prompt cache 路由键
@@ -482,10 +503,12 @@ impl GenerateRequest {
     /// 返回原始请求是否要求 Provider 原生 continuation
     #[must_use]
     pub fn native_continuation_requested(&self) -> bool {
-        self.body()
-            .get("previous_response_id")
-            .and_then(Value::as_str)
-            .is_some()
+        self.protocol_payload().protocol() == OPENAI_RESPONSES
+            && self
+                .body()
+                .get("previous_response_id")
+                .and_then(Value::as_str)
+                .is_some()
     }
 
     /// 返回客户端是否请求了图片生成工具
@@ -535,18 +558,36 @@ impl GenerateRequest {
         {
             requirements = requirements.require(Feature::Tools);
         }
-        if contains_type(self.body().get("input"), "input_image") {
+        let (vision, reasoning, format) = match self.protocol_payload().protocol() {
+            OPENAI_CHAT => (
+                contains_type(self.body().get("messages"), "image_url"),
+                self.body()
+                    .get("reasoning_effort")
+                    .and_then(Value::as_str)
+                    .is_some_and(|effort| effort != "none")
+                    || thinking_enabled(self.body().get("thinking")),
+                self.body().get("response_format"),
+            ),
+            ANTHROPIC_MESSAGES => (
+                contains_type(self.body().get("messages"), "image"),
+                thinking_enabled(self.body().get("thinking")),
+                self.body()
+                    .get("output_config")
+                    .and_then(|config| config.get("format")),
+            ),
+            _ => (
+                contains_type(self.body().get("input"), "input_image"),
+                self.body().get("reasoning").is_some_and(Value::is_object),
+                self.body().get("text").and_then(|text| text.get("format")),
+            ),
+        };
+        if vision {
             requirements = requirements.require(Feature::Vision);
         }
-        if self.body().get("reasoning").is_some_and(Value::is_object) {
+        if reasoning {
             requirements = requirements.require(Feature::Reasoning);
         }
-        if self
-            .body()
-            .get("text")
-            .and_then(Value::as_object)
-            .and_then(|text| text.get("format"))
-            .and_then(Value::as_object)
+        if format
             .and_then(|format| format.get("type"))
             .and_then(Value::as_str)
             == Some("json_schema")
@@ -580,6 +621,13 @@ impl fmt::Debug for GenerateRequest {
             .field("protocol_payload", self.protocol_payload())
             .finish()
     }
+}
+
+fn thinking_enabled(value: Option<&Value>) -> bool {
+    value
+        .and_then(|thinking| thinking.get("type"))
+        .and_then(Value::as_str)
+        .is_some_and(|kind| matches!(kind, "enabled" | "adaptive"))
 }
 
 fn contains_type(value: Option<&Value>, expected: &str) -> bool {

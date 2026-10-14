@@ -37,6 +37,20 @@ impl CredentialsService {
         }
     }
 
+    /// 连接编辑按已保存账号分派，避免客户端入口猜测 Provider
+    pub async fn for_account(
+        &self,
+        account_id: &gateway_core::account::ProviderAccountId,
+    ) -> Result<ProviderCredentials, AdminError> {
+        let details = self
+            .accounts
+            .credential_details_by_id(account_id)
+            .await
+            .map_err(|error| super::map_store_error(error, "provider credential"))?
+            .ok_or_else(|| AdminError::not_found("Provider 凭据不存在"))?;
+        self.for_provider(&details.credential.provider_kind)
+    }
+
     pub fn for_provider(&self, kind: &ProviderKind) -> Result<ProviderCredentials, AdminError> {
         let provider = self
             .providers

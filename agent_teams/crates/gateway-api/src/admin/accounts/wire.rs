@@ -393,6 +393,17 @@ pub struct AccountQuotaView {
     pub recovery_probe_required: bool,
     pub windows: Vec<AccountQuotaWindowView>,
     pub credits: Option<AccountQuotaCreditsView>,
+    pub balances: Vec<AccountMonetaryBalanceView>,
+}
+
+/// 上游货币余额安全视图
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountMonetaryBalanceView {
+    pub currency: String,
+    pub total_balance: String,
+    pub granted_balance: Option<String>,
+    pub topped_up_balance: Option<String>,
 }
 
 /// 上游点数安全视图，不透出额度响应中的其他 Provider 字段
@@ -678,11 +689,19 @@ impl AccountRefreshRequest {
 pub struct AccountTestQuery {
     pub account_id: String,
     pub model_id: String,
+    pub protocol: Option<String>,
 }
 
 impl AccountTestQuery {
     pub fn validate(&self) -> Result<(), WireValidationError> {
         require_account_id(&self.account_id, "accountId")?;
+        if self
+            .protocol
+            .as_deref()
+            .is_some_and(|value| !matches!(value, "openai" | "openai-chat" | "anthropic"))
+        {
+            return Err(WireValidationError::new("protocol"));
+        }
         if self.model_id.trim().is_empty() || self.model_id.chars().any(char::is_control) {
             return Err(WireValidationError::new("modelId"));
         }
@@ -691,12 +710,13 @@ impl AccountTestQuery {
 
     pub(super) fn into_command(
         self,
-    ) -> Result<(ProviderAccountId, UpstreamModelId), WireValidationError> {
+    ) -> Result<(ProviderAccountId, UpstreamModelId, Option<String>), WireValidationError> {
         self.validate()?;
         Ok((
             ProviderAccountId::new(self.account_id)
                 .map_err(|_| WireValidationError::new("accountId"))?,
             UpstreamModelId::new(self.model_id).map_err(|_| WireValidationError::new("modelId"))?,
+            self.protocol,
         ))
     }
 }

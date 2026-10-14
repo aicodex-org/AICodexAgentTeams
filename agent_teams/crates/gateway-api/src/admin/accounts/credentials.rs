@@ -261,10 +261,11 @@ impl UpdateAccountRequest {
     }
 }
 
-/// 编辑 OpenAI 账号的连接设置；OAuth 仅接受传输方式
+/// 编辑账号的连接设置，具体 Provider 校验可用配置
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AccountConnectionUpdateRequest {
+    pub protocols: Option<Vec<String>>,
     pub base_url: Option<String>,
     pub transport: String,
     pub api_key: Option<String>,
@@ -293,6 +294,12 @@ impl AccountConnectionUpdateRequest {
             Map::from_iter([("transport".to_owned(), Value::String(self.transport))]);
         if let Some(base_url) = self.base_url {
             material.insert("base_url".to_owned(), Value::String(base_url));
+        }
+        if let Some(protocols) = self.protocols {
+            material.insert(
+                "protocols".to_owned(),
+                Value::Array(protocols.into_iter().map(Value::String).collect()),
+            );
         }
         if let Some(key) = self.api_key {
             material.insert("api_key".to_owned(), Value::String(key));

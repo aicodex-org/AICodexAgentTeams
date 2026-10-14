@@ -152,6 +152,10 @@ impl GrokBuildProvider {
 
 #[async_trait]
 impl Provider for GrokBuildProvider {
+    fn supported_protocols(&self) -> Option<std::collections::BTreeSet<String>> {
+        Some(std::collections::BTreeSet::from(["openai".to_owned()]))
+    }
+
     fn resolve_request_profile(
         &self,
         configuration: &gateway_core::account::OpaqueProviderData,

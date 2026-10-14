@@ -179,6 +179,7 @@ export function useAccountConnectionTest(options: { reload: () => Promise<unknow
   const modelsRequestMode = shallowRef<'load' | 'refresh'>('load')
   const loadingConnectionTestModels = computed(() => modelsRequest.loading.value && modelsRequestMode.value === 'load')
   const refreshingConnectionTestModels = computed(() => modelsRequest.loading.value && modelsRequestMode.value === 'refresh')
+  const connectionTestProtocol = shallowRef('openai')
   const connectionTestSelectedModel = shallowRef('')
   const connectionTestModelOptions = ref<ConnectionTestModelOption[]>([])
   const connectionTestStreamUrl = shallowRef<string>()
@@ -240,6 +241,7 @@ export function useAccountConnectionTest(options: { reload: () => Promise<unknow
   function openConnectionTest(account: Account) {
     abortConnectionTest()
     testingAccount.value = account
+    connectionTestProtocol.value = 'openai'
     connectionTestSelectedModel.value = ''
     connectionTestModelOptions.value = []
     showConnectionTestModal.value = true
@@ -510,6 +512,8 @@ export function useAccountConnectionTest(options: { reload: () => Promise<unknow
               accountId: account.id,
               modelId: connectionTestSelectedModel.value,
             })
+            if (account.provider === 'deepseek')
+              params.set('protocol', connectionTestProtocol.value)
             connectionTestStreamUrl.value
               = `${API_BASE_URL}/api/admin/accounts/connection-test?${params}`
             openConnectionTestEventSource()
@@ -572,6 +576,7 @@ export function useAccountConnectionTest(options: { reload: () => Promise<unknow
     loadingConnectionTestModels,
     refreshingConnectionTestModels,
     connectionTestSelectedModel,
+    connectionTestProtocol,
     connectionTestModelOptions,
     connectionTestStatusView,
     openConnectionTest,

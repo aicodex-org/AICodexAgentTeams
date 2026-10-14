@@ -3,7 +3,7 @@ import type { AccountAuthorizationView } from '../../composables/useAccountAutho
 import type { AccountCreateForm, AccountImportMode } from '../../utils/accountCreate'
 
 import type { Account, AccountGroupRef } from '@/api'
-import { Openai, Xai } from '@boxicons/vue'
+import { Deepseek, Openai, Xai } from '@boxicons/vue'
 import { ZButton, ZDialog, ZIconButton, ZSegmented } from '@codex-proxy/ui'
 import { Copy, LayoutGrid, Settings2 } from '@lucide/vue'
 import { computed } from 'vue'
@@ -88,6 +88,7 @@ function continueToImport() {
       <Settings2 v-if="view.configuring" class="text-cp-text" :size="20" aria-hidden="true" />
       <LayoutGrid v-else-if="view.isBatch" class="text-cp-text" :size="20" aria-hidden="true" />
       <Xai v-else-if="view.provider === 'xai'" class="text-cp-text" :width="20" :height="20" aria-hidden="true" />
+      <Deepseek v-else-if="view.provider === 'deepseek'" class="text-cp-text" :width="20" :height="20" aria-hidden="true" />
       <Openai v-else-if="view.provider === 'openai'" class="text-cp-text" :width="20" :height="20" aria-hidden="true" />
     </template>
 
@@ -160,7 +161,7 @@ function continueToImport() {
           :disabled="busy"
           @regenerate="emit('generateOauth')"
         />
-        <AccountApiKeyFields v-else-if="mode === 'api_key'" v-model="form.apiKey" :disabled="busy" />
+        <AccountApiKeyFields v-else-if="mode === 'api_key'" v-model="form.apiKey" :provider="view.provider" :disabled="busy" />
         <AccountImportFields
           v-else
           :key="mode"

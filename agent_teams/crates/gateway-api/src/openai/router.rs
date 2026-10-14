@@ -29,6 +29,8 @@ pub(super) const USAGE_PATH: &str = "/v1/usage";
 /// 构造 OpenAI 客户端协议路由
 pub(crate) fn router() -> Router<ApiState> {
     Router::new()
+        .route("/v1/chat/completions", post(super::native::chat))
+        .route("/v1/messages", post(super::native::messages))
         .route(IMAGE_GENERATIONS_PATH, post(image_generations))
         .route(IMAGE_EDITS_PATH, post(image_edits))
         .route(SEARCH_PATH, post(standalone_search))

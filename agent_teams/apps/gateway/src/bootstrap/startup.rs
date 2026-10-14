@@ -65,6 +65,7 @@ impl Environment {
 pub(super) struct Providers {
     pub(super) openai: provider_openai::ProviderBundle,
     pub(super) xai: provider_xai::ProviderBundle,
+    pub(super) deepseek: provider_deepseek::ProviderBundle,
     pub(super) core: ProviderRegistry,
     pub(super) admin: ProviderAdminRegistry,
 }
@@ -79,14 +80,25 @@ impl Providers {
             provider_openai::initialize(config.with_timezone(environment.timezone), ports.clone())
                 .await?;
         environment.host.report_startup_ready("OpenAI Provider");
-        let xai = provider_xai::initialize(ports).await?;
+        let xai = provider_xai::initialize(ports.clone()).await?;
         environment.host.report_startup_ready("xAI Provider");
-        let core = ProviderRegistry::new([openai.core_provider(), xai.core_provider()])?;
-        let admin = ProviderAdminRegistry::new([openai.admin_provider(), xai.admin_provider()])
-            .map_err(|_| gateway_admin::model::AdminError::invalid("Provider 管理身份冲突"))?;
+        let deepseek = provider_deepseek::initialize(ports).await?;
+        environment.host.report_startup_ready("DeepSeek Provider");
+        let core = ProviderRegistry::new([
+            openai.core_provider(),
+            xai.core_provider(),
+            deepseek.core_provider(),
+        ])?;
+        let admin = ProviderAdminRegistry::new([
+            openai.admin_provider(),
+            xai.admin_provider(),
+            deepseek.admin_provider(),
+        ])
+        .map_err(|_| gateway_admin::model::AdminError::invalid("Provider 管理身份冲突"))?;
         Ok(Self {
             openai,
             xai,
+            deepseek,
             core,
             admin,
         })

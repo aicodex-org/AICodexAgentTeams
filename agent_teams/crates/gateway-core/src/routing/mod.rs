@@ -147,6 +147,7 @@ pub enum SupportLevel {
 /// Provider 实时模型目录中的能力事实；不落 PostgreSQL
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModelCapabilities {
+    protocols: Option<BTreeSet<String>>,
     operations: BTreeSet<OperationKind>,
     features: BTreeMap<Feature, SupportLevel>,
     max_output_tokens: Option<u64>,
@@ -408,10 +409,28 @@ impl ModelCapabilities {
     pub fn new(operations: BTreeSet<OperationKind>, max_output_tokens: Option<u64>) -> Self {
         Self {
             operations,
+            protocols: None,
             features: BTreeMap::new(),
             max_output_tokens,
             upstream_validates_features: false,
         }
+    }
+
+    /// 显式限制模型接受的协议；未声明时保留现有扩展的兼容合同
+    #[must_use]
+    pub fn with_protocols(
+        mut self,
+        protocols: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
+        self.protocols = Some(protocols.into_iter().map(Into::into).collect());
+        self
+    }
+
+    #[must_use]
+    pub fn supports_protocol(&self, protocol: &str) -> bool {
+        self.protocols
+            .as_ref()
+            .is_none_or(|protocols| protocols.contains(protocol))
     }
 
     #[must_use]

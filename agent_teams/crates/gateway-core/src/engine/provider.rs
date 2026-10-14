@@ -1015,6 +1015,11 @@ pub trait Provider: Send + Sync {
     /// 返回当前进程已经成功发布的目录代次
     fn catalog_generation(&self) -> ProviderCatalogGeneration;
 
+    /// Provider 原生入口协议；声明覆盖目录未知和未列出的模型
+    fn supported_protocols(&self) -> Option<std::collections::BTreeSet<String>> {
+        None
+    }
+
     /// 发现型目录不用于提前拒绝上游可能支持的新模型或别名
     fn model_catalog_is_exhaustive(&self) -> bool {
         true
@@ -1199,6 +1204,15 @@ impl ProviderRegistry {
 }
 
 impl ProviderCatalogPort for ProviderRegistry {
+    fn supported_protocols(
+        &self,
+        provider: &ProviderKind,
+    ) -> Option<std::collections::BTreeSet<String>> {
+        self.providers
+            .get(provider)
+            .and_then(|provider| provider.supported_protocols())
+    }
+
     fn model_catalog_is_exhaustive(&self, provider: &ProviderKind) -> bool {
         self.providers
             .get(provider)

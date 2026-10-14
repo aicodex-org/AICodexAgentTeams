@@ -28,7 +28,7 @@ const selected = computed({
 <template>
   <ZSegmented
     v-model="selected"
-    class="w-full"
+    class="w-full [&>[role=radio][aria-checked=true]]:bg-cp-primary-container [&>[role=radio][aria-checked=true]]:text-cp-primary-on-container [&>[role=radio][aria-checked=true]]:shadow-[inset_0_0_0_1px_var(--cp-color-primary-border)]"
     aria-label="选择账号平台"
     :options="options"
     :disabled="disabled"

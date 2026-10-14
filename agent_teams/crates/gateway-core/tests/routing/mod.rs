@@ -899,3 +899,63 @@ fn account_model_access_filters_catalog_and_aliases_using_the_whole_frozen_pool(
         "a new policy must not alter an existing request scope"
     );
 }
+
+#[test]
+fn protocol_qualification_rejects_known_and_unlisted_models_before_selection() {
+    let provider = ProviderKind::new("openai").unwrap();
+    for models in [vec![], vec![model("openai", "gpt-5.5", capabilities())]] {
+        let snapshot = RuntimeSnapshot::new(
+            ConfigRevision::new(1).unwrap(),
+            settings(),
+            vec![provider.clone()],
+            models,
+            vec![],
+        )
+        .unwrap()
+        .with_account_directory(account_directory())
+        .with_provider_protocols(BTreeMap::from([(
+            provider.clone(),
+            BTreeSet::from(["openai".to_owned()]),
+        )]));
+        let chat = Operation::Generate(GenerateRequest::from_protocol_payload(
+            ProtocolPayload::json_object(
+                "openai-chat",
+                serde_json::json!({"messages":[]})
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+            )
+            .unwrap(),
+        ));
+        let public_model = PublicModelId::new("gpt-5.5").unwrap();
+        assert!(
+            snapshot
+                .plan(
+                    &public_model,
+                    &chat,
+                    account_scope(),
+                    &RoutingContext::default()
+                )
+                .is_err()
+        );
+        assert!(
+            snapshot
+                .plan(
+                    &public_model,
+                    &operation(),
+                    account_scope(),
+                    &RoutingContext::default()
+                )
+                .is_ok()
+        );
+    }
+}
+
+#[test]
+fn model_protocol_qualification_does_not_change_legacy_capabilities() {
+    let legacy = capabilities();
+    assert!(legacy.supports_protocol("plugin-protocol"));
+    let restricted = legacy.with_protocols(["openai", "openai-chat", "anthropic"]);
+    assert!(restricted.supports_protocol("anthropic"));
+    assert!(!restricted.supports_protocol("plugin-protocol"));
+}

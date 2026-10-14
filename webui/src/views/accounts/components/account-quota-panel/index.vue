@@ -109,7 +109,18 @@ watch(hasPersonalInfo, (available) => {
         :label="entry.label"
         :windows="entry.windows"
       />
-      <p v-if="quotaEntries.length === 0" class="m-0 text-cp-sm font-emphasis text-cp-text-secondary">
+      <div v-for="balance in account.quota.balances" :key="balance.currency" class="rounded-lg bg-cp-fill-quaternary px-3 py-2.5">
+        <p class="m-0 text-cp-xs text-cp-text-secondary">
+          {{ balance.currency }} 余额
+        </p>
+        <p class="m-0 mt-1 font-mono text-cp-lg text-cp-text">
+          {{ balance.totalBalance }}
+        </p>
+        <p v-if="balance.grantedBalance !== null || balance.toppedUpBalance !== null" class="m-0 mt-1 text-cp-xs text-cp-text-secondary">
+          赠送 {{ balance.grantedBalance ?? '—' }} · 充值 {{ balance.toppedUpBalance ?? '—' }}
+        </p>
+      </div>
+      <p v-if="quotaEntries.length === 0 && !account.quota.balances?.length" class="m-0 text-cp-sm font-emphasis text-cp-text-secondary">
         额度待观测
       </p>
     </div>

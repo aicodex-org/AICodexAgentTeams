@@ -43,6 +43,7 @@ export interface AccountQuota {
   rateLimitReason: 'upstream_rate_limit' | 'capacity_freeze' | null
   recoveryProbeRequired: boolean
   windows: AccountQuotaWindow[]
+  balances: Array<{ currency: string, totalBalance: string, grantedBalance: string | null, toppedUpBalance: string | null }>
   credits: AccountQuotaCredits | null
 }
 
@@ -412,7 +413,7 @@ interface AccountResetCreditConsumeParam extends AccountIdParam {
 }
 
 interface AccountUpdateParam {
-  connection?: { baseUrl?: string, transport: ApiKeyConfiguration['transport'], apiKey?: string }
+  connection?: { baseUrl?: string, protocols?: string[], transport: ApiKeyConfiguration['transport'], apiKey?: string }
   outboundProxyUrl?: string
   outboundProxyId?: string
   accountId: string
@@ -697,6 +698,7 @@ export function completeAccountOAuth(data: AccountOAuthCompleteParam, options: R
 }
 
 export interface ApiKeyConfiguration {
+  protocols?: string[]
   base_url: string
   transport: 'http' | 'prefer_websocket'
 }

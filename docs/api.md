@@ -7,7 +7,7 @@
 | 查找内容 | 入口 |
 | --- | --- |
 | 鉴权与响应 | [公共约定](#1-鉴权与公共约定) · [浏览器会话与 Key 自助页](#4-浏览器认证) |
-| 客户端协议 | [Responses、Images、模型与 Provider 操作](#3-openai-数据面与模型目录) · [额度查询](#api-key-额度查询) |
+| 客户端协议 | [Responses、Images、模型与 Provider 操作](#3-模型数据面与模型目录) · [额度查询](#api-key-额度查询) |
 | 账号与授权范围 | [账号](#5-账号) · [代理](#独立代理管理--managed-proxies) · [分组](#6-账号分组) · [Client Key](#7-client-key) |
 | 系统与运维 | [健康检查](#2-健康检查) · [运行设置](#8-运行设置) · [备份](#9-备份) · [统计与诊断](#10-dashboard用量与错误) · [版本与更新](#11-版本更新与重启) |
 | 插件 | [安装包与来源](#安装包与来源) · [运行实例](#121-运行实例) · [管理扩展](#122-管理扩展页面与原始-api) |
@@ -38,7 +38,7 @@ Codex 原生生图配置还会携带 `X-OpenAI-Actor-Authorization: proxy-manage
 上游账号身份只由服务端选中的账号提供；不要把真实账号 token 放进该标记
 
 Client Key 通过账号分组限定路由范围：未绑定分组时可使用全部账号，绑定一个或多个分组时只能使用
-已启用分组成员的并集。分组可以混合 `openai` 与 `xai` 账号；同一请求只会在模型能力明确匹配且满足
+已启用分组成员的并集。分组可以混合 `openai`、`xai` 与 `deepseek` 账号；同一请求只会在模型能力明确匹配且满足
 重放安全边界时跨 Provider fallback
 
 运行设置可以分别配置 `minCodexDesktopVersion` 与 `minCodexCliVersion`。两者只接受 SemVer，`null`
@@ -182,7 +182,7 @@ Codex PAT 验证服务不可用和身份响应无效分别返回 `50301`、`5020
 | --- | --- | --- | --- |
 | `GET` | `/healthz` | 无 | Core、Store 和后台任务健康时返回 `204`，否则返回 `503` |
 
-## 3. OpenAI 数据面与模型目录
+## 3. 模型数据面与模型目录
 
 除下述 Responses 入站解压保护外，Responses、Images 和 standalone Search HTTP body、
 WebSocket message 和 frame 不设置网关私有长度上限；协议可接受性由上游决定
@@ -191,6 +191,8 @@ WebSocket message 和 frame 不设置网关私有长度上限；协议可接受�
 | --- | --- | --- |
 | `POST` | `/v1/responses` | OpenAI Responses JSON；`stream=true` 返回 SSE，否则返回完整 JSON |
 | `GET` | `/v1/responses` | 通过 HTTP Upgrade 建立 Responses WebSocket |
+| `POST` | `/v1/chat/completions` | Chat Completions JSON；`stream=true` 返回 SSE |
+| `POST` | `/v1/messages` | Anthropic Messages JSON；`stream=true` 返回 SSE |
 | `POST` | `/v1/alpha/search` | Codex standalone web search；JSON 请求与响应正文原样转发 |
 | `POST` | `/v1/images/generations` | 通过 OpenAI Provider 发起图像生成；JSON 请求与响应正文原样转发 |
 | `POST` | `/v1/images/edits` | 通过 OpenAI Provider 发起图像编辑；JSON 请求与响应正文原样转发 |
@@ -199,6 +201,20 @@ WebSocket message 和 frame 不设置网关私有长度上限；协议可接受�
 | `POST` | `/v1/providers/{provider}/models/{model}/count_tokens` | 调用指定 Provider/model 声明的精确 Token 计数；请求和响应均为 JSON |
 | `GET` / `POST` | `/v1/providers/{provider}/http/{endpoint}` | 调用指定 Provider 预先声明的固定 HTTP 操作；不是任意 URL 代理 |
 | `GET` | `/v1/usage` | 查询当前 Client Key 的日与周额度，仅使用网关已结算的 USD 账本 |
+
+### DeepSeek 原生协议
+
+DeepSeek 的同一个账号可用于 Responses、Chat Completions 与 Messages，协议 ID 分别是
+`openai`、`openai-chat`、`anthropic`。三个入口共享 Client Key 权限、账号组、账号并发、请求记录和用量结算，
+协议选择不创建额外账号。路由先校验 Provider 的协议声明，再由 Provider 按账号启用的协议选择凭据
+
+DeepSeek 仅支持 HTTP JSON/SSE，不接受 Responses WebSocket 请求，也不通过 HTTP 包装为 WebSocket 提供服务。
+Provider 在选号与获取账号租约前返回不支持；OpenAI、xAI 的 WebSocket 行为不受影响
+
+Messages 除 Bearer Client Key 外也接受 `x-api-key`；两者同时提供时必须一致。
+上游认证使用所选账号的 DeepSeek API Key，下游密钥不会发送到上游。
+Chat 与 Messages 保留原生 JSON/SSE；Responses 沿用现有 SSE 交付与非流式聚合链路，
+不会经过 Chat 协议转换。DeepSeek Responses 不支持 `previous_response_id`，调用方需要发送完整历史
 
 ### Provider 自有操作
 
@@ -669,7 +685,7 @@ config 返回 `{ name, plaintextKey }`，仅读取服务端会话绑定的当前
 ## 5. 账号
 
 账号 API 使用统一路由，不存在 Provider Instance 或 Provider 专属账号路由。`provider` 使用 Provider ID，
-固定为内置 `openai`、`xai`；操作可用性由平台实现与账号认证类型决定
+固定为内置 `openai`、`xai`、`deepseek`；操作可用性由平台实现与账号认证类型决定
 
 | 方法 | 路由 | 主要 query/body | 说明 |
 | --- | --- | --- | --- |
@@ -704,7 +720,7 @@ config 返回 `{ name, plaintextKey }`，仅读取服务端会话绑定的当前
 
 账号列表支持以下稳定值：
 
-- `provider`: `openai` 或 `xai`，省略或空值表示不过滤
+- `provider`: `openai`、`xai` 或 `deepseek`，省略或空值表示不过滤
 - `groupId`: 分组 ID、`ungrouped`，或省略以不过滤
 - `status`: `normal`、`quota_exhausted`、`rate_limited`、`disabled`、`error`
 - `sortBy`: `email`、`status`、`planType`、`usage`、`lastUsedAt`、`expiresAt`
@@ -863,7 +879,8 @@ OAuth 等待回调期间不持有保护；提交仍拒绝已删除或连接配�
 ### 账号连接测试 SSE
 
 `GET /api/admin/accounts/connection-test` 固定探测请求指定的账号，不参与普通账号轮换。成功流沿用
-`test_start`、`request`、`content`、`test_complete` 事件；失败事件为：
+`test_start`、`request`、`content`、`test_complete` 事件。DeepSeek 可以通过 `protocol` 查询参数分别测试
+`openai`、`openai-chat`、`anthropic`；未指定时使用 Responses，显式不支持的协议不会静默回退。失败事件为：
 
 ```json
 {
@@ -933,6 +950,7 @@ JSON 文件按 Provider 文档分项，不拆解内部代理引用或改变 Prov
   代理在 token 刷新前绑定。缺失、重复、停用、带到期时间或配置回退策略的 sub2api 代理会拒绝导入
 - xAI 从单账号 object 或 `accounts` 数组中提取 OAuth token；并发、优先级等字段不参与认证
 - xAI 批量导入逐条独立校验：失败条目跳过并记录日志，不中断其余条目，仅当没有任何条目成功时整个导入才报错
+- DeepSeek 接受单账号 API Key object 或 `accounts` 数组；同一条目保存一份密钥和启用的协议集合
 - xAI API Key 不是受支持的账号 credential
 - OAuth 导入由目标 Provider 完成必要的 token exchange 或身份投影。API Key 导入校验凭据格式与地址，不调用 OAuth 或 ChatGPT 身份接口；可用性由模型目录和连接测试验证
 
@@ -960,6 +978,26 @@ HTTP 会明文传输 API Key 和请求内容，仅用于可信网络。
 目录用于模型发现，不作为能力白名单，未列出的模型仍交由上游判断。
 API Key 每次导入创建独立账号；更新已有账号使用 `/api/admin/accounts/update` 的 `connection` 字段。
 导出会显式包含密钥，沿用敏感导出的确认合同
+
+DeepSeek 导入使用独立的服务根地址合同：
+
+```json
+{
+  "provider": "deepseek",
+  "data": {
+    "name": "DeepSeek 团队账号",
+    "api_key": "<upstream-api-key>",
+    "base_url": "https://api.deepseek.com",
+    "protocols": ["openai", "openai-chat", "anthropic"]
+  }
+}
+```
+
+省略 `base_url` 使用官方服务根，省略 `protocols` 启用三种协议；协议集合不能为空。
+服务根分别追加 `/responses`、`/v1/chat/completions`、`/anthropic/v1/messages`，不要额外填写 `/v1`。
+连接编辑可更新地址、协议集合或轮换密钥；管理端连接信息不回传密钥。
+余额通过账号额度详情的 `balances` 返回币种及十进制字符串金额，保留上游币种，
+不换算成网关 USD 账本或 ChatGPT 额度；OAuth 续期、订阅和重置卡不适用
 
 sub2api 的 `platform=openai`、`type=apikey` 使用 `credentials.base_url` / `credentials.api_key`；
 导入时按其端点规则将服务根、版本前缀或完整 `/responses` 地址转换为 API 前缀，缺省地址为官方 `/v1`。
@@ -1574,7 +1612,7 @@ OpenAI 长上下文为输入超过 272000 Token，xAI 为输入达到 200000 Tok
 `multiplierBps` 为 0～1000000 的整数，10000 表示 1 倍、0 表示本地估算为零，最大 100 倍。
 它作用于本地费用及对应明细，独立于服务档位；缺少计价依据的请求即使倍率为零仍然是费用未知
 
-`provider` 为内置 `openai` 或 `xai`，对应价目由 `GET` 返回的 `defaults` 提供。
+`provider` 为内置 `openai`、`xai` 或 `deepseek`，对应价目由 `GET` 返回的 `defaults` 提供。
 `models` 为 1～500 个模型 ID，每个 ID 为
 1～128 字节且不含空白、控制字符。`change` 为以下形式之一：
 
@@ -1587,7 +1625,7 @@ OpenAI 长上下文为输入超过 272000 Token，xAI 为输入达到 200000 Tok
 
 一批更新原子提交并写审计，不覆盖未选中的模型。未知字段、错误类型和非法价格字符串等 JSON 合同错误
 返回 422；Provider、模型 ID、批量数量、倍率上限和不支持的档位等业务校验错误返回 400。
-models.dev 同步只导入可表示为当前文本 Token 计价的 OpenAI/xAI 模型；不完整价格、其他输出模态及
+models.dev 同步只导入可表示为当前文本 Token 计价的 OpenAI/xAI/DeepSeek 模型；不完整价格、其他输出模态及
 不匹配的上下文梯度在 `skipped` 中返回 `provider/model`。确认会重新抓取价目；若与预览不同返回 400，
 需重新预览。来源不可用返回 502，已有价目保持不变。`preview` 必须原样提交，`models` 按 Provider
 指定 1～10000 个待同步模型；空选择或未登记的模型返回 400。同步只更新选中模型的来源层，未选中模型
@@ -1979,9 +2017,12 @@ WebSocket 握手默认请求专项计时，客户端显式提供的开关保留�
 
 ### 费用与服务档位
 
-OpenAI 与 xAI 的本地费用估算按实际发送给上游的请求模型（`upstreamModel`）查价，结合响应中的实际
+OpenAI、xAI 与 DeepSeek 的本地费用估算按实际发送给上游的请求模型（`upstreamModel`）查价，结合响应中的实际
 用量计算；客户端请求 A、路由后发送 B 时按 B 计价，响应返回 C 不改变计价模型。实际发送模型缺少
 定价时不估算，也不借用响应模型的价格。Provider 明确上报的已计费金额仍优先于本地估算
+
+DeepSeek 使用显式同步或人工配置的标准 Token 价格；未配置价格或输入/输出用量不完整时保持未知，
+不根据账号余额变化反推费用
 
 xAI 的 `cost_in_usd_ticks=0` 表示上游没有报告费用，不证明请求免费；正数才作为上游账单。
 未报告时，只有已知价格且能覆盖本次费用的请求才使用本地估算，未知价格或无法覆盖的托管工具费用保持未知。

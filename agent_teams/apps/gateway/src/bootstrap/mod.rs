@@ -30,6 +30,8 @@ pub enum BootstrapError {
     #[error(transparent)]
     OpenAi(#[from] provider_openai::OpenAiInitializeError),
     #[error(transparent)]
+    DeepSeek(#[from] provider_deepseek::DeepSeekInitializeError),
+    #[error(transparent)]
     Xai(#[from] provider_xai::XaiInitializeError),
     #[error(transparent)]
     Registry(#[from] gateway_core::engine::provider::RegistryError),

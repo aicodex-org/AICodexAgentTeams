@@ -7,7 +7,7 @@ import { useAsyncAction } from '@/composables/useAsyncAction'
 import { useRequestState } from '@/composables/useRequestState'
 import { accountModelAccessError } from '../utils/modelAccess'
 import { concurrencyLimitInput, parseAccountSchedulingForm } from '../utils/schedulingForm'
-import { apiKeyAccountError, emptyApiKeyAccountForm, isOpenAiApiKeyAccount, isOpenAiOAuthAccount, parseApiKeyConfiguration } from '../utils/upstreamApiKey'
+import { apiKeyAccountError, emptyApiKeyAccountForm, isApiKeyAccount, isOpenAiOAuthAccount, parseApiKeyConfiguration } from '../utils/upstreamApiKey'
 
 export function useAccountEditor(options: {
   reloadAccounts: () => Promise<unknown>
@@ -49,7 +49,7 @@ export function useAccountEditor(options: {
         configurationReady.value = true
         return
       }
-      const configuration = parseApiKeyConfiguration(detail.credentialConfiguration)
+      const configuration = parseApiKeyConfiguration(detail.credentialConfiguration, detail.account.provider)
       if (!configuration)
         throw new Error('该账号没有 API Key 上游设置')
       apiKey.value = { ...emptyApiKeyAccountForm(), ...configuration }
@@ -81,7 +81,7 @@ export function useAccountEditor(options: {
     savedConfiguration.value = undefined
     configurationReady.value = false
     showEditModal.value = true
-    if (isOpenAiApiKeyAccount(account) || isOpenAiOAuthAccount(account))
+    if (isApiKeyAccount(account) || isOpenAiOAuthAccount(account))
       void loadConfiguration(account.id)
   }
 
@@ -89,7 +89,7 @@ export function useAccountEditor(options: {
     const accountId = editingAccount.value?.id
     if (!accountId || saving.value)
       return
-    const isApiKey = isOpenAiApiKeyAccount(editingAccount.value)
+    const isApiKey = isApiKeyAccount(editingAccount.value)
     const isOAuth = isOpenAiOAuthAccount(editingAccount.value)
     if (isApiKey && !configurationReady.value)
       return
@@ -130,11 +130,12 @@ export function useAccountEditor(options: {
         apiKey.value.apiKey !== ''
         || apiKey.value.base_url.trim() !== savedConfiguration.value?.base_url
         || apiKey.value.transport !== savedConfiguration.value?.transport
+        || JSON.stringify(apiKey.value.protocols) !== JSON.stringify(savedConfiguration.value?.protocols)
       )
       await updateAccount({
         ...settings,
         connection: connectionChanged
-          ? { baseUrl: apiKey.value.base_url.trim(), transport: apiKey.value.transport, apiKey: apiKey.value.apiKey || undefined }
+          ? { baseUrl: apiKey.value.base_url.trim(), transport: apiKey.value.transport, protocols: apiKey.value.protocols, apiKey: apiKey.value.apiKey || undefined }
           : isOAuth && configurationReady.value && oauthTransport.value !== savedOAuthTransport.value
             ? { transport: oauthTransport.value }
             : undefined,
