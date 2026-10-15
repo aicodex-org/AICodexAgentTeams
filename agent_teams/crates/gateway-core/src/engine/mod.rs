@@ -298,6 +298,7 @@ pub struct RequestAttemptContext {
     execution_effects: Option<Arc<nested::ExecutionEffects>>,
     middleware: Option<middleware::FrozenMiddlewarePlan>,
     upstream_adapters: Option<upstream_adapter::FrozenUpstreamAdapterPlan>,
+    require_native_protocol: bool,
     requested_model: Option<PublicModelId>,
     account_group_ids: Arc<[crate::account::scope::AccountGroupId]>,
     endpoint: String,
@@ -306,6 +307,13 @@ pub struct RequestAttemptContext {
 }
 
 impl RequestAttemptContext {
+    /// 分组映射只允许原生协议，未声明实际协议的上游适配器不能接管发送
+    #[must_use]
+    pub const fn with_required_native_protocol(mut self, required: bool) -> Self {
+        self.require_native_protocol = required;
+        self
+    }
+
     #[must_use]
     pub fn with_requested_model(mut self, model: Option<PublicModelId>) -> Self {
         self.requested_model = model;
@@ -388,6 +396,7 @@ impl RequestAttemptContext {
             execution_effects: None,
             middleware: None,
             upstream_adapters: None,
+            require_native_protocol: false,
             requested_model: None,
             account_group_ids: Arc::from([]),
             endpoint: String::new(),
@@ -543,10 +552,19 @@ impl AttemptContext {
         provider: &ProviderKind,
         model: &UpstreamModelId,
     ) -> Result<Option<Arc<dyn upstream_adapter::UpstreamAdapter>>, ProviderError> {
-        self.request
+        let adapter = self
+            .request
             .upstream_adapters
             .as_ref()
-            .map_or(Ok(None), |plan| plan.select(self, provider, model))
+            .map_or(Ok(None), |plan| plan.select(self, provider, model))?;
+        if adapter.is_some() && self.request.require_native_protocol {
+            return Err(ProviderError::new(
+                crate::error::ProviderErrorKind::Unsupported,
+                UpstreamSendState::NotSent,
+            )
+            .with_retry_prohibited());
+        }
+        Ok(adapter)
     }
 
     #[must_use]
@@ -823,6 +841,8 @@ impl AttemptContext {
 /// 创建唯一 `model_requests` 行所需的入口事实
 #[derive(Debug, Clone)]
 pub struct NewModelRequest {
+    /// 请求路由时冻结的模型映射，历史记录不再读取当前策略
+    pub model_mapping: Option<crate::routing::ModelMappingTrace>,
     pub client_api_key_name_snapshot: Option<String>,
     pub id: ModelRequestId,
     pub client_api_key_ref: ClientApiKeyId,
@@ -887,6 +907,7 @@ pub struct IntermediateFailure {
 /// 已认证有效请求在执行会话建立前的拒绝；不伪造模型执行或上游 attempt
 #[derive(Debug)]
 pub struct EntryRejection {
+    pub model_mapping: Option<crate::routing::ModelMappingTrace>,
     pub request_id: ModelRequestId,
     pub client_key_id: ClientApiKeyId,
     pub error: GatewayError,

@@ -183,6 +183,7 @@ pub(super) fn overview(value: KeyUsageOverview, time: crate::time::TimePresenter
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct RecordView {
+    model_mapped: bool,
     id: String,
     created_at: DateTime<Utc>,
     created_at_display: String,
@@ -232,6 +233,7 @@ fn success_record(value: UsageListRecord, time: crate::time::TimePresenter) -> R
     let token_details = Some(usage_list_token_details(&value));
     let billing = billing_view(value.billing.as_ref());
     RecordView {
+        model_mapped: value.model_mapping.is_some(),
         id: value.id,
         created_at: value.started_at,
         created_at_display: time.datetime(&value.started_at),
@@ -266,6 +268,7 @@ fn success_record(value: UsageListRecord, time: crate::time::TimePresenter) -> R
 
 fn error_record(value: OpsError, time: crate::time::TimePresenter) -> RecordView {
     RecordView {
+        model_mapped: value.model_mapping.is_some(),
         id: value.event_id,
         created_at: value.occurred_at,
         created_at_display: time.datetime(&value.occurred_at),

@@ -200,6 +200,10 @@ fn contributed_alias_uses_the_same_target_for_listing_profiles_and_routing() {
         plan.candidates()[0].upstream_model().unwrap().as_str(),
         "upstream-model"
     );
+    let trace = plan.model_mapping().expect("extension alias trace");
+    assert_eq!(trace.source, "extension");
+    assert_eq!(trace.target_provider.as_deref(), Some("alpha"));
+    assert!(trace.policies.is_empty());
 }
 
 #[test]
@@ -1315,4 +1319,132 @@ fn key_profiles_replace_whole_global_choice_and_previous_snapshot_stays_frozen()
     assert_eq!(values(&build("global-b", true)), ["global-b", "override"]);
     assert_eq!(values(&previous), ["global-a", "override"]);
     assert_eq!(values(&build("global-b", false)), ["global-b", "global-b"]);
+}
+
+#[test]
+fn group_mapping_snapshot_freezes_policy_and_filters_catalog_account_sources() {
+    use gateway_core::{
+        account::ProviderAccountId,
+        routing::{AccountGroupId, GroupModelMappingEntry, GroupModelMappingPolicy},
+    };
+    use std::collections::BTreeSet;
+    struct GroupCatalog;
+    impl ProviderCatalogPort for GroupCatalog {
+        fn native_protocols(&self, _: &ProviderKind) -> BTreeSet<String> {
+            BTreeSet::from(["openai".into()])
+        }
+        fn catalog_generations(&self) -> BTreeMap<ProviderKind, ProviderCatalogGeneration> {
+            BTreeMap::from([(
+                ProviderKind::new("openai").unwrap(),
+                ProviderCatalogGeneration::default(),
+            )])
+        }
+        fn query_model_capabilities(
+            &self,
+            _: &ProviderKind,
+        ) -> BoxFuture<'_, Result<Vec<ProviderModelCapabilities>, ProviderCatalogUnavailable>>
+        {
+            Box::pin(async {
+                Ok(vec![
+                    ProviderModelCapabilities::new(
+                        UpstreamModelId::new("target").unwrap(),
+                        super::capabilities(),
+                    )
+                    .with_catalog_accounts(BTreeSet::from([
+                        ProviderAccountId::new("acct_b").unwrap(),
+                    ])),
+                ])
+            })
+        }
+    }
+    let groups = [
+        AccountGroupId::new(format!("grp_{:032x}", 1)).unwrap(),
+        AccountGroupId::new(format!("grp_{:032x}", 2)).unwrap(),
+    ];
+    let key = ClientApiKeyId::new("key_group_mapping").unwrap();
+    let facts = SnapshotFacts::new(
+        revision(1),
+        revision(1),
+        super::settings(),
+        vec![SnapshotClientPolicyFacts::new(
+            key.clone(),
+            PlaintextClientApiKey::new("sk_group_mapping").unwrap(),
+            groups.to_vec(),
+            RateLimits::unlimited(),
+        )],
+        groups
+            .iter()
+            .enumerate()
+            .map(|(index, group)| {
+                SnapshotAccountGroupFacts::new(group.clone(), format!("Group {index}"), true)
+            })
+            .collect(),
+        ["acct_a", "acct_b"]
+            .into_iter()
+            .map(|id| {
+                SnapshotProviderAccountFacts::new(ProviderAccountId::new(id).unwrap(), "openai")
+            })
+            .collect(),
+        ["acct_a", "acct_b"]
+            .into_iter()
+            .enumerate()
+            .map(|(index, id)| {
+                SnapshotAccountGroupMemberFacts::new(
+                    groups[index].clone(),
+                    ProviderAccountId::new(id).unwrap(),
+                )
+            })
+            .collect(),
+    )
+    .with_group_model_mapping_policies(vec![GroupModelMappingPolicy {
+        id: "policy_a".into(),
+        group_id: groups[0].clone(),
+        enabled: true,
+        revision: 4,
+        mappings: vec![GroupModelMappingEntry {
+            protocol: "openai".into(),
+            requested_model: "alias".into(),
+            route_model: "target".into(),
+            target_provider: ProviderKind::new("openai").unwrap(),
+        }],
+    }]);
+    let snapshot = block_on(
+        RuntimeSnapshotCompiler::new(
+            Arc::new(TestSnapshotStore::new(Ok(facts))),
+            Arc::new(GroupCatalog),
+        )
+        .compile(),
+    )
+    .unwrap();
+    let scope = snapshot.client_policy(&key).unwrap().account_scope();
+    let alias = PublicModelId::new("alias").unwrap();
+    assert!(
+        snapshot
+            .mapped_model_for_protocol_provider(
+                &alias,
+                &ProviderKind::new("openai").unwrap(),
+                "openai",
+                scope
+            )
+            .is_none()
+    );
+    // 目录来源只限制展示，不把发现账号变成推理授权白名单
+    let plan = snapshot
+        .plan(
+            &alias,
+            &super::operation(),
+            scope.clone(),
+            &Default::default(),
+        )
+        .unwrap();
+    assert_eq!(plan.model_mapping().unwrap().policies[0].policy_revision, 4);
+    assert!(
+        plan.account_scope()
+            .allows(&ProviderAccountId::new("acct_a").unwrap())
+    );
+    assert!(
+        !plan
+            .account_scope()
+            .allows(&ProviderAccountId::new("acct_b").unwrap())
+    );
 }

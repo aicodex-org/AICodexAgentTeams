@@ -303,6 +303,11 @@ pub(crate) fn usage_list_record_from_row(
         cost_currency.as_deref(),
     )?;
     Ok(UsageListRecord {
+        model_mapping: get::<Option<sqlx::types::Json<gateway_core::routing::ModelMappingTrace>>>(
+            row,
+            "model_mapping",
+        )?
+        .map(|value| value.0),
         client_api_key_name: get(row, "client_api_key_name")?,
         billing,
         id: get(row, "id")?,
@@ -373,6 +378,11 @@ pub(crate) fn usage_record_from_row(row: &sqlx::postgres::PgRow) -> StoreResult<
         cost_currency.as_deref(),
     )?;
     Ok(UsageRecord {
+        model_mapping: get::<Option<sqlx::types::Json<gateway_core::routing::ModelMappingTrace>>>(
+            row,
+            "model_mapping",
+        )?
+        .map(|value| value.0),
         billing,
         id: get(row, "id")?,
         client_api_key_ref: get(row, "client_api_key_ref")?,
@@ -465,6 +475,11 @@ pub(crate) fn usage_record_from_row(row: &sqlx::postgres::PgRow) -> StoreResult<
 
 pub(crate) fn ops_error_from_row(row: &sqlx::postgres::PgRow) -> StoreResult<OpsErrorRecord> {
     Ok(OpsErrorRecord {
+        model_mapping: get::<Option<sqlx::types::Json<gateway_core::routing::ModelMappingTrace>>>(
+            row,
+            "model_mapping",
+        )?
+        .map(|value| value.0),
         client_api_key_name: get(row, "client_api_key_name")?,
         source: get(row, "source")?,
         event_id: get(row, "event_id")?,

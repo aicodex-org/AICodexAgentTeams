@@ -858,6 +858,7 @@ fn dual_provider_plan(operation: &Operation) -> RoutingPlan {
 fn model_request(operation: &Operation, deadline: SystemTime) -> NewModelRequest {
     let client_key = ClientApiKeyId::new("key_client_1").expect("client key id");
     NewModelRequest {
+        model_mapping: None,
         admission_decision_ms: None,
         id: ModelRequestId::new("req_core_1").expect("request id"),
         client_api_key_name_snapshot: None,

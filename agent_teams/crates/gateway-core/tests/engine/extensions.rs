@@ -89,3 +89,84 @@ fn execution_index_does_not_own_registered_generations() {
     assert!(index.middleware(&reference).is_none());
     assert!(index.upstream_adapters(&reference).is_none());
 }
+
+#[derive(Debug)]
+struct SelectedAdapter;
+impl UpstreamAdapter for SelectedAdapter {
+    fn execute(
+        self: Arc<Self>,
+        _: gateway_core::engine::upstream_adapter::UpstreamAdapterInvocation,
+    ) -> gateway_core::engine::provider::EventStream {
+        panic!("strict native mapping must reject before executing the adapter")
+    }
+    fn transport(&self) -> &str {
+        "test-adapter"
+    }
+}
+#[derive(Debug)]
+struct SelectedAdapterPlan;
+impl UpstreamAdapterPlan for SelectedAdapterPlan {
+    fn select(
+        &self,
+        _: &AttemptContext,
+        _: &ProviderKind,
+        _: &UpstreamModelId,
+    ) -> Result<Option<Arc<dyn UpstreamAdapter>>, ProviderError> {
+        Ok(Some(Arc::new(SelectedAdapter)))
+    }
+}
+
+#[test]
+fn strict_native_mapping_rejects_selected_adapters_without_disabling_other_native_calls() {
+    use gateway_core::{
+        account::{AccountSelectionPolicy, RotationStrategy},
+        engine::{
+            AccountAttemptContext, ModelRequestId, RequestAttemptContext,
+            upstream_adapter::FrozenUpstreamAdapterPlan,
+        },
+        error::ProviderErrorKind,
+        lifecycle::{CancellationToken, Deadline},
+        policy::ClientApiKeyId,
+        upstream::UpstreamSendState,
+    };
+    for (selected, strict) in [(true, true), (false, true), (true, false)] {
+        let adapter: Arc<dyn UpstreamAdapterPlan> = if selected {
+            Arc::new(SelectedAdapterPlan)
+        } else {
+            Arc::new(EmptyAdapterPlan)
+        };
+        let context = AttemptContext::new(
+            RequestAttemptContext::new(
+                ModelRequestId::new("req_native_mapping").unwrap(),
+                ClientApiKeyId::new("key_native_mapping").unwrap(),
+            )
+            .with_required_native_protocol(strict)
+            .with_upstream_adapters(Some(FrozenUpstreamAdapterPlan::new(
+                adapter,
+                reference("native-mapping"),
+            ))),
+            std::num::NonZeroU32::new(1).unwrap(),
+            Deadline::default(),
+            AccountSelectionPolicy::new(
+                RotationStrategy::Smart,
+                std::num::NonZeroU32::new(1).unwrap(),
+                std::time::Duration::ZERO,
+            ),
+            AccountAttemptContext::default(),
+            None,
+            CancellationToken::new(),
+        );
+        let result = context.upstream_adapter(
+            &ProviderKind::new("openai").unwrap(),
+            &UpstreamModelId::new("model").unwrap(),
+        );
+        if selected && strict {
+            let error = result.unwrap_err();
+            assert_eq!(error.kind(), ProviderErrorKind::Unsupported);
+            assert_eq!(error.send_state(), UpstreamSendState::NotSent);
+            assert!(error.retry_is_prohibited());
+        } else {
+            assert_eq!(result.unwrap().is_some(), selected);
+        }
+    }
+}

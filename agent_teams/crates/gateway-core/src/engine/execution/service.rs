@@ -59,7 +59,7 @@ use crate::{
     event::GatewayEvent,
     identity::ProviderKind,
     lifecycle::{CancellationToken, Deadline, REQUEST_LEASE_TTL},
-    operation::Operation,
+    operation::{Operation, OperationKind},
     policy::{ClientApiKeyId, ClientPolicy},
     provider_ports::{ProviderSessionAffinityPort, ProviderStoreErrorKind},
     routing::{
@@ -461,6 +461,7 @@ impl DefaultExecutionService {
         });
         let budget_key_id = request.client.policy.key_id().clone();
         let mut entered_execution = false;
+        let mut rejected_model_mapping = None;
         let result = async {
             if request_policy.is_some() {
                 start_guard = Some(self.prepare_execution_start(&request, &request_id, &mut authorization).await?);
@@ -488,13 +489,23 @@ impl DefaultExecutionService {
                     &routing_context,
                 ),
                 ExecutionTarget::Model(public_model) => {
+                    // 分组策略匹配客户端原始请求名，插件改名不能取消或再次触发该映射
+                    let group_mapping = if request.operation.kind() == OperationKind::Generate {
+                        request.client.snapshot.resolve_group_model_mapping(
+                            public_model, request.operation.protocol(), &account_scope,
+                        ).map_err(map_routing_error)?
+                    } else { None };
+                    rejected_model_mapping = group_mapping.clone();
+                    let fixed_plan = group_mapping.as_ref().map(|_| request.client.snapshot.plan(
+                        public_model, &request.operation, Arc::clone(&account_scope), &routing_context,
+                    )).transpose().map_err(map_routing_error)?;
                     let mut target_model = public_model.clone();
                     let mut target_context = routing_context.clone();
                     if let Some(policy) = &request_policy {
                         let available = request
                             .client
                             .snapshot
-                            .available_providers(&account_scope, &routing_context);
+                            .available_providers(fixed_plan.as_ref().map_or(&account_scope, |plan| plan.account_scope()), &routing_context);
                         match policy
                             .route_model(request.operation.clone(), public_model.clone(), available)
                             .await
@@ -518,35 +529,53 @@ impl DefaultExecutionService {
                                         "model routing policy returned an empty target",
                                     ));
                                 }
-                                if let Some(provider) = provider {
-                                    if authorization
-                                        .required_provider
-                                        .as_ref()
-                                        .is_some_and(|required| required != &provider)
-                                        || !authorization
-                                            .account_scope
-                                            .provider_kinds()
-                                            .contains(&provider)
+                                if let Some(mapping) = &group_mapping {
+                                    if provider.as_ref().is_some_and(|provider| mapping.target_provider.as_deref() != Some(provider.as_str()))
+                                        || model.as_ref().is_some_and(|model| model != public_model && model.as_str() != mapping.route_model)
                                     {
                                         return Err(GatewayError::new(
                                             GatewayErrorKind::PolicyDenied,
-                                            "model routing policy exceeded the frozen provider scope",
+                                            "model routing policy cannot change a group model mapping target",
                                         ));
                                     }
-                                    target_context.required_provider = Some(provider);
-                                }
-                                if let Some(model) = model {
-                                    target_model = model;
+                                } else {
+                                    if let Some(provider) = provider {
+                                        if authorization
+                                            .required_provider
+                                            .as_ref()
+                                            .is_some_and(|required| required != &provider)
+                                            || !authorization
+                                                .account_scope
+                                                .provider_kinds()
+                                                .contains(&provider)
+                                        {
+                                            return Err(GatewayError::new(
+                                                GatewayErrorKind::PolicyDenied,
+                                                "model routing policy exceeded the frozen provider scope",
+                                            ));
+                                        }
+                                        target_context.required_provider = Some(provider);
+                                    }
+                                    if let Some(model) = model {
+                                        target_model = model;
+                                    }
                                 }
                             }
                         }
                     }
-                    request.client.snapshot.plan(
-                        &target_model,
-                        &request.operation,
-                        account_scope,
-                        &target_context,
-                    )
+                    if let Some(plan) = fixed_plan {
+                        Ok(plan)
+                    } else {
+                        rejected_model_mapping = request.client.snapshot.resolve_legacy_model_mapping(
+                            &target_model, request.operation.protocol(),
+                        );
+                        request.client.snapshot.plan_after_model_route(
+                            &target_model,
+                            &request.operation,
+                            account_scope,
+                            &target_context,
+                        )
+                    }
                 }
             }
             .map_err(map_routing_error)?;
@@ -583,7 +612,7 @@ impl DefaultExecutionService {
                         Some(pin) if !pin.matches_client(request.client.policy.key_id()) => {
                             return Err(GatewayError::new(GatewayErrorKind::PolicyDenied, "continuation does not belong to this client API key"));
                         }
-                        Some(pin) if !authorization.account_scope.allows(pin.account()) => {
+                        Some(pin) if !plan.account_scope().allows(pin.account()) => {
                             return Err(GatewayError::new(GatewayErrorKind::PolicyDenied, "continuation account is outside the client account scope"));
                         }
                         Some(pin)
@@ -651,6 +680,7 @@ impl DefaultExecutionService {
                 "请求在路由或准入阶段被拒绝"
             );
             let rejection = crate::engine::EntryRejection {
+                model_mapping: rejected_model_mapping,
                 request_id: request_id.clone(),
                 client_key_id: budget_key_id.clone(),
                 error: error.clone(),
@@ -806,6 +836,7 @@ impl DefaultExecutionService {
             );
         }
         let new_request = NewModelRequest {
+            model_mapping: plan.model_mapping().cloned(),
             id: request_id.clone(),
             client_api_key_name_snapshot: client.policy.name_snapshot().map(str::to_owned),
             client_api_key_ref: client.policy.key_id().clone(),
@@ -1346,6 +1377,7 @@ impl DefaultExecutionService {
         let actor = ClientApiKeyId::new("admin_connection_test")
             .map_err(|_| GatewayError::new(GatewayErrorKind::Internal, "invalid admin actor"))?;
         let new_request = NewModelRequest {
+            model_mapping: plan.model_mapping().cloned(),
             id: request_id,
             client_api_key_name_snapshot: None,
             client_api_key_ref: actor,
@@ -1544,14 +1576,10 @@ impl ExecutionService for DefaultExecutionService {
                     .query_client_model_catalog(scope, protocol, client_version)
                     .await?
                 else {
-                    for profile in client.snapshot.public_model_profiles_for_provider(kind) {
-                        if !client.snapshot.catalog_model_allowed_for_scope(
-                            kind,
-                            profile.model(),
-                            scope,
-                        ) {
-                            continue;
-                        }
+                    for profile in client
+                        .snapshot
+                        .public_model_profiles_for_protocol_provider(kind, protocol, scope)
+                    {
                         if seen.insert(profile.model().clone()) {
                             result.push(PublicModelDescriptor::Adapted(profile));
                         }
@@ -1564,38 +1592,32 @@ impl ExecutionService for DefaultExecutionService {
                     .map(|entry| (entry.model.as_str(), entry))
                     .collect::<std::collections::BTreeMap<_, _>>();
                 for entry in &models {
-                    let target = client.snapshot.mapped_model(entry.model.as_str());
-                    if !scope.allows_provider_model(kind, &target) {
+                    let model = PublicModelId::new(entry.model.as_str().to_owned())
+                        .map_err(|_| ProviderCatalogUnavailable)?;
+                    let Some(target) = client
+                        .snapshot
+                        .mapped_model_for_protocol_provider(&model, kind, protocol, scope)
+                    else {
                         continue;
-                    }
+                    };
                     let Some(source) = by_id.get(target.as_str()) else {
                         continue;
                     };
-                    let model = PublicModelId::new(entry.model.as_str().to_owned())
-                        .map_err(|_| ProviderCatalogUnavailable)?;
-                    // 原生目录可能比路由快照更新，不能向客户端公布当前已知不可路由的模型
-                    if !client
-                        .snapshot
-                        .contains_public_model_for_provider(&model, kind)
-                    {
-                        continue;
-                    }
                     if seen.insert(model.clone()) {
                         result.push(source.content.for_public_model(model));
                     }
                 }
-                for model in client.snapshot.public_models_for_provider(kind) {
-                    let target = client.snapshot.mapped_model(model.as_str());
-                    if !scope.allows_provider_model(kind, &target) {
-                        continue;
-                    }
-                    if target == model.as_str() || seen.contains(&model) {
-                        continue;
-                    }
-                    if !client
+                for model in client
+                    .snapshot
+                    .public_models_for_protocol_provider(kind, protocol, scope)
+                {
+                    let Some(target) = client
                         .snapshot
-                        .contains_public_model_for_provider(&model, kind)
-                    {
+                        .mapped_model_for_protocol_provider(&model, kind, protocol, scope)
+                    else {
+                        continue;
+                    };
+                    if target == model.as_str() || seen.contains(&model) {
                         continue;
                     }
                     if let Some(source) = by_id.get(target.as_str()) {

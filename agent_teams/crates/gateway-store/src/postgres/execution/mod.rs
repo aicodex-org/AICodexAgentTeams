@@ -88,6 +88,7 @@ impl CostSource {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NewModelRequest {
+    pub model_mapping: Option<gateway_core::routing::ModelMappingTrace>,
     pub id: String,
     pub client_api_key_name_snapshot: Option<String>,
     pub client_api_key_ref: String,
@@ -1036,6 +1037,7 @@ impl ExecutionStore for PgExecutionStore {
                 latency_ms: u64::try_from(rejection.latency.as_millis()).ok(),
                 // 入口尚无 model_requests 行，关联 ID 放在安全消息中，不能伪造外键
                 message: serde_json::json!({
+                    "modelMapping": rejection.model_mapping,
                     "requestId": rejection.request_id.as_str(),
                     "clientKeyId": rejection.client_key_id.as_str(),
                     "message": error.client_message(),
@@ -1269,6 +1271,7 @@ fn new_model_request_row(request: CoreNewModelRequest) -> NewModelRequest {
     let (routing_scope, routing_group_refs, routing_group_names_snapshot) =
         routing_snapshot_row(&request.routing);
     NewModelRequest {
+        model_mapping: request.model_mapping,
         id: request.id.as_str().to_owned(),
         client_api_key_name_snapshot: request.client_api_key_name_snapshot,
         client_api_key_ref: request.client_api_key_ref.as_str().to_owned(),

@@ -90,6 +90,7 @@ mod auth;
 mod client_keys;
 mod error_diagnostics;
 mod errors;
+mod model_mappings;
 mod observability;
 mod proxies;
 mod settings;
@@ -174,6 +175,7 @@ impl AdminTestFixture {
                 unused.clone(),
                 unused.clone(),
                 account_groups.clone(),
+                Arc::new(model_mappings::UnavailableMappings),
                 Arc::new(proxies::MemoryProxies::default()),
             ),
             auth.clone(),

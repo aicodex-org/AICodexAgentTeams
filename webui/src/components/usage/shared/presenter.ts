@@ -78,8 +78,8 @@ export function usageReasoningEffort(record: UsageCommonRecord) {
 }
 
 export function usageModelDisplay(record: UsageCommonRecord) {
-  const requestedModel = record.requestedModel || ''
-  const upstreamModel = record.upstreamModel || ''
+  const requestedModel = record.modelMapping?.requestedModel || record.requestedModel || ''
+  const upstreamModel = record.modelMapping?.routeModel || record.upstreamModel || ''
   const storedModel = record.model || ''
   const primary = requestedModel || storedModel || upstreamModel || '—'
   const secondary

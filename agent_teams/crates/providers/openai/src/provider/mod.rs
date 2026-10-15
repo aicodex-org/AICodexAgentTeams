@@ -373,6 +373,10 @@ impl fmt::Debug for CodexProvider {
 
 #[async_trait]
 impl Provider for CodexProvider {
+    fn native_protocols(&self) -> std::collections::BTreeSet<String> {
+        std::collections::BTreeSet::from([gateway_core::operation::OPENAI_RESPONSES.to_owned()])
+    }
+
     fn supported_protocols(&self) -> Option<std::collections::BTreeSet<String>> {
         Some(std::collections::BTreeSet::from(["openai".to_owned()]))
     }

@@ -50,6 +50,8 @@ struct RequestContext {
 #[derive(Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct RoutingSnapshot {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    model_mapping: Option<gateway_core::routing::ModelMappingTrace>,
     scope: String,
     group_refs: Vec<String>,
     group_names_snapshot: Vec<String>,
@@ -189,6 +191,7 @@ impl RequestObservation {
                 compact: request.compact,
             }),
             routing: Some(RoutingSnapshot {
+                model_mapping: request.model_mapping.clone(),
                 scope: request.routing_scope.clone(),
                 group_refs: request.routing_group_refs.clone(),
                 group_names_snapshot: serde_json::from_value(

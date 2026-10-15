@@ -655,6 +655,7 @@ pub struct DashboardObservation {
 /// 使用记录表格的窄读模型
 #[derive(Debug, Clone, PartialEq)]
 pub struct UsageListRecord {
+    pub model_mapping: Option<gateway_core::routing::ModelMappingTrace>,
     pub client_api_key_name: Option<String>,
     pub id: String,
     pub endpoint: String,
@@ -718,6 +719,7 @@ pub struct UsageListRecord {
 /// 一次完整模型请求的公共观测记录
 #[derive(Debug, Clone, PartialEq)]
 pub struct UsageRecord {
+    pub model_mapping: Option<gateway_core::routing::ModelMappingTrace>,
     pub id: String,
     pub client_api_key_ref: String,
     pub config_revision: u64,
@@ -916,6 +918,7 @@ pub struct DiagnosticObservation {
 /// 统一运维错误记录
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OpsError {
+    pub model_mapping: Option<gateway_core::routing::ModelMappingTrace>,
     pub client_api_key_name: Option<String>,
     pub source: String,
     pub event_id: String,

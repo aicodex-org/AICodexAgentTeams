@@ -2,6 +2,7 @@
 
 mod catalog;
 pub mod extensions;
+mod group_mapping;
 pub mod request_settings;
 pub mod snapshot;
 
@@ -14,6 +15,9 @@ pub use catalog::{
     ContributedModelAlias, ProviderCatalogGeneration, ProviderCatalogPort,
     ProviderCatalogUnavailable, ProviderModelCapabilities, ProviderModelContent,
     ProviderModelDescriptor, PublicModelDescriptor,
+};
+pub use group_mapping::{
+    GroupModelMappingEntry, GroupModelMappingPolicy, ModelMappingPolicyRef, ModelMappingTrace,
 };
 pub use snapshot::RuntimeSnapshot;
 
@@ -580,6 +584,7 @@ impl ProviderCandidate {
 /// 一次请求冻结的 Provider 尝试顺序
 #[derive(Debug, Clone)]
 pub struct RoutingPlan {
+    model_mapping: Option<ModelMappingTrace>,
     pricing: Arc<crate::metering::PricingOverrides>,
     request_location: Option<crate::account::RequestLocation>,
     privacy: Option<Arc<dyn crate::settings::privacy::CompiledPrivacyPolicy>>,
@@ -592,6 +597,11 @@ pub struct RoutingPlan {
 }
 
 impl RoutingPlan {
+    #[must_use]
+    pub const fn model_mapping(&self) -> Option<&ModelMappingTrace> {
+        self.model_mapping.as_ref()
+    }
+
     #[must_use]
     pub fn pricing(&self) -> Arc<crate::metering::PricingOverrides> {
         Arc::clone(&self.pricing)

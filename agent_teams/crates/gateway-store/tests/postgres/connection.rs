@@ -245,6 +245,8 @@ async fn connect_and_migrate_should_apply_all_migrations_once_and_reopen_cleanly
             "client_api_keys",
             "client_key_budget_windows",
             "client_key_charge_events",
+            "group_model_mapping_entries",
+            "group_model_mapping_policies",
             "model_request_leases",
             "model_request_observations",
             "model_requests",

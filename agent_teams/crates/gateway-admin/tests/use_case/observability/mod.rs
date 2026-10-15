@@ -1104,6 +1104,7 @@ fn total_record(
     now: DateTime<Utc>,
 ) -> UsageListRecord {
     UsageListRecord {
+        model_mapping: None,
         client_api_key_name: Some("Production".to_owned()),
         id: id.to_owned(),
         endpoint: "/v1/responses".to_owned(),

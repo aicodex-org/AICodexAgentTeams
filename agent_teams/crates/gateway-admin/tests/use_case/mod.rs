@@ -263,6 +263,7 @@ impl AdminHarness {
                     self.accounts,
                     self.account_runtime,
                     self.account_groups,
+                    Arc::new(UnavailableModelMappings),
                     self.proxies,
                 ),
                 self.auth,
@@ -1170,3 +1171,35 @@ fn unavailable_system() -> SystemOperationError {
     )
 }
 mod service_contract;
+
+struct UnavailableModelMappings;
+#[async_trait::async_trait]
+impl gateway_admin::ports::model_mappings::ModelMappingStore for UnavailableModelMappings {
+    async fn list(
+        &self,
+        _: gateway_admin::model::model_mappings::ModelMappingListQuery,
+    ) -> AdminStoreResult<gateway_admin::model::model_mappings::ModelMappingPage> {
+        Err(unavailable("model mappings"))
+    }
+    async fn get(
+        &self,
+        _: &str,
+    ) -> AdminStoreResult<gateway_admin::model::model_mappings::ModelMappingRecord> {
+        Err(unavailable("model mappings"))
+    }
+    async fn save(
+        &self,
+        _: gateway_admin::model::model_mappings::SaveModelMapping,
+        _: &gateway_admin::model::MutationContext,
+    ) -> AdminStoreResult<gateway_admin::model::model_mappings::ModelMappingMutation> {
+        Err(unavailable("model mappings"))
+    }
+    async fn delete(
+        &self,
+        _: &str,
+        _: u64,
+        _: &gateway_admin::model::MutationContext,
+    ) -> AdminStoreResult<gateway_admin::model::model_mappings::ModelMappingMutation> {
+        Err(unavailable("model mappings"))
+    }
+}

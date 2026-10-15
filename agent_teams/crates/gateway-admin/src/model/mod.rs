@@ -233,3 +233,5 @@ pub enum AdminModelError {
     #[error("latency percentile must be finite and non-negative")]
     InvalidLatencyPercentile,
 }
+
+pub mod model_mappings;

@@ -184,6 +184,7 @@ async fn connect(
                 postgres::PgAccountGroupRepository::new(pool.clone())
                     .with_timezone(config.timezone),
             ),
+            Arc::new(postgres::PgModelMappingRepository::new(pool.clone())),
             Arc::new(postgres::PgProxyRepository::new(pool.clone())),
         ),
         Arc::new(AuthStoreAdapter {

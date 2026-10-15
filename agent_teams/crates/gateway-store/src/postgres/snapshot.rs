@@ -27,6 +27,7 @@ pub struct RuntimeSnapshotData {
     pub account_groups: Vec<SnapshotAccountGroupData>,
     pub provider_accounts: Vec<SnapshotProviderAccountData>,
     pub group_memberships: Vec<SnapshotGroupMembershipData>,
+    pub model_mapping_policies: Vec<gateway_core::routing::GroupModelMappingPolicy>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -88,6 +89,8 @@ impl RuntimeSnapshotRepository for PgRuntimeSnapshotRepository {
         let account_groups = load_account_groups(&mut transaction).await?;
         let provider_accounts = load_provider_accounts(&mut transaction).await?;
         let group_memberships = load_group_memberships(&mut transaction).await?;
+        let model_mapping_policies =
+            super::model_mappings::load_snapshot_model_mappings(&mut transaction).await?;
         transaction
             .commit()
             .await
@@ -103,6 +106,7 @@ impl RuntimeSnapshotRepository for PgRuntimeSnapshotRepository {
             account_groups,
             provider_accounts,
             group_memberships,
+            model_mapping_policies,
         })
     }
 
@@ -187,7 +191,8 @@ impl SnapshotStorePort for PgRuntimeSnapshotRepository {
                 account_groups,
                 provider_accounts,
                 group_memberships,
-            ))
+            )
+            .with_group_model_mapping_policies(data.model_mapping_policies))
         })
     }
 

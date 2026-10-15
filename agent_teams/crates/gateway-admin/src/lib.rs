@@ -214,6 +214,7 @@ pub struct AdminServices {
     key_usage: Arc<dyn KeyUsageService>,
     accounts: Arc<dyn AccountsService>,
     account_groups: Arc<dyn AccountGroupService>,
+    model_mappings: Arc<dyn use_case::model_mappings::ModelMappingService>,
     client_keys: Arc<dyn ClientKeyService>,
     client_distribution: Arc<dyn ClientDistributionService>,
     observability: Arc<dyn ObservabilityService>,
@@ -269,6 +270,11 @@ impl AdminServices {
     #[must_use]
     pub fn accounts(&self) -> &dyn AccountsService {
         self.accounts.as_ref()
+    }
+
+    #[must_use]
+    pub fn model_mappings(&self) -> &dyn use_case::model_mappings::ModelMappingService {
+        self.model_mappings.as_ref()
     }
 
     #[must_use]
@@ -486,7 +492,7 @@ async fn initialize_inner(
             PluginDistributionPorts::new(plugin_distribution, store.proxies()),
             snapshot.clone(),
             plugin_preparation,
-            published_snapshot,
+            published_snapshot.clone(),
             store.plugin_state(),
         )),
         key_usage,
@@ -498,6 +504,11 @@ async fn initialize_inner(
         )),
         auth,
         accounts: accounts.clone(),
+        model_mappings: Arc::new(use_case::model_mappings::DefaultModelMappingService {
+            store: store.model_mappings(),
+            snapshot: snapshot.clone(),
+            published: published_snapshot,
+        }),
         account_groups: Arc::new(DefaultAccountGroupService::new(
             store.account_groups(),
             store.account_runtime(),

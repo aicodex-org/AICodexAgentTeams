@@ -41,6 +41,7 @@ const columns = computed(() => defineTableColumns<KeyUsageRecord>([
     <div class="flex h-120 min-h-0 overflow-hidden">
       <ZTable class="min-w-0 flex-1" :columns="columns" :data="rows" :loading="loading" scrollbar-always-visible :empty-text="error ? '请求日志加载失败，请点击顶部刷新重试' : '所选条件下暂无记录'">
         <template #model="{ row }">
+          <span v-if="row.modelMapped" class="mb-1 inline-flex rounded-md bg-cp-primary-container px-1.5 py-1 text-cp-xs text-cp-primary-on-container">已映射</span>
           <code class="block max-w-full truncate font-mono text-cp-sm leading-none font-heavy text-cp-text">{{ row.model || '—' }}</code>
         </template>
         <template #reasoningEffort="{ row }">

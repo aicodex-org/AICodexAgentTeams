@@ -66,6 +66,7 @@ export interface KeyUsageRecord {
   createdAt: string
   createdAtDisplay: string
   model: string | null
+  modelMapped?: boolean
   route: string | null
   reasoningEffort: string | null
   clientTransport: string | null

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { EChartsOption } from 'echarts'
 import type { UsageRecordDetail } from '@/api'
-
 import { defineTableColumns, ZButton, ZDialog, ZTable } from '@codex-proxy/ui'
+
 import { computed } from 'vue'
 import BaseChart from '@/components/charts/BaseChart.vue'
 import { chartTooltipStyle } from '@/components/charts/tooltip'
@@ -16,6 +16,7 @@ import {
   usageTransportType,
   usageUserAgent,
 } from '@/components/usage/shared/presenter'
+import UsageMappingDetails from '@/components/usage/UsageMappingDetails.vue'
 import { useChartPalette } from '@/composables/useChartPalette'
 import { formatDuration, formatInteger } from '@/utils/format'
 import { displayValue, fieldLabelClass, fieldValueBaseClass, fieldValueClass, visibleRequestText, visibleResponseText } from '../utils/detail'
@@ -378,6 +379,7 @@ const tokenDonutOption = computed<EChartsOption>(() => {
             模型与路由
           </h3>
           <UsageDetailFieldGrid :items="modelRouteItems" />
+          <UsageMappingDetails v-if="record.modelMapping" class="mt-3" :mapping="record.modelMapping" expanded />
         </section>
 
         <section :class="panelClass">

@@ -340,6 +340,45 @@ impl FrozenAccountScope {
         restricted
     }
 
+    /// 只有显式绑定且启用的分组参与映射，无分组 Key 不继承任何分组策略
+    #[must_use]
+    pub fn enabled_group_ids(&self) -> Option<&BTreeSet<AccountGroupId>> {
+        match &self.client_scope {
+            ClientRoutingScope::AllAccounts => None,
+            ClientRoutingScope::Restricted {
+                enabled_group_ids, ..
+            } => Some(enabled_group_ids),
+        }
+    }
+
+    /// 映射命中后的严格交集，空分组或空账号交集始终表示不可调用
+    #[must_use]
+    pub fn restricted_to_groups(
+        &self,
+        groups: &BTreeSet<AccountGroupId>,
+        provider: &ProviderKind,
+    ) -> Self {
+        let mut restricted = self.clone();
+        let accounts: BTreeSet<_> = self
+            .directory
+            .accounts
+            .iter()
+            .filter(|(id, account)| {
+                self.allows(id)
+                    && account.provider_kind() == provider
+                    && !account.group_ids().is_disjoint(groups)
+            })
+            .map(|(id, _)| id.clone())
+            .collect();
+        restricted.provider_kinds = Arc::new(if accounts.is_empty() {
+            BTreeSet::new()
+        } else {
+            BTreeSet::from([provider.clone()])
+        });
+        restricted.allowed_account_ids = Some(Arc::new(accounts));
+        restricted
+    }
+
     /// 排除父 attempt 当前已经持有的账号，避免嵌套调用形成账号 lease 自等待
     #[must_use]
     pub fn excluding_account(&self, account: ProviderAccountId) -> Self {

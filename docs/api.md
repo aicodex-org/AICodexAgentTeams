@@ -439,7 +439,7 @@ Images 排除已知为 Free 套餐的 OAuth 账号；套餐缺失或未知时不
 Authorization、Cookie、account ID、originator 和 User-Agent 均由代理安全重建。
 Images 与 Search 保留通过现有过滤规则的普通业务请求头及多值字节；Responses 原连接的 turn state
 不随独立端点转发，turn metadata 仍由所属端点按当前账号处理。
-模型映射是全局精确映射，未命中时模型名原样交给候选 Provider；分组只限定账号集合，不参与模型改名
+模型映射先匹配[分组模型映射](#分组模型映射)的协议与请求模型，命中后固定平台与路由模型，账号范围收窄到命中分组。未命中时沿用全局精确映射；全局也未命中则模型名保持原值
 
 #### xAI 适配
 
@@ -783,7 +783,7 @@ ChatGPT 账号只有取得 `chatgpt.tokens.use.direct` 权限后才参与调度�
 | `denylist` | 非空 ID 数组 | 排除指定模型 |
 
 最多 256 项，每个 ID 最多 256 字节；重复 ID 去重，不接受空白、控制字符、`__` 前缀或 `*` 通配符。
-允许保存当前上游目录尚未返回的 ID。限制按全局模型映射后的上游 ID 判断，不扩大账号本身的上游权限。
+允许保存当前上游目录尚未返回的 ID。限制按实际路由模型的上游 ID 判断，不扩大账号本身的上游权限。
 例如 Plus 设置 `allowlist` 并选中 luna 的实际 ID，Pro 设置 `denylist` 并选中同一 ID，即可严格分流；
 Pro 使用 `all` 时也能参与 luna 调度。套餐名称不自动生成或修改规则
 
@@ -1312,6 +1312,41 @@ HTTP 请求头及新建 WS 的握手提示按当时的最终出站档位构造�
 
 分组费用按请求执行时实际服务账号的分组快照归属，不按 Client Key 绑定的分组分摊。
 账号属于多个组时，各组均包含该请求费用；之后调整账号分组不重写历史归属
+
+### 分组模型映射
+
+每个分组最多一条策略，停用策略仍占用该分组的唯一位置。策略内包含多条精确映射，编辑时不能更换所属分组
+
+| 方法 | 路由 | 主要 query/body | 说明 |
+| --- | --- | --- | --- |
+| `GET` | `/api/admin/model-mapping-policies` | `page`、`pageSize`、`search`、`enabled` | 按分组名称搜索，返回 `{ items, page, configRevision }` |
+| `GET` | `/api/admin/model-mapping-policies/detail` | `id` | 返回策略及全部映射条目 |
+| `GET` | `/api/admin/model-mapping-policies/options` | `groupId` | 返回 `{ targets: [{ protocol, provider }] }`，仅包含本组现有平台声明支持的原生协议 |
+| `POST` | `/api/admin/model-mapping-policies/create` | `{ groupId, enabled, remark?, mappings }` | 创建策略 |
+| `POST` | `/api/admin/model-mapping-policies/update` | `{ id, expectedRevision, enabled, remark?, mappings }` | 原子替换全部条目 |
+| `POST` | `/api/admin/model-mapping-policies/enable` | `{ id, expectedRevision }` | 启用并校验当前协议能力 |
+| `POST` | `/api/admin/model-mapping-policies/disable` | `{ id, expectedRevision }` | 停用，后续请求恢复原有路由 |
+| `POST` | `/api/admin/model-mapping-policies/delete` | `{ id, expectedRevision }` | 删除策略与条目 |
+| `POST` | `/api/admin/model-mapping-policies/preview` | `{ groupId, policyId?, revision?, enabled, mappings, clientKeyId, protocol, requestedModel }` | 用草稿替换当前分组策略，按该 Key 的真实授权范围编译路由，不发送请求 |
+
+策略返回 `id`、`groupId`、`groupName`、`enabled`、`remark`、`revision`、`mappings`、创建与更新时间及其 `Display` 字段。
+写入返回 `{ id, record, configRevision }`，删除时 `record=null`。`revision` 是策略自己的编辑版本，过期写入返回 `409`，不能用全局 `configRevision` 替代
+
+每条 `mappings` 必填 `protocol`、`requestedModel`、`routeModel`、`targetProvider`。
+协议取值是 `openai`（Responses）、`openai-chat`（Chat Completions）、`anthropic`（Messages）；入口协议、配置协议与目标平台实际调用协议必须相同。
+OpenAI 声明原生 Responses，DeepSeek 声明三种原生协议；xAI 的协议转换适配不作为同协议映射目标。
+请求与路由模型均是具体 ID，区分大小写，不接受空值、`all`、通配符或逗号列表；同策略内的 `protocol + requestedModel` 唯一。
+可输入目录尚未发现的目标模型 ID，仍须满足目标平台原生协议能力；目录已明确声明不支持该协议的模型不能保存。
+映射请求名不能与插件显式别名冲突
+
+只有 Key 明确关联的启用分组参与匹配，未绑定分组的 Key 不继承所有策略。
+同协议同请求名在多个分组命中相同平台和模型时，合并这些分组的账号；目标不同时返回冲突。
+命中后只映射一次，不再套用全局映射或其他条目，不跨分组借用账号，不因目标不可用自动更换模型。
+账号模型限制按路由模型执行；未命中的协议不借用同名条目。策略不是模型白名单，未命中的请求沿用原路由
+
+预览返回 `{ configRevision, modelMapping, targets: [{ provider, routeModel }] }`；未命中映射时 `modelMapping=null`。
+预览检查当前 Key 授权、协议、模型限制和配置冲突，不承诺实时额度、并发或上游可用性。
+分组删除会一并删除策略；历史请求保留命中时的映射信息。Images、Search 不使用该文本模型映射
 
 ## 7. Client Key
 
@@ -1930,6 +1965,11 @@ OpenAI 优先采用服务端 `openai-model` / `x-openai-model` 报告（流内�
 
 请求记录按模型执行 ID 或上游 ID 查询；只有入口 ID 时需结合时间与入口日志定位。
 请求记录和错误列表支持按密钥名称搜索，不支持密钥值或可见前缀搜索
+
+管理员请求明细与错误记录的 `modelMapping` 保存请求发生时的映射，未映射时为 `null`。
+字段包含 `source`（`group`、`global`、`extension`）、`protocol`、`requestedModel`、`routeModel`、`targetProvider` 和 `policies`。
+全局映射不固定平台时 `targetProvider=null`；分组映射的 `policies` 保存策略 ID、版本、分组 ID 与名称，后续编辑或删除不重写历史。
+Key 用量接口仅公开 `modelMapped` 布尔值，不暴露内部策略与分组信息
 
 ### 记录范围与统计口径
 

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import type { OpsError } from '@/api'
-
 import { ZButton, ZDialog } from '@codex-proxy/ui'
+
 import { computed } from 'vue'
+import UsageMappingDetails from '@/components/usage/UsageMappingDetails.vue'
 import { failureClassText } from '../utils/opsErrorPresentation'
 import RequestDiagnosticsPanel from './RequestDiagnosticsPanel.vue'
 import UsageDetailCodePanel from './UsageDetailCodePanel.vue'
@@ -161,6 +162,7 @@ function visibleFields(items: DetailField[]) {
             路由与模型
           </h3>
           <UsageDetailFieldGrid :items="routeFields" />
+          <UsageMappingDetails v-if="record.modelMapping" class="mt-3" :mapping="record.modelMapping" expanded />
         </section>
       </div>
 

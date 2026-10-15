@@ -1061,6 +1061,11 @@ where
                 .with_request_policy(self.request_policy.clone())
                 .with_execution_effects(self.execution_effects.as_ref().map(Arc::clone))
                 .with_upstream_adapters(self.upstream_adapters.clone())
+                .with_required_native_protocol(
+                    self.plan
+                        .model_mapping()
+                        .is_some_and(|mapping| mapping.source == "group"),
+                )
                 .with_requested_model(self.requested_model.clone())
                 .with_middleware(
                     self.middleware.clone(),

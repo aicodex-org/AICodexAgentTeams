@@ -86,6 +86,7 @@ pub struct ImageBillingView {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UsageListRecordView {
+    pub model_mapping: Option<gateway_core::routing::ModelMappingTrace>,
     pub client_api_key_name: Option<String>,
     pub id: String,
     pub provider: Option<String>,
@@ -123,6 +124,7 @@ pub struct UsageListRecordView {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UsageRecordView {
+    pub model_mapping: Option<gateway_core::routing::ModelMappingTrace>,
     pub id: String,
     pub request_id: String,
     pub client_api_key_id: Option<String>,
@@ -791,6 +793,7 @@ pub struct DiagnosticsView {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OpsErrorView {
+    pub model_mapping: Option<gateway_core::routing::ModelMappingTrace>,
     pub client_api_key_name: Option<String>,
     pub id: String,
     pub request_id: Option<String>,

@@ -81,6 +81,15 @@ export interface UsageRecordMetadata {
   [key: string]: unknown
 }
 
+export interface UsageModelMapping {
+  source: 'group' | 'global' | 'extension'
+  protocol: string
+  requestedModel: string
+  routeModel: string
+  targetProvider: string | null
+  policies: { policyId: string, policyRevision: number, groupId: string, groupName: string }[]
+}
+
 export interface UsageListRecord {
   clientApiKeyName: string | null
   id: string
@@ -95,6 +104,7 @@ export interface UsageListRecord {
   route: string
   model: string | null
   requestedModel: string | null
+  modelMapping?: UsageModelMapping | null
   upstreamModel: string | null
   upstreamResponseModel: string | null
   serviceTier: string | null
@@ -128,6 +138,7 @@ export interface UsageRecord {
   route: string
   model: string | null
   requestedModel: string | null
+  modelMapping?: UsageModelMapping | null
   upstreamModel: string | null
   upstreamResponseModel: string | null
   serviceTier: string | null
@@ -299,6 +310,7 @@ export interface OpsError {
   route: string
   model: string | null
   requestedModel: string | null
+  modelMapping?: UsageModelMapping | null
   upstreamModel: string | null
   serviceTier: string | null
   clientStatusCode: number | null

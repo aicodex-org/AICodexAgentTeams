@@ -138,7 +138,12 @@ pub struct ProviderCatalogUnavailable;
 
 /// 快照编译与对账使用的对象安全目录端口
 pub trait ProviderCatalogPort: Send + Sync {
-    /// Provider 原生入口协议；未声明时沿用扩展自身的协议校验
+    /// 实际上游原生协议，未声明时严格映射不可使用该 Provider
+    fn native_protocols(&self, _provider: &ProviderKind) -> BTreeSet<String> {
+        BTreeSet::new()
+    }
+
+    /// Provider 可接受的入口协议，可能通过适配执行；未声明时沿用扩展自身的协议校验
     fn supported_protocols(
         &self,
         _provider: &ProviderKind,

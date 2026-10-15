@@ -57,6 +57,13 @@ pub enum OperationError {
 /// 路由快照或 Route Plan 不满足不变量
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum RoutingError {
+    #[error("group model mapping must specify an exact protocol, model IDs and provider")]
+    InvalidModelMapping,
+    #[error("group model mappings conflict for this protocol and requested model")]
+    ModelMappingConflict,
+    #[error("the mapped provider does not natively support the requested protocol")]
+    ModelMappingProtocolMismatch,
+
     /// 请求设置无法编译
     #[error("runtime settings are invalid")]
     InvalidSettings,

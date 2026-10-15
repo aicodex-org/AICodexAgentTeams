@@ -145,6 +145,7 @@ impl SnapshotAccountGroupMemberFacts {
 /// 一次一致性读取产生的全部 RuntimeSnapshot 持久事实
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SnapshotFacts {
+    group_model_mapping_policies: Vec<super::GroupModelMappingPolicy>,
     config_revision: ConfigRevision,
     observed_current_revision: ConfigRevision,
     settings: SettingsValues,
@@ -155,6 +156,15 @@ pub struct SnapshotFacts {
 }
 
 impl SnapshotFacts {
+    #[must_use]
+    pub fn with_group_model_mapping_policies(
+        mut self,
+        policies: Vec<super::GroupModelMappingPolicy>,
+    ) -> Self {
+        self.group_model_mapping_policies = policies;
+        self
+    }
+
     #[must_use]
     pub fn new(
         config_revision: ConfigRevision,
@@ -168,6 +178,7 @@ impl SnapshotFacts {
         Self {
             config_revision,
             observed_current_revision,
+            group_model_mapping_policies: Vec::new(),
             settings,
             client_policies,
             account_groups,
@@ -380,7 +391,9 @@ async fn compile_runtime_snapshot(
     let mut catalog_accounts = BTreeMap::new();
     let mut exhaustive_provider_catalogs = BTreeSet::new();
     let mut provider_protocols = BTreeMap::new();
+    let mut native_protocols = BTreeMap::new();
     for provider in &provider_kinds {
+        native_protocols.insert(provider.clone(), catalogs.native_protocols(provider));
         if let Some(protocols) = catalogs.supported_protocols(provider) {
             provider_protocols.insert(provider.clone(), protocols);
         }
@@ -444,6 +457,13 @@ async fn compile_runtime_snapshot(
         }
     }
 
+    if facts
+        .group_model_mapping_policies
+        .iter()
+        .any(|policy| !groups.contains_key(&policy.group_id))
+    {
+        return Err(RuntimeSnapshotCompileError::InvalidData);
+    }
     let mut account_groups = BTreeMap::<ProviderAccountId, BTreeSet<AccountGroupId>>::new();
     let mut accounts = BTreeMap::new();
     for account in facts.provider_accounts {
@@ -546,18 +566,23 @@ async fn compile_runtime_snapshot(
         privacy_compiler,
     )
     .map_err(|_| RuntimeSnapshotCompileError::InvalidData)
-    .map(|snapshot| {
+    .and_then(|snapshot| {
         snapshot
             .with_account_directory(account_directory)
             .with_exhaustive_provider_catalogs(exhaustive_provider_catalogs)
             .with_provider_protocols(provider_protocols)
             .with_model_catalog_accounts(catalog_accounts)
+            .with_native_provider_protocols(native_protocols)
+            .with_group_model_mapping_policies(facts.group_model_mapping_policies)
+            .map_err(|_| RuntimeSnapshotCompileError::InvalidData)
     })
 }
 
 /// 数据面使用的不可变配置快照
 #[derive(Debug, Clone)]
 pub struct RuntimeSnapshot {
+    group_model_mapping_policies: Arc<BTreeMap<AccountGroupId, super::GroupModelMappingPolicy>>,
+    native_provider_protocols: Arc<BTreeMap<ProviderKind, BTreeSet<String>>>,
     settings: Arc<CompiledSettings>,
     privacy_compiler: Option<Arc<dyn crate::settings::privacy::PrivacyPolicyCompiler>>,
     extensions: Option<crate::routing::extensions::ExtensionSetReference>,
@@ -575,6 +600,174 @@ pub struct RuntimeSnapshot {
 }
 
 impl RuntimeSnapshot {
+    #[must_use]
+    pub fn with_native_provider_protocols(
+        mut self,
+        protocols: BTreeMap<ProviderKind, BTreeSet<String>>,
+    ) -> Self {
+        self.native_provider_protocols = Arc::new(protocols);
+        self
+    }
+
+    /// 加载只校验结构；目标暂时下线不能阻止整个配置快照发布
+    pub fn with_group_model_mapping_policies(
+        mut self,
+        policies: Vec<super::GroupModelMappingPolicy>,
+    ) -> Result<Self, RoutingError> {
+        let mut by_group = BTreeMap::new();
+        let mut ids = BTreeSet::new();
+        for policy in policies {
+            policy.validate()?;
+            if !ids.insert(policy.id.clone())
+                || by_group.insert(policy.group_id.clone(), policy).is_some()
+            {
+                return Err(RoutingError::InvalidModelMapping);
+            }
+        }
+        self.group_model_mapping_policies = Arc::new(by_group);
+        Ok(self)
+    }
+
+    pub fn group_model_mapping_policies(
+        &self,
+    ) -> impl Iterator<Item = &super::GroupModelMappingPolicy> {
+        self.group_model_mapping_policies.values()
+    }
+
+    /// 编辑器只列出分组当前成员平台明确声明的原生协议
+    #[must_use]
+    pub fn group_model_mapping_targets(
+        &self,
+        group: &AccountGroupId,
+    ) -> Vec<(String, ProviderKind)> {
+        self.account_directory
+            .providers_for_groups([group])
+            .into_iter()
+            .flat_map(|provider| {
+                self.native_provider_protocols
+                    .get(&provider)
+                    .into_iter()
+                    .flatten()
+                    .map(move |protocol| (protocol.clone(), provider.clone()))
+            })
+            .collect()
+    }
+
+    /// 保存时确认原生协议，运行时仍重新核对冻结的同一能力事实
+    pub fn validate_group_model_mapping_policy(
+        &self,
+        policy: &super::GroupModelMappingPolicy,
+    ) -> Result<(), RoutingError> {
+        policy.validate()?;
+        for entry in &policy.mappings {
+            if self.model_alias(&entry.requested_model).is_some() {
+                return Err(RoutingError::InvalidModelMapping);
+            }
+            if !self
+                .native_provider_protocols
+                .get(&entry.target_provider)
+                .is_some_and(|protocols| protocols.contains(&entry.protocol))
+            {
+                return Err(RoutingError::ModelMappingProtocolMismatch);
+            }
+            if let Some(capabilities) =
+                self.provider_models
+                    .get(&entry.target_provider)
+                    .and_then(|models| {
+                        models.iter().find_map(|(id, capabilities)| {
+                            (id.as_str() == entry.route_model).then_some(capabilities)
+                        })
+                    })
+                && !capabilities.supports_protocol(&entry.protocol)
+            {
+                return Err(RoutingError::ModelMappingProtocolMismatch);
+            }
+        }
+        Ok(())
+    }
+
+    /// 原有全局或扩展映射也保留来源，供不使用分组映射的操作记录历史
+    #[must_use]
+    pub fn resolve_legacy_model_mapping(
+        &self,
+        model: &PublicModelId,
+        protocol: &str,
+    ) -> Option<super::ModelMappingTrace> {
+        let (source, target_provider) = if let Some(alias) = self.model_alias(model.as_str()) {
+            ("extension", Some(alias.provider.as_str().to_owned()))
+        } else if self
+            .settings
+            .values
+            .model_mappings
+            .contains_key(model.as_str())
+        {
+            ("global", None)
+        } else {
+            return None;
+        };
+        Some(super::ModelMappingTrace {
+            source: source.to_owned(),
+            protocol: protocol.to_owned(),
+            requested_model: model.as_str().to_owned(),
+            route_model: self.mapped_model(model.as_str()),
+            target_provider,
+            policies: Vec::new(),
+        })
+    }
+
+    /// 只解析匹配事实，失败请求也能保存已命中的映射；账号可用性由计划编译负责
+    pub fn resolve_group_model_mapping(
+        &self,
+        model: &PublicModelId,
+        protocol: &str,
+        scope: &FrozenAccountScope,
+    ) -> Result<Option<super::ModelMappingTrace>, RoutingError> {
+        let Some(groups) = scope.enabled_group_ids() else {
+            return Ok(None);
+        };
+        let mut trace: Option<super::ModelMappingTrace> = None;
+        let names = scope.routing_snapshot();
+        for group in groups {
+            let Some(policy) = self
+                .group_model_mapping_policies
+                .get(group)
+                .filter(|policy| policy.enabled)
+            else {
+                continue;
+            };
+            let Some(entry) = policy.mappings.iter().find(|entry| {
+                entry.protocol == protocol && entry.requested_model == model.as_str()
+            }) else {
+                continue;
+            };
+            if let Some(trace) = &trace
+                && (trace.route_model != entry.route_model
+                    || trace.target_provider.as_deref() != Some(entry.target_provider.as_str()))
+            {
+                return Err(RoutingError::ModelMappingConflict);
+            }
+            let trace = trace.get_or_insert_with(|| super::ModelMappingTrace {
+                source: "group".to_owned(),
+                protocol: protocol.to_owned(),
+                requested_model: model.as_str().to_owned(),
+                route_model: entry.route_model.clone(),
+                target_provider: Some(entry.target_provider.as_str().to_owned()),
+                policies: Vec::new(),
+            });
+            trace.policies.push(super::ModelMappingPolicyRef {
+                policy_id: policy.id.clone(),
+                policy_revision: policy.revision,
+                group_id: group.as_str().to_owned(),
+                group_name: names
+                    .groups_snapshot()
+                    .iter()
+                    .find(|candidate| candidate.id() == group)
+                    .map_or_else(String::new, |group| group.name().to_owned()),
+            });
+        }
+        Ok(trace)
+    }
+
     /// 设置事实与编译结果共享快照寿命，读取时不从执行策略反向拼装
     #[must_use]
     pub fn settings(&self) -> &SettingsValues {
@@ -656,6 +849,12 @@ impl RuntimeSnapshot {
                     .values()
                     .any(|target| target == alias.id.as_str())
                 && self.model_alias(alias.target.as_str()).is_none()
+                && !self.group_model_mapping_policies.values().any(|policy| {
+                    policy
+                        .mappings
+                        .iter()
+                        .any(|entry| entry.requested_model == alias.id.as_str())
+                })
                 && !self.provider_models.values().any(|models| {
                     models
                         .keys()
@@ -781,6 +980,8 @@ impl RuntimeSnapshot {
             provider_catalog_generations: Arc::new(BTreeMap::new()),
             exhaustive_provider_catalogs: Arc::new(exhaustive_provider_catalogs),
             provider_protocols: Arc::default(),
+            native_provider_protocols: Arc::default(),
+            group_model_mapping_policies: Arc::default(),
             model_catalog_accounts: Arc::default(),
             account_directory: Arc::new(RuntimeAccountDirectory::default()),
             client_policies: Arc::new(client_policy_map),
@@ -879,6 +1080,129 @@ impl RuntimeSnapshot {
         models.into_iter().collect()
     }
 
+    /// 协议目录沿用同一映射解析和严格账号交集，冲突条目不向客户端公布
+    #[must_use]
+    pub fn mapped_model_for_protocol_provider(
+        &self,
+        model: &PublicModelId,
+        provider: &ProviderKind,
+        protocol: &str,
+        scope: &FrozenAccountScope,
+    ) -> Option<String> {
+        match self
+            .resolve_group_model_mapping(model, protocol, scope)
+            .ok()?
+        {
+            Some(mapping) => {
+                if mapping.target_provider.as_deref() != Some(provider.as_str())
+                    || !self
+                        .native_provider_protocols
+                        .get(provider)
+                        .is_some_and(|protocols| protocols.contains(protocol))
+                {
+                    return None;
+                }
+                let groups = mapping
+                    .policies
+                    .iter()
+                    .map(|policy| AccountGroupId::new(policy.group_id.clone()))
+                    .collect::<Result<BTreeSet<_>, _>>()
+                    .ok()?;
+                let restricted = scope.restricted_to_groups(&groups, provider);
+                if !self.catalog_upstream_model_allowed_for_scope(
+                    provider,
+                    &mapping.route_model,
+                    &restricted,
+                ) {
+                    return None;
+                }
+                let capabilities = self.provider_models.get(provider).and_then(|models| {
+                    models.iter().find_map(|(id, capabilities)| {
+                        (id.as_str() == mapping.route_model).then_some(capabilities)
+                    })
+                });
+                if capabilities.is_some_and(|caps| !caps.supports_protocol(protocol))
+                    || (capabilities.is_none()
+                        && self.exhaustive_provider_catalogs.contains(provider))
+                {
+                    return None;
+                }
+                Some(mapping.route_model)
+            }
+            None => {
+                if !self.provider_supports_protocol(provider, protocol)
+                    || !self.contains_public_model_for_provider(model, provider)
+                    || !self.catalog_model_allowed_for_scope(provider, model, scope)
+                {
+                    return None;
+                }
+                Some(self.mapped_model(model.as_str()))
+            }
+        }
+    }
+
+    #[must_use]
+    pub fn public_models_for_protocol_provider(
+        &self,
+        provider: &ProviderKind,
+        protocol: &str,
+        scope: &FrozenAccountScope,
+    ) -> Vec<PublicModelId> {
+        let mut models: BTreeSet<_> = self
+            .public_models_for_provider(provider)
+            .into_iter()
+            .collect();
+        if let Some(groups) = scope.enabled_group_ids() {
+            for group in groups {
+                if let Some(policy) = self
+                    .group_model_mapping_policies
+                    .get(group)
+                    .filter(|policy| policy.enabled)
+                {
+                    models.extend(
+                        policy
+                            .mappings
+                            .iter()
+                            .filter(|entry| entry.protocol == protocol)
+                            .filter_map(|entry| {
+                                PublicModelId::new(entry.requested_model.clone()).ok()
+                            }),
+                    );
+                }
+            }
+        }
+        models
+            .into_iter()
+            .filter(|model| {
+                self.mapped_model_for_protocol_provider(model, provider, protocol, scope)
+                    .is_some()
+            })
+            .collect()
+    }
+
+    #[must_use]
+    pub fn public_model_profiles_for_protocol_provider(
+        &self,
+        provider: &ProviderKind,
+        protocol: &str,
+        scope: &FrozenAccountScope,
+    ) -> Vec<super::PublicModelProfile> {
+        let Some(presentations) = self.provider_model_presentations.get(provider) else {
+            return Vec::new();
+        };
+        self.public_models_for_protocol_provider(provider, protocol, scope)
+            .into_iter()
+            .filter_map(|model| {
+                let target =
+                    self.mapped_model_for_protocol_provider(&model, provider, protocol, scope)?;
+                let presentation = presentations.iter().find_map(|(id, presentation)| {
+                    (id.as_str() == target).then_some(presentation.clone())
+                })?;
+                Some(super::PublicModelProfile::new(model, presentation))
+            })
+            .collect()
+    }
+
     /// 返回 Provider 已明确声明画像的公开模型；没有画像时不猜测 Provider 语义
     #[must_use]
     pub fn public_model_profiles_for_provider(
@@ -933,7 +1257,7 @@ impl RuntimeSnapshot {
     /// 合并冻结账号范围内实际存在 Provider 的公开模型
     #[must_use]
     pub fn public_models_for_scope(&self, scope: &FrozenAccountScope) -> Vec<PublicModelId> {
-        scope
+        let mut models: BTreeSet<_> = scope
             .provider_kinds()
             .iter()
             .flat_map(|provider| {
@@ -941,9 +1265,17 @@ impl RuntimeSnapshot {
                     .into_iter()
                     .filter(|model| self.catalog_model_allowed_for_scope(provider, model, scope))
             })
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect()
+            .collect();
+        for provider in scope.provider_kinds() {
+            for protocol in [
+                crate::operation::OPENAI_RESPONSES,
+                crate::operation::OPENAI_CHAT,
+                crate::operation::ANTHROPIC_MESSAGES,
+            ] {
+                models.extend(self.public_models_for_protocol_provider(provider, protocol, scope));
+            }
+        }
+        models.into_iter().collect()
     }
 
     /// 合并冻结账号范围内实际存在 Provider 的公开模型画像
@@ -1001,8 +1333,16 @@ impl RuntimeSnapshot {
         scope: &FrozenAccountScope,
     ) -> bool {
         scope.provider_kinds().iter().any(|provider| {
-            self.contains_public_model_for_provider(public_model, provider)
-                && self.catalog_model_allowed_for_scope(provider, public_model, scope)
+            [
+                crate::operation::OPENAI_RESPONSES,
+                crate::operation::OPENAI_CHAT,
+                crate::operation::ANTHROPIC_MESSAGES,
+            ]
+            .into_iter()
+            .any(|protocol| {
+                self.mapped_model_for_protocol_provider(public_model, provider, protocol, scope)
+                    .is_some()
+            })
         })
     }
 
@@ -1013,16 +1353,25 @@ impl RuntimeSnapshot {
         scope: &FrozenAccountScope,
     ) -> bool {
         let upstream_model = self.mapped_model(public_model.as_str());
+        self.catalog_upstream_model_allowed_for_scope(provider, &upstream_model, scope)
+    }
+
+    fn catalog_upstream_model_allowed_for_scope(
+        &self,
+        provider: &ProviderKind,
+        upstream_model: &str,
+        scope: &FrozenAccountScope,
+    ) -> bool {
         match self
             .model_catalog_accounts
             .get(provider)
-            .and_then(|models| models.get(&upstream_model))
+            .and_then(|models| models.get(upstream_model))
         {
             Some(accounts) => accounts.iter().any(|account| {
                 scope.account_provider(account) == Some(provider)
-                    && scope.allows_model(account, &upstream_model)
+                    && scope.allows_model(account, upstream_model)
             }),
-            None => scope.allows_provider_model(provider, &upstream_model),
+            None => scope.allows_provider_model(provider, upstream_model),
         }
     }
 
@@ -1095,7 +1444,18 @@ impl RuntimeSnapshot {
         account_scope: Arc<FrozenAccountScope>,
         context: &RoutingContext,
     ) -> Result<RoutingPlan, RoutingError> {
-        self.plan_inner(public_model, operation, account_scope, context, true)
+        self.plan_inner(public_model, operation, account_scope, context, true, true)
+    }
+
+    /// 原始请求已判定不命中分组策略，插件改名后仅继续全局映射和显式别名解析
+    pub(crate) fn plan_after_model_route(
+        &self,
+        public_model: &PublicModelId,
+        operation: &Operation,
+        account_scope: Arc<FrozenAccountScope>,
+        context: &RoutingContext,
+    ) -> Result<RoutingPlan, RoutingError> {
+        self.plan_inner(public_model, operation, account_scope, context, true, false)
     }
 
     /// 管理探测已固定目标账号，不使用数据面 Key 的账号模型政策裁决探测资格
@@ -1111,6 +1471,7 @@ impl RuntimeSnapshot {
             self.all_account_scope(),
             context,
             false,
+            false,
         )
     }
 
@@ -1121,7 +1482,40 @@ impl RuntimeSnapshot {
         account_scope: Arc<FrozenAccountScope>,
         context: &RoutingContext,
         enforce_account_model_policy: bool,
+        apply_group_mappings: bool,
     ) -> Result<RoutingPlan, RoutingError> {
+        let model_mapping = if apply_group_mappings
+            && matches!(operation.kind(), OperationKind::Generate)
+        {
+            self.resolve_group_model_mapping(public_model, operation.protocol(), &account_scope)?
+        } else {
+            None
+        };
+        let account_scope = if let Some(mapping) = &model_mapping {
+            let provider = ProviderKind::new(
+                mapping
+                    .target_provider
+                    .clone()
+                    .ok_or(RoutingError::InvalidModelMapping)?,
+            )
+            .map_err(|_| RoutingError::InvalidModelMapping)?;
+            if !self
+                .native_provider_protocols
+                .get(&provider)
+                .is_some_and(|protocols| protocols.contains(operation.protocol()))
+            {
+                return Err(RoutingError::ModelMappingProtocolMismatch);
+            }
+            let groups = mapping
+                .policies
+                .iter()
+                .map(|policy| AccountGroupId::new(policy.group_id.clone()))
+                .collect::<Result<BTreeSet<_>, _>>()
+                .map_err(|_| RoutingError::InvalidModelMapping)?;
+            Arc::new(account_scope.restricted_to_groups(&groups, &provider))
+        } else {
+            account_scope
+        };
         let requirements = operation.capability_requirements();
         let mut candidates = Vec::new();
         let mut unlisted_candidates = Vec::new();
@@ -1138,9 +1532,15 @@ impl RuntimeSnapshot {
             if !self.providers.contains(provider) {
                 continue;
             }
-            if self
-                .model_alias(public_model.as_str())
-                .is_some_and(|alias| &alias.provider != provider)
+            if model_mapping.as_ref().is_some_and(|mapping| {
+                mapping.target_provider.as_deref() != Some(provider.as_str())
+            }) {
+                continue;
+            }
+            if model_mapping.is_none()
+                && self
+                    .model_alias(public_model.as_str())
+                    .is_some_and(|alias| &alias.provider != provider)
             {
                 continue;
             }
@@ -1156,12 +1556,16 @@ impl RuntimeSnapshot {
                 continue;
             }
             let requested_model = public_model.as_str();
-            let mapped_model = self.mapped_model(requested_model);
-            let upstream_model = if self
-                .settings
-                .values
-                .model_mappings
-                .contains_key(requested_model)
+            let mapped_model = model_mapping.as_ref().map_or_else(
+                || self.mapped_model(requested_model),
+                |mapping| mapping.route_model.clone(),
+            );
+            let upstream_model = if model_mapping.is_some()
+                || self
+                    .settings
+                    .values
+                    .model_mappings
+                    .contains_key(requested_model)
                 || self.model_alias(requested_model).is_some()
             {
                 UpstreamModelId::new(mapped_model)
@@ -1213,6 +1617,11 @@ impl RuntimeSnapshot {
         candidates.extend(unlisted_candidates);
 
         if candidates.is_empty() {
+            if model_mapping.is_some() {
+                return Err(RoutingError::NoCapableProvider {
+                    model: public_model.as_str().to_owned(),
+                });
+            }
             // 模型存在性必须包含被请求路由限制排除的 Provider；目录未知时不能断言模型不存在
             let mut scoped_providers = providers.intersection(&self.providers).peekable();
             if scoped_providers.peek().is_some()
@@ -1231,7 +1640,10 @@ impl RuntimeSnapshot {
             });
         }
 
+        let model_mapping = model_mapping
+            .or_else(|| self.resolve_legacy_model_mapping(public_model, operation.protocol()));
         Ok(RoutingPlan {
+            model_mapping,
             config_revision: self.revision,
             pricing: Arc::clone(&self.settings.values.pricing),
             request_location: self.settings.request_location.clone(),
@@ -1317,6 +1729,7 @@ impl RuntimeSnapshot {
             account_scope: Arc::clone(&account_scope),
         };
         Ok(RoutingPlan {
+            model_mapping: None,
             config_revision: self.revision,
             pricing: Arc::clone(&self.settings.values.pricing),
             request_location: self.settings.request_location.clone(),

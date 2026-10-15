@@ -3,6 +3,7 @@ import type { PluginManagementView } from '@/api'
 
 import { ZIconButton, ZMotionIcon, ZScrollbar } from '@codex-proxy/ui'
 import {
+  ArrowRightLeft,
   ArrowUpCircle,
   Blocks,
   ChartNoAxesColumn,
@@ -73,6 +74,7 @@ const navItems = [
   { label: '账号管理', icon: Users, path: '/accounts' },
   { label: '代理管理', icon: Network, path: '/proxies' },
   { label: '分组管理', icon: FolderTree, path: '/groups' },
+  { label: '模型映射', icon: ArrowRightLeft, path: '/model-mappings' },
   { label: 'API 密钥', icon: KeyRound, path: '/keys' },
   { label: '使用统计', icon: ChartNoAxesColumn, path: '/usage' },
   { label: '系统插件', icon: Puzzle, path: '/plugins' },

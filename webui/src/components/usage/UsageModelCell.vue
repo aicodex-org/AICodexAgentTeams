@@ -5,6 +5,7 @@ import { CornerDownRight } from '@lucide/vue'
 
 import { computed } from 'vue'
 import { usageModelDisplay } from './shared/presenter'
+import UsageMappingDetails from './UsageMappingDetails.vue'
 
 const props = defineProps<{
   record: UsageListRecord
@@ -15,6 +16,7 @@ const modelDisplay = computed(() => usageModelDisplay(props.record))
 
 <template>
   <div class="inline-grid max-w-full gap-1">
+    <UsageMappingDetails v-if="record.modelMapping" :mapping="record.modelMapping" />
     <code
       class="block max-w-full truncate font-mono text-cp-sm leading-none font-heavy text-cp-text"
       :title="`请求模型：${modelDisplay.primary}`"

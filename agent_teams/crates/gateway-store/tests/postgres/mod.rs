@@ -26,6 +26,8 @@ mod control_plane;
 mod execution;
 mod execution_buffer;
 mod health;
+mod model_mapping_observation;
+mod model_mappings;
 mod observability;
 mod ops_events;
 mod plugins;

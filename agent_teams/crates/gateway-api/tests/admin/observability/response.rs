@@ -509,6 +509,7 @@ async fn ops_errors_should_keep_account_label_and_authentication_contract() {
         .lock()
         .expect("ops errors")
         .push(OpsError {
+            model_mapping: None,
             client_api_key_name: Some("Production".to_owned()),
             source: "model_request".to_owned(),
             event_id: "err_snapshot".to_owned(),
@@ -718,6 +719,7 @@ fn usage_record_with_account(
     use gateway_admin::model::observability::{RequestOutcome, UsageRecord};
 
     UsageRecord {
+        model_mapping: None,
         id: id.to_owned(),
         client_api_key_ref: "key_detail".to_owned(),
         config_revision: 1,
@@ -858,6 +860,7 @@ async fn usage_route_should_expose_table_facts_without_detail_payload() {
         .lock()
         .expect("usage records")
         .push(UsageListRecord {
+            model_mapping: None,
             client_api_key_name: Some("Production".to_owned()),
             id: "request_endpoint".to_owned(),
             endpoint: "/v1/responses".to_owned(),

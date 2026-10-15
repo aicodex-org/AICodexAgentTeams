@@ -32,3 +32,5 @@ use credential_mutation::{
 };
 use error::{map_provider_error, map_store_error};
 use publication::publish_committed;
+
+pub mod model_mappings;

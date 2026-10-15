@@ -799,6 +799,7 @@ impl ExecutionObservationWrite {
                 rejection.error.client_error_code(),
                 rejection.error.client_error_type(),
             ])
+            .saturating_add(model_mapping_bytes(rejection.model_mapping.as_ref()))
             .saturating_add(size_of::<EntryRejection>())
             .saturating_add(gateway_core::error::ErrorSource::estimated_chain_bytes(
                 std::error::Error::source(&rejection.error),
@@ -896,20 +897,42 @@ impl ExecutionObservationWrite {
 }
 
 fn new_request_bytes(request: &NewModelRequest) -> usize {
-    size_of::<NewModelRequest>().saturating_add(text_bytes([
-        Some(request.id.as_str()),
-        request.client_api_key_name_snapshot.as_deref(),
-        Some(request.client_api_key_ref.as_str()),
-        Some(request.protocol.as_str()),
-        Some(request.endpoint.as_str()),
-        Some(request.client_transport.as_str()),
-        request.requested_model.as_ref().map(|model| model.as_str()),
-        request.user_agent.as_deref(),
-        request.reasoning_effort.as_deref(),
-        request.reasoning_preset.as_deref(),
-        request.request_kind.as_deref(),
-        request.subagent_kind.as_deref(),
-    ]))
+    size_of::<NewModelRequest>()
+        .saturating_add(model_mapping_bytes(request.model_mapping.as_ref()))
+        .saturating_add(text_bytes([
+            Some(request.id.as_str()),
+            request.client_api_key_name_snapshot.as_deref(),
+            Some(request.client_api_key_ref.as_str()),
+            Some(request.protocol.as_str()),
+            Some(request.endpoint.as_str()),
+            Some(request.client_transport.as_str()),
+            request.requested_model.as_ref().map(|model| model.as_str()),
+            request.user_agent.as_deref(),
+            request.reasoning_effort.as_deref(),
+            request.reasoning_preset.as_deref(),
+            request.request_kind.as_deref(),
+            request.subagent_kind.as_deref(),
+        ]))
+}
+
+fn model_mapping_bytes(mapping: Option<&gateway_core::routing::ModelMappingTrace>) -> usize {
+    mapping.map_or(0, |mapping| {
+        text_bytes([
+            Some(mapping.source.as_str()),
+            Some(mapping.protocol.as_str()),
+            Some(mapping.requested_model.as_str()),
+            Some(mapping.route_model.as_str()),
+            mapping.target_provider.as_deref(),
+        ])
+        .saturating_add(mapping.policies.iter().fold(0usize, |size, policy| {
+            size.saturating_add(size_of::<gateway_core::routing::ModelMappingPolicyRef>())
+                .saturating_add(text_bytes([
+                    Some(policy.policy_id.as_str()),
+                    Some(policy.group_id.as_str()),
+                    Some(policy.group_name.as_str()),
+                ]))
+        }))
+    })
 }
 
 fn attempt_bytes(attempt: &AttemptRecord) -> usize {

@@ -272,6 +272,7 @@ pub(crate) fn usage_list_record_view(
         .clone()
         .or_else(|| record.requested_model_id.clone());
     UsageListRecordView {
+        model_mapping: record.model_mapping,
         client_api_key_name: record.client_api_key_name,
         id: record.id,
         provider: record.provider_kind,
@@ -372,6 +373,7 @@ pub(crate) fn usage_record_view(
         .or_else(|| record.requested_model_id.clone());
     let metadata = provider_metadata_fields(record.provider_metadata_json.as_deref());
     UsageRecordView {
+        model_mapping: record.model_mapping,
         id: record.id.clone(),
         request_id: record.id,
         client_api_key_id: Some(record.client_api_key_ref),
@@ -588,6 +590,7 @@ pub(crate) fn ops_error_view(
         .clone()
         .or_else(|| error.requested_model_id.clone());
     OpsErrorView {
+        model_mapping: error.model_mapping,
         client_api_key_name: error.client_api_key_name,
         id: error.event_id,
         request_id: error.request_id,

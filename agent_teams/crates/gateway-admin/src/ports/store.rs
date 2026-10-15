@@ -548,6 +548,7 @@ pub struct AdminAccountStorePorts {
     accounts: Arc<dyn AccountStore>,
     runtime: Arc<dyn AccountRuntimeStore>,
     groups: Arc<dyn AccountGroupStore>,
+    model_mappings: Arc<dyn super::model_mappings::ModelMappingStore>,
     proxies: Arc<dyn super::proxy::ProxyStore>,
 }
 
@@ -557,12 +558,14 @@ impl AdminAccountStorePorts {
         accounts: Arc<dyn AccountStore>,
         runtime: Arc<dyn AccountRuntimeStore>,
         groups: Arc<dyn AccountGroupStore>,
+        model_mappings: Arc<dyn super::model_mappings::ModelMappingStore>,
         proxies: Arc<dyn super::proxy::ProxyStore>,
     ) -> Self {
         Self {
             accounts,
             runtime,
             groups,
+            model_mappings,
             proxies,
         }
     }
@@ -638,6 +641,11 @@ impl AdminStorePorts {
     #[must_use]
     pub fn account_runtime(&self) -> Arc<dyn AccountRuntimeStore> {
         self.accounts.runtime.clone()
+    }
+
+    #[must_use]
+    pub fn model_mappings(&self) -> Arc<dyn super::model_mappings::ModelMappingStore> {
+        self.accounts.model_mappings.clone()
     }
 
     #[must_use]

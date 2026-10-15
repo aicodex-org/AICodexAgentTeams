@@ -55,6 +55,11 @@ export const routes: RouteRecordRaw[] = [
         component: () => import('@/views/groups/index.vue'),
       },
       {
+        path: 'model-mappings',
+        name: 'model-mappings',
+        component: () => import('@/views/model-mappings/index.vue'),
+      },
+      {
         path: 'keys',
         name: 'keys',
         component: () => import('@/views/keys/index.vue'),

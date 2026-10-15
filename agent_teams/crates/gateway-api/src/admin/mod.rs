@@ -17,6 +17,7 @@ pub mod backups;
 pub mod client_keys;
 pub(crate) mod diagnostics;
 mod extract;
+pub mod model_mappings;
 pub mod observability;
 mod plugins;
 pub mod presenter;
@@ -43,6 +44,7 @@ where
 {
     Router::new()
         .merge(account_groups::router::<S>())
+        .merge(model_mappings::router::<S>())
         .merge(proxies::router::<S>())
         .merge(plugins::router::<S>())
         .merge(accounts::router::<S>())

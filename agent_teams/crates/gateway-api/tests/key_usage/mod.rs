@@ -276,6 +276,7 @@ async fn records_keep_pagination_and_hide_admin_and_upstream_data() {
                 "createdAt",
                 "createdAtDisplay",
                 "model",
+                "modelMapped",
                 "route",
                 "reasoningEffort",
                 "clientTransport",
@@ -501,5 +502,35 @@ async fn namespace_errors_remain_json_and_uncacheable() {
         assert_eq!(response.status(), status);
         assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
         assert!(response_json(response).await["code"].is_number());
+    }
+}
+
+#[tokio::test]
+async fn mapped_usage_marks_mapping_without_exposing_internal_targets() {
+    let fixture = fixtures::fixture().await;
+    let mapping = gateway_core::routing::ModelMappingTrace {
+        source: "group".to_owned(),
+        protocol: "openai".to_owned(),
+        requested_model: "coding".to_owned(),
+        route_model: "private-mapped-model".to_owned(),
+        target_provider: Some("private-provider".to_owned()),
+        policies: vec![gateway_core::routing::ModelMappingPolicyRef {
+            policy_id: "private-policy".to_owned(),
+            policy_revision: 2,
+            group_id: "private-group".to_owned(),
+            group_name: "private-group-name".to_owned(),
+        }],
+    };
+    fixture.usage_records.lock().unwrap()[0].model_mapping = Some(mapping.clone());
+    fixture.ops_errors.lock().unwrap()[0].model_mapping = Some(mapping);
+    let app = crate::openai::api_router_with_admin(fixture.services.clone());
+    let cookie = login(&app, "key").await;
+    for kind in ["success", "error"] {
+        let response = get(&app, "records", &format!("&kind={kind}"), &cookie).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let data = response_json(response).await;
+        assert_eq!(data["data"]["items"][0]["modelMapped"], true);
+        assert!(!data.to_string().contains("private-"));
+        assert!(data["data"]["items"][0].get("modelMapping").is_none());
     }
 }

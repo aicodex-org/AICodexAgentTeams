@@ -45,6 +45,10 @@ pub(crate) fn not_sent(kind: ProviderErrorKind) -> ProviderError {
 }
 #[async_trait]
 impl Provider for DeepSeekProvider {
+    fn native_protocols(&self) -> BTreeSet<String> {
+        PROTOCOLS.into_iter().map(str::to_owned).collect()
+    }
+
     fn name(&self) -> &str {
         "deepseek"
     }

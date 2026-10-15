@@ -36,6 +36,7 @@ use super::{TestDatabase, admin_observability_store, observability_repository};
 fn model_request_rejects_empty_historical_client_key_ref() {
     let started_at = Utc::now();
     let request = NewModelRequest {
+        model_mapping: None,
         admission_decision_ms: None,
         id: "request-1".to_owned(),
         client_api_key_name_snapshot: None,
@@ -140,6 +141,7 @@ async fn merged_model_less_first_attempt_should_match_sequential_semantics() {
     .await
     .expect("seed provider account");
     let request = NewModelRequest {
+        model_mapping: None,
         admission_decision_ms: None,
         id: "req_merged".to_owned(),
         client_api_key_name_snapshot: None,
@@ -255,6 +257,7 @@ async fn model_request_persists_group_routing_snapshot_without_live_group_foreig
     let started_at = Utc::now();
     repository
         .insert_model_request(NewModelRequest {
+            model_mapping: None,
             admission_decision_ms: None,
             id: "req_group_history".to_owned(),
             client_api_key_name_snapshot: None,
@@ -1486,6 +1489,7 @@ pub(super) fn accepted_request(id: &str) -> CoreNewModelRequest {
             .expect("PostgreSQL timestamp precision"),
     );
     CoreNewModelRequest {
+        model_mapping: None,
         id: ModelRequestId::new(id).expect("request id"),
         client_api_key_name_snapshot: None,
         client_api_key_ref: ClientApiKeyId::new("key_zero_attempt").expect("client key ref"),
@@ -2107,9 +2111,18 @@ async fn entry_rejection_is_visible_without_a_fictitious_model_execution() {
     let Some(database) = TestDatabase::create("entry_rejection").await else {
         return;
     };
+    let mapping = gateway_core::routing::ModelMappingTrace {
+        source: "global".into(),
+        protocol: "openai".into(),
+        requested_model: "coding".into(),
+        route_model: "coding".into(),
+        target_provider: None,
+        policies: Vec::new(),
+    };
     let repository = PgExecutionStore::new(database.pool.clone());
     repository
         .record_entry_rejection(gateway_core::engine::EntryRejection {
+            model_mapping: Some(mapping.clone()),
             request_id: ModelRequestId::new("req_entry_rejection").unwrap(),
             client_key_id: ClientApiKeyId::new("key_entry").unwrap(),
             error: GatewayError::new(GatewayErrorKind::NoAvailableProvider, "no route"),
@@ -2132,6 +2145,21 @@ async fn entry_rejection_is_visible_without_a_fictitious_model_execution() {
         .await
         .unwrap();
     assert_eq!(count, 0);
+    let errors = observability_repository(&database.pool)
+        .list_ops_errors(OpsErrorQuery {
+            range: ObservabilityRange::new(
+                Utc::now() - Duration::minutes(1),
+                Utc::now() + Duration::minutes(1),
+            )
+            .unwrap(),
+            filter: OpsErrorFilter::default(),
+            current_page: 1,
+            page_size: ObservabilityPageSize::new(10).unwrap(),
+        })
+        .await
+        .unwrap();
+    assert_eq!(errors.items.len(), 1);
+    assert_eq!(errors.items[0].model_mapping.as_ref(), Some(&mapping));
     database.close().await;
 }
 
@@ -2324,5 +2352,59 @@ async fn concurrent_retry_updates_keep_request_context_and_clear_previous_transp
         terminal["request_observation_json"]["timings"]["upstream"]["responseMs"],
         1_000
     );
+    database.close().await;
+}
+
+#[tokio::test]
+async fn mapped_request_history_survives_failure_and_projects_frozen_mapping() {
+    let Some(database) = TestDatabase::create("mapping_history").await else {
+        return;
+    };
+    let store = PgExecutionStore::new(database.pool.clone());
+    let mut request = accepted_request("req_mapping_history");
+    let mapping = gateway_core::routing::ModelMappingTrace {
+        source: "group".to_owned(),
+        protocol: "openai".to_owned(),
+        requested_model: "coding".to_owned(),
+        route_model: "gpt-test-upstream".to_owned(),
+        target_provider: Some("openai".to_owned()),
+        policies: vec![gateway_core::routing::ModelMappingPolicyRef {
+            policy_id: "policy_historical".to_owned(),
+            policy_revision: 7,
+            group_id: "grp_00000000000000000000000000000007".to_owned(),
+            group_name: "历史开发组".to_owned(),
+        }],
+    };
+    request.model_mapping = Some(mapping.clone());
+    request.routing =
+        AccountRoutingSnapshot::groups(vec![gateway_core::routing::RoutingGroupSnapshot::new(
+            gateway_core::routing::AccountGroupId::new("grp_00000000000000000000000000000007")
+                .unwrap(),
+            "历史开发组".to_owned(),
+        )]);
+    store.create_model_request(request.clone()).await.unwrap();
+    ExecutionStore::finalize_model_request(&store, early_failure(&request))
+        .await
+        .unwrap();
+    let repository = observability_repository(&database.pool);
+    let detail = repository
+        .usage_record_detail(request.id.as_str())
+        .await
+        .unwrap();
+    assert_eq!(detail.request.model_mapping.as_ref(), Some(&mapping));
+    assert_eq!(detail.request.attempt_count, 0);
+    assert_eq!(detail.request.upstream_model_id, None);
+    let row = stored_row(&database.pool, request.id.as_str()).await;
+    assert_eq!(
+        row["request_observation_json"]["routing"]["modelMapping"],
+        serde_json::to_value(&mapping).unwrap()
+    );
+    // 历史只读取请求内的快照，策略与分组即使已不存在也可完整展示
+    let policy_exists: bool = sqlx::query_scalar("select exists(select 1 from account_groups where id='grp_00000000000000000000000000000007')")
+        .fetch_one(&database.pool).await.unwrap();
+    assert!(!policy_exists);
+    let valid: bool = sqlx::query_scalar("select model_request_observation_valid(jsonb_set(request_observation_json, '{routing,modelMapping,protocol}', '\"openai-chat\"'::jsonb)) from model_requests where id=$1")
+        .bind(request.id.as_str()).fetch_one(&database.pool).await.unwrap();
+    assert!(!valid, "历史映射协议必须与请求协议相同");
     database.close().await;
 }
