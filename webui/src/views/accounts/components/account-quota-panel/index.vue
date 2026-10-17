@@ -3,7 +3,7 @@ import type { Account } from '@/api'
 
 import { ZEmpty, ZIconButton } from '@codex-proxy/ui'
 
-import { ChartNoAxesCombined, RefreshCw, UserRound } from '@lucide/vue'
+import { ChartNoAxesCombined, RefreshCw, TicketCheck, UserRound } from '@lucide/vue'
 import { computed, shallowRef, watch } from 'vue'
 import AccountPlanBadge from '@/components/account/AccountPlanBadge.vue'
 import { formatProviderLabel } from '@/utils/providers'
@@ -11,7 +11,6 @@ import { groupedAccountQuotaWindows, orderedPanelQuotaWindows } from '../../cons
 import AccountProfileModal from '../account-profile-modal/index.vue'
 import AccountQuotaForecastModal from '../account-quota-forecast-modal/index.vue'
 import AccountQuotaPanelEntry from './Entry.vue'
-import AccountResetCredits from './ResetCredits.vue'
 
 const props = defineProps<{
   account: Account
@@ -21,7 +20,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   accountUpdated: [account: Account]
   refreshQuota: [accountId: string]
-  quotaReset: [accountId: string]
+  resetCredits: [account: Account]
 }>()
 
 const quotaEntries = computed(() => groupedAccountQuotaWindows(
@@ -68,11 +67,15 @@ watch(hasPersonalInfo, (available) => {
         >
           <UserRound class="size-3.5" />
         </ZIconButton>
-        <AccountResetCredits
+        <ZIconButton
           v-if="account.capabilities.resetCredits"
-          :account="account"
-          @consumed="emit('quotaReset', $event)"
-        />
+          size="small"
+          aria-label="使用限额重置"
+          aria-haspopup="dialog"
+          @click="emit('resetCredits', account)"
+        >
+          <TicketCheck class="size-3.5" />
+        </ZIconButton>
         <ZIconButton
           v-if="hasForecast"
           aria-label="预测周/月额度"

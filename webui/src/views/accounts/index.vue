@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import type { Account } from '@/api'
 import { useTableColumns, ZCard, ZCheckbox, ZConfirmDialog, ZPageHeader, ZPagination, ZTable, ZTableColumnSettings } from '@codex-proxy/ui'
 
 import { ChevronDown } from '@lucide/vue'
-import { defineAsyncComponent, ref } from 'vue'
+import { computed, defineAsyncComponent, ref, shallowRef } from 'vue'
 import AccountPlanBadge from '@/components/account/AccountPlanBadge.vue'
 import AccountGroupMarks from '@/components/AccountGroupMarks.vue'
 import LastUsedAtCell from '@/components/LastUsedAtCell.vue'
@@ -11,6 +12,7 @@ import { useAccountGroupCatalog } from '@/composables/useAccountGroupCatalog'
 import AccountCreateModal from './components/account-create-modal/index.vue'
 import AccountImportTasks from './components/account-import-tasks/index.vue'
 import AccountQuotaPanel from './components/account-quota-panel/index.vue'
+import AccountUsageResetModal from './components/account-quota-panel/ResetCredits.vue'
 import AccountQuotaSummaryCell from './components/account-quota-summary-cell/index.vue'
 import AccountStatusBadge from './components/account-status-badge/index.vue'
 import AccountBatchEditModal from './components/AccountBatchEditModal.vue'
@@ -53,6 +55,17 @@ const {
   handlePageSizeChange,
   handleSortChange,
 } = useAccountsQuery()
+
+const showResetCredits = shallowRef(false)
+const selectedResetAccount = shallowRef<Account | null>(null)
+const resetAccount = computed(() => accounts.value.find(account => account.id === selectedResetAccount.value?.id) ?? selectedResetAccount.value)
+
+function openResetCredits(account: Account) {
+  if (!account.capabilities.resetCredits)
+    return
+  selectedResetAccount.value = account
+  showResetCredits.value = true
+}
 
 const {
   groups,
@@ -340,6 +353,7 @@ const {
                 :refreshing="refreshingAccountIds.has(row.id)"
                 :testing="testingConnectionIds.has(row.id)"
                 :toggling-scheduling="togglingSchedulingAccountIds.has(row.id)"
+                @reset-credits="openResetCredits"
                 @statistics="openStatistics"
                 @edit="openAccountEdit"
                 @delete="requestDeleteAccount"
@@ -358,7 +372,7 @@ const {
                   :account="row"
                   :refreshing="refreshingQuotaAccountIds.has(row.id)"
                   @account-updated="void replaceAccount($event)"
-                  @quota-reset="handleQuotaReset"
+                  @reset-credits="openResetCredits"
                   @refresh-quota="handleRefreshQuota"
                 />
                 <AccountUsagePanel :account="row" />
@@ -374,6 +388,14 @@ const {
         </div>
       </template>
     </ZCard>
+
+    <AccountUsageResetModal
+      v-if="resetAccount"
+      :key="resetAccount.id"
+      v-model="showResetCredits"
+      :account="resetAccount"
+      @consumed="handleQuotaReset"
+    />
 
     <AccountStatisticsModal
       v-if="statisticsAccount"

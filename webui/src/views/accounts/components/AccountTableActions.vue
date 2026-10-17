@@ -3,8 +3,8 @@ import type { Account } from '@/api'
 
 import { ZIconButton, ZMenuItem, ZPopover } from '@codex-proxy/ui'
 
-import { ChartNoAxesCombined, Download, KeyRound, MoreHorizontal, Pencil, Power, RefreshCw, RotateCcw, Trash2, Wifi } from '@lucide/vue'
-import { computed } from 'vue'
+import { ChartNoAxesCombined, Download, KeyRound, MoreHorizontal, Pencil, Power, RefreshCw, RotateCcw, TicketCheck, Trash2, Wifi } from '@lucide/vue'
+import { computed, useTemplateRef } from 'vue'
 
 const props = defineProps<{
   account: Account
@@ -16,6 +16,7 @@ const props = defineProps<{
   togglingScheduling: boolean
 }>()
 const emit = defineEmits<{
+  resetCredits: [account: Account]
   statistics: [account: Account]
   edit: [account: Account]
   delete: [account: Account]
@@ -28,6 +29,14 @@ const emit = defineEmits<{
 }>()
 
 const credentialEligible = computed(() => ['oauth', 'chatgpt_oauth'].includes(props.account.authenticationKind))
+const actionsPopover = useTemplateRef<InstanceType<typeof ZPopover>>('actionsPopover')
+
+function openResetCredits(close: () => void) {
+  close()
+  // 菜单项关闭后会卸载，先聚焦仍存在的入口，让弹窗可以正确归还焦点
+  actionsPopover.value?.focus()
+  emit('resetCredits', props.account)
+}
 </script>
 
 <template>
@@ -49,7 +58,7 @@ const credentialEligible = computed(() => ['oauth', 'chatgpt_oauth'].includes(pr
       <Trash2 class="size-3.5 text-cp-error" />
     </ZIconButton>
 
-    <ZPopover placement="bottom-end">
+    <ZPopover ref="actionsPopover" placement="bottom-end">
       <template #reference="{ open }">
         <ZIconButton size="small" aria-label="更多操作" :pressed="open">
           <MoreHorizontal class="size-4" />
@@ -117,6 +126,12 @@ const credentialEligible = computed(() => ['oauth', 'chatgpt_oauth'].includes(pr
               <Download class="size-3.5 text-cp-text-quaternary" />
             </template>
             下载模型目录
+          </ZMenuItem>
+          <ZMenuItem v-if="account.capabilities.resetCredits" @click.stop="openResetCredits(close)">
+            <template #icon>
+              <TicketCheck class="size-3.5 text-cp-text-quaternary" />
+            </template>
+            使用限额重置
           </ZMenuItem>
           <ZMenuItem
             :loading="recovering"

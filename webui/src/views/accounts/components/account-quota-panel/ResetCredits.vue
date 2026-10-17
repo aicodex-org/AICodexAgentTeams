@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Account, AccountResetCredit } from '@/api'
-import { ZButton, ZDialog, ZEmpty, ZIconButton } from '@codex-proxy/ui'
+import { ZButton, ZDialog, ZEmpty, ZIconButton, ZSegmented } from '@codex-proxy/ui'
 
 import { AlertTriangle, RefreshCw, TicketCheck } from '@lucide/vue'
 import { computed, shallowRef, watch } from 'vue'
@@ -16,9 +16,11 @@ const emit = defineEmits<{
   consumed: [accountId: string]
 }>()
 
-const panelOpen = shallowRef(false)
+const panelOpen = defineModel<boolean>({ default: false })
+const view = shallowRef('available')
 const confirmation = shallowRef<{ credit?: AccountResetCredit, ambiguous: boolean } | null>(null)
 const {
+  credits,
   availableCredits,
   availableCount,
   consumptionCredit,
@@ -46,20 +48,9 @@ const {
 
 const modalTitle = computed(() => {
   if (!confirmation.value)
-    return '额度重置'
+    return '使用限额重置'
   return confirmation.value.ambiguous ? '确认上次重置' : '确认重置额度'
 })
-const triggerLabel = computed(() => {
-  if (ambiguous.value)
-    return '查看主动重置卡，有一项操作待确认'
-  if (loadError.value) {
-    return hasSnapshot.value
-      ? `查看主动重置卡，查询失败，最近查询 ${availableCount.value} 张可用`
-      : '查看主动重置卡，查询失败'
-  }
-  return hasSnapshot.value ? `查看主动重置卡，最近查询 ${availableCount.value} 张可用` : '查看主动重置卡'
-})
-const showTriggerCount = computed(() => hasSnapshot.value && availableCount.value > 0)
 const confirmCreditTitle = computed(() => confirmation.value?.credit
   ? creditTitle(confirmation.value.credit)
   : '使用一次重置（由上游选择）')
@@ -68,25 +59,25 @@ const creditItems = computed(() => availableCredits.value.map(credit => ({
   title: creditTitle(credit),
   expiry: credit.expiresAtDisplay ? `将于 ${credit.expiresAtDisplay} 到期` : '有效期由上游决定',
 })))
-const showCountOnlyAction = computed(() => !loadError.value
+const historyCredits = computed(() => credits.value.filter(credit => credit.status !== 'available'))
+const viewOptions = computed(() => [
+  { label: hasSnapshot.value ? `可用 ${availableCount.value}` : '可用', value: 'available' },
+  { label: '历史记录', value: 'history' },
+])
+const showCountOnlyAction = computed(() => view.value === 'available' && !loadError.value
   && hasSnapshot.value
   && availableCount.value > 0
   && creditItems.value.length === 0)
-const countLabel = computed(() => {
-  if (!hasSnapshot.value)
-    return loading.value ? '查询中' : '待查询'
-  return `可用 ${availableCount.value} 次`
-})
-
 watch(panelOpen, (isOpen) => {
   if (isOpen) {
     confirmation.value = null
+    view.value = 'available'
     void loadCredits()
     return
   }
   if (showConfirm.value)
     cancelConsume()
-})
+}, { immediate: true })
 
 watch(showConfirm, (confirming) => {
   if (panelOpen.value)
@@ -95,6 +86,15 @@ watch(showConfirm, (confirming) => {
 
 function creditTitle(credit: AccountResetCredit | undefined) {
   return credit?.title?.trim() || '用量重置'
+}
+
+function historyStatus(status: string | null) {
+  switch (status) {
+    case 'redeemed': return '已使用'
+    case 'redeeming': return '处理中'
+    case 'expired': return '已过期'
+    default: return status ? `状态：${status}` : '状态未知'
+  }
 }
 
 function handleRequestConsume(creditId: string) {
@@ -106,26 +106,11 @@ function handleRequestConsume(creditId: string) {
 </script>
 
 <template>
-  <button
-    type="button"
-    class="inline-flex shrink-0 touch-manipulation items-center justify-center rounded-cp border-0 bg-transparent text-cp-text-secondary outline-none transition-[background-color,color,opacity,transform] duration-150 hover:bg-cp-fill-quaternary hover:text-cp-text active:bg-cp-fill-tertiary focus-visible:ring-2 focus-visible:ring-cp-control-outline focus-visible:ring-offset-2 focus-visible:ring-offset-cp-bg-container motion-safe:active:scale-[0.96] motion-reduce:transition-none"
-    :class="showTriggerCount ? 'h-cp-control-sm gap-1 px-2' : 'size-cp-control-sm'"
-    :aria-label="triggerLabel"
-    :aria-pressed="panelOpen || undefined"
-    :title="triggerLabel"
-    @click="panelOpen = true"
-  >
-    <TicketCheck class="size-3.5 shrink-0" />
-    <span v-if="showTriggerCount" class="translate-y-px font-mono text-[10px] leading-none font-heavy tabular-nums">
-      x{{ availableCount }}
-    </span>
-  </button>
-
   <ZDialog
     v-model="panelOpen"
     :title="modalTitle"
     :type="confirmation ? 'warning' : 'default'"
-    :width="confirmation ? '28rem' : '36rem'"
+    :width="confirmation ? 'min(28rem, calc(100vw - 2rem))' : 'min(36rem, calc(100vw - 2rem))'"
     :show-close="!consuming" :close-on-click-modal="!consuming" :close-on-press-escape="!consuming"
   >
     <div v-if="confirmation" class="grid gap-3">
@@ -146,7 +131,14 @@ function handleRequestConsume(creditId: string) {
     </div>
 
     <div v-else class="grid gap-4">
-      <UsageLimits :windows="account.quota.windows" />
+      <div class="grid min-w-0 gap-1.5">
+        <p class="m-0 text-cp-sm font-heavy wrap-anywhere text-cp-text">
+          {{ account.name || account.email || account.id }}
+        </p>
+        <p class="m-0 text-cp-xs leading-normal text-cp-text-secondary">
+          使用一次重置，恢复对应的 5 小时限额、每周限额或两者
+        </p>
+      </div>
 
       <section v-if="ambiguous" class="flex items-start gap-3 rounded-cp bg-cp-warning-container px-4 py-3.5" role="status">
         <AlertTriangle class="mt-0.5 size-4 shrink-0 text-cp-warning-on-container" />
@@ -168,19 +160,10 @@ function handleRequestConsume(creditId: string) {
           class="flex items-center gap-3 pt-4 pr-3 pl-4"
           :class="showCountOnlyAction ? 'pb-4' : 'pb-1'"
         >
-          <h3 class="m-0 min-w-0 flex-1 text-cp-sm font-heavy text-cp-text">
-            使用限额重置
-          </h3>
-          <span
-            class="shrink-0 rounded-cp-sm px-2 py-1 text-cp-xs leading-none font-heavy tabular-nums"
-            :class="hasSnapshot && availableCount > 0 ? 'bg-cp-success-container text-cp-success-on-container' : 'bg-cp-fill-tertiary text-cp-text-secondary'"
-            role="status"
-          >
-            {{ countLabel }}
-          </span>
+          <ZSegmented v-model="view" class="min-w-0 flex-1" size="small" aria-label="重置额度列表" :options="viewOptions" :disabled="consuming" />
           <ZIconButton
             size="small"
-            aria-label="刷新主动重置卡"
+            aria-label="刷新重置额度"
             :loading="loading"
             :disabled="loading || consuming"
             @click="loadCredits"
@@ -207,11 +190,32 @@ function handleRequestConsume(creditId: string) {
           >
             正在查询可用重置次数…
           </p>
+          <ul v-else-if="view === 'history' && historyCredits.length" class="m-0 list-none px-0 pt-0 pb-1">
+            <li v-for="credit in historyCredits" :key="credit.id" class="flex flex-wrap items-center gap-3 px-4 py-3">
+              <div class="min-w-0 flex-1">
+                <p class="m-0 text-cp-sm font-heavy wrap-anywhere text-cp-text">
+                  {{ creditTitle(credit) }}
+                </p>
+                <p class="mt-1 mb-0 text-cp-xs leading-normal wrap-anywhere text-cp-text-secondary">
+                  {{ credit.expiresAtDisplay ? `到期时间 ${credit.expiresAtDisplay}` : '上游未提供到期时间' }}
+                </p>
+              </div>
+              <span class="text-cp-xs wrap-anywhere text-cp-text-secondary">{{ historyStatus(credit.status) }}</span>
+            </li>
+          </ul>
+          <ZEmpty
+            v-else-if="view === 'history'"
+            :icon="TicketCheck"
+            size="small"
+            surface="none"
+            title="暂无重置历史记录"
+            description="仅展示上游返回的记录"
+          />
           <ul v-else-if="creditItems.length" class="m-0 list-none px-0 pt-0 pb-1">
             <li
               v-for="credit in creditItems"
               :key="credit.id"
-              class="flex items-center gap-4 px-4 py-3"
+              class="flex flex-wrap items-center gap-4 px-4 py-3"
             >
               <div class="min-w-0 flex-1">
                 <p class="m-0 text-cp-sm leading-normal font-heavy wrap-anywhere text-cp-text">
@@ -228,7 +232,7 @@ function handleRequestConsume(creditId: string) {
                 :aria-label="`使用重置：${credit.title}，${credit.expiry}`"
                 @click="handleRequestConsume(credit.id)"
               >
-                使用重置
+                使用重置额度
               </ZButton>
             </li>
           </ul>
@@ -244,7 +248,8 @@ function handleRequestConsume(creditId: string) {
         </div>
       </section>
 
-      <AccountQuotaCredits :credits="account.quota.credits" />
+      <UsageLimits :windows="account.quota.windows" />
+      <AccountQuotaCredits v-if="account.quota.credits" :credits="account.quota.credits" />
     </div>
 
     <template v-if="confirmation || showCountOnlyAction" #footer>
