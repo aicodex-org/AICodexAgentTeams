@@ -16,6 +16,7 @@ export function useAccountEditor(options: {
   const showEditModal = shallowRef(false)
   // 保存后列表可能因筛选移除该账号，编辑窗口的退场仍需保留原账号内容。
   const editingAccount = shallowRef<Account | null>(null)
+  const name = shallowRef('')
   const notes = shallowRef('')
   const schedulingEnabled = shallowRef(true)
   const concurrencyLimit = shallowRef('')
@@ -67,6 +68,7 @@ export function useAccountEditor(options: {
   function open(account: Account) {
     configurationRequest.invalidate()
     editingAccount.value = account
+    name.value = account.name
     notes.value = account.notes ?? ''
     proxyMode.value = 'preserve'
     proxyId.value = ''
@@ -89,6 +91,10 @@ export function useAccountEditor(options: {
     const accountId = editingAccount.value?.id
     if (!accountId || saving.value)
       return
+    if (editingAccount.value?.provider === 'xai' && !name.value.trim()) {
+      ZNotification.warning({ message: '请填写账号名称' })
+      return
+    }
     const isApiKey = isApiKeyAccount(editingAccount.value)
     const isOAuth = isOpenAiOAuthAccount(editingAccount.value)
     if (isApiKey && !configurationReady.value)
@@ -118,6 +124,9 @@ export function useAccountEditor(options: {
     await saveAction.run(async () => {
       const settings = {
         accountId,
+        name: editingAccount.value?.provider === 'xai' && name.value.trim() !== editingAccount.value.name
+          ? name.value.trim()
+          : undefined,
         notes: notes.value,
         outboundProxyId: proxyMode.value === 'preserve' ? undefined : proxyMode.value === 'direct' ? '' : proxyId.value.trim(),
         enabled: schedulingEnabled.value,
@@ -164,6 +173,7 @@ export function useAccountEditor(options: {
     configurationReady,
     showEditModal,
     editingAccount,
+    name,
     notes,
     schedulingEnabled,
     concurrencyLimit,

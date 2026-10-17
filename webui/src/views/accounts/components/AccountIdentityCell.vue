@@ -8,7 +8,7 @@ import { stablePresetVisualToneClass } from '@/utils/color'
 import AccountNotesPopover from './AccountNotesPopover.vue'
 
 type AccountIdentity = Pick<Account, 'id' | 'email' | 'planType' | 'planTypeDisplay'>
-  & Partial<Pick<Account, 'accountId' | 'notes' | 'name' | 'authenticationKind'>>
+  & Partial<Pick<Account, 'accountId' | 'notes' | 'name' | 'authenticationKind' | 'provider'>>
 
 const props = withDefaults(
   defineProps<{
@@ -33,6 +33,8 @@ const props = withDefaults(
 const emailText = computed(() => {
   if (props.account.authenticationKind === 'api_key' && props.account.name)
     return props.account.name
+  if (props.account.provider === 'xai' && props.account.name?.trim())
+    return props.account.name.trim()
   const email = props.account.email?.trim()
   if (email)
     return email
@@ -44,11 +46,11 @@ const emailText = computed(() => {
 const visibleNotes = computed(() => props.showNotes ? props.account.notes : undefined)
 
 const displayTitle = computed(() =>
-  visibleNotes.value || props.titleMode === 'email' || props.account.authenticationKind === 'api_key' ? emailText.value : emailText.value.split('@')[0],
+  visibleNotes.value || props.titleMode === 'email' || props.account.authenticationKind === 'api_key' || props.account.provider === 'xai' ? emailText.value : emailText.value.split('@')[0],
 )
 
 const secondaryText = computed(() =>
-  props.titleMode === 'email' || props.account.authenticationKind === 'api_key' ? null : emailText.value,
+  props.titleMode === 'email' || props.account.authenticationKind === 'api_key' ? null : props.account.email?.trim() || props.account.accountId || props.account.id,
 )
 
 const initial = computed(() => displayTitle.value.slice(0, 1).toUpperCase())

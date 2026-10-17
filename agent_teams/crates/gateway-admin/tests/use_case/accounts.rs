@@ -1789,6 +1789,7 @@ async fn accounts_update_should_commit_then_release_disabled_account_and_publish
         .update(
             &context("update-request"),
             UpdateAccount {
+                name: None,
                 notes: None,
                 model_access: Default::default(),
                 outbound_proxy: None,
@@ -1828,6 +1829,7 @@ async fn accounts_update_should_not_notify_provider_when_store_commit_fails() {
         .update(
             &context("update-failure"),
             UpdateAccount {
+                name: None,
                 notes: None,
                 model_access: Default::default(),
                 outbound_proxy: None,

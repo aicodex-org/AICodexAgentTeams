@@ -1175,6 +1175,7 @@ async fn terminal_admin_mutations_keep_revision_account_and_audit_atomic() {
     let result = store
         .update_account(
             UpdateAccount {
+                name: Some("Grok 工作账号".to_owned()),
                 notes: None,
                 model_access: Default::default(),
                 outbound_proxy: None,
@@ -1196,6 +1197,13 @@ async fn terminal_admin_mutations_keep_revision_account_and_audit_atomic() {
     .await
     .expect("read disabled state");
     assert!(!enabled);
+    let name: String = sqlx::query_scalar(
+        "select name from provider_accounts where id = 'acct_terminal_mutation'",
+    )
+    .fetch_one(&database.pool)
+    .await
+    .expect("read edited name");
+    assert_eq!(name, "Grok 工作账号");
 
     let revision = store
         .delete_accounts(
@@ -1229,6 +1237,7 @@ async fn terminal_admin_mutations_keep_revision_account_and_audit_atomic() {
                     "concurrency_limit".to_owned(),
                     "weight".to_owned(),
                     "groups".to_owned(),
+                    "name".to_owned(),
                 ],
             ),
             ("delete".to_owned(), 3, Vec::new()),
@@ -1256,6 +1265,7 @@ async fn account_proxy_edits_preserve_credentials_and_clear_egress_without_audit
         request_id: "proxy-edit".to_owned(),
     };
     let command = UpdateAccount {
+        name: None,
         notes: None,
         model_access: Default::default(),
         account_id: "acct_proxy".to_owned(),
@@ -1328,6 +1338,7 @@ async fn account_notes_round_trip_and_survive_import_and_scheduling_updates() {
         request_id: "notes-edit".to_owned(),
     };
     let command = UpdateAccount {
+        name: None,
         account_id: "acct_notes".to_owned(),
         notes: Some("  团队备用\n下月续费  ".to_owned()),
         enabled: true,
@@ -1477,6 +1488,7 @@ async fn invalid_account_notes_roll_back_scheduling_revision_and_audit() {
     let result = admin_account_store(&database.pool)
         .update_account(
             UpdateAccount {
+                name: None,
                 account_id: "acct_notes".to_owned(),
                 notes: Some("备".repeat(501)),
                 enabled: false,
@@ -2500,6 +2512,7 @@ async fn provider_account_admin_mutations_are_scoped_audited_and_atomic() {
 
     let revision = repository
         .batch_update_provider_accounts_admin(BatchUpdateProviderAccountsAdmin {
+            name: None,
             notes: None,
             model_access: Default::default(),
             outbound_proxy: None,
@@ -2568,6 +2581,7 @@ async fn credential_rotation_and_settings_share_one_transaction() {
     .await
     .expect("seed group");
     let settings = UpdateAccount {
+        name: Some("手动名称".to_owned()),
         account_id: ACCOUNT_ID.to_owned(),
         notes: Some("统一保存".to_owned()),
         enabled: false,
@@ -2607,6 +2621,7 @@ async fn credential_rotation_and_settings_share_one_transaction() {
     assert_eq!(before["concurrency_limit"], 3);
     assert_eq!(before["weight"], 7);
     assert_eq!(before["notes"], "统一保存");
+    assert_eq!(before["name"], "手动名称");
     assert_eq!(
         account_group_ids(&database.pool, ACCOUNT_ID).await,
         [GROUP_ID]
@@ -3292,6 +3307,7 @@ async fn proxy_edit_preserves_an_inflight_token_refresh() {
     admin_account_store(&database.pool)
         .update_account(
             UpdateAccount {
+                name: None,
                 notes: None,
                 model_access: Default::default(),
                 account_id: id.as_str().to_owned(),

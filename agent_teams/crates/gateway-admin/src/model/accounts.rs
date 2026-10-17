@@ -208,6 +208,8 @@ pub struct AccountCapacity {
 /// 账号可编辑事实的一次性替换命令
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UpdateAccount {
+    /// 缺省保留账号名称
+    pub name: Option<String>,
     pub account_id: String,
     /// 缺省保留备注；空字符串清空备注
     pub notes: Option<String>,

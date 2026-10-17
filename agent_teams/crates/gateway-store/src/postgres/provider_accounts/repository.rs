@@ -536,6 +536,14 @@ impl ProviderAccountAdminRepository for PgProviderAccountRepository {
                 )
                 .await?;
             }
+            if let Some(name) = command.name.as_deref() {
+                update_provider_account_name_in_transaction(
+                    &mut transaction,
+                    &command.account_ids,
+                    name,
+                )
+                .await?;
+            }
             if let Some(notes) = command.notes.as_deref() {
                 update_provider_account_notes_in_transaction(
                     &mut transaction,
@@ -626,6 +634,20 @@ impl ProviderAccountAdminRepository for PgProviderAccountRepository {
         .await;
         finish_admin_transaction(transaction, result, "provider account admin deletion").await
     }
+}
+
+async fn update_provider_account_name_in_transaction(
+    transaction: &mut Transaction<'_, Postgres>,
+    account_ids: &[String],
+    name: &str,
+) -> StoreResult<()> {
+    sqlx::query("update provider_accounts set name = $2 where id = any($1::text[])")
+        .bind(account_ids)
+        .bind(name.trim())
+        .execute(&mut **transaction)
+        .await
+        .map_err(|source| postgres_unavailable("update provider account name", source))?;
+    Ok(())
 }
 
 async fn update_provider_account_notes_in_transaction(
@@ -1150,6 +1172,9 @@ pub(super) async fn rotate_provider_account_admin_in_transaction(
         .await?;
         replace_account_group_assignments_in_transaction(transaction, ids, &settings.group_ids)
             .await?;
+        if let Some(name) = settings.name.as_deref() {
+            update_provider_account_name_in_transaction(transaction, ids, name).await?;
+        }
         if let Some(notes) = settings.notes.as_deref() {
             update_provider_account_notes_in_transaction(transaction, ids, notes).await?;
         }

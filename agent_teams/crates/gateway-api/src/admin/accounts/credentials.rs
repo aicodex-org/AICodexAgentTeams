@@ -211,6 +211,7 @@ fn validate_authorization_flow(
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct UpdateAccountRequest {
+    pub name: Option<String>,
     pub connection: Option<AccountConnectionUpdateRequest>,
     pub outbound_proxy_id: Option<String>,
     pub outbound_proxy_url: Option<super::wire::AccountProxyUpdate>,
@@ -230,6 +231,9 @@ impl UpdateAccountRequest {
         if let Some(connection) = &self.connection {
             connection.validate()?;
         }
+        if let Some(name) = &self.name {
+            require_text(name, MAX_NAME_BYTES, "name")?;
+        }
         validate_account_notes(self.notes.as_deref())?;
         parse_concurrency_limit(self.concurrency_limit)?;
         parse_account_weight(self.weight)?;
@@ -245,6 +249,7 @@ impl UpdateAccountRequest {
             .connection
             .map(AccountConnectionUpdateRequest::into_document);
         let settings = UpdateAccount {
+            name: self.name.map(|name| name.trim().to_owned()),
             outbound_proxy: super::wire::proxy_selection(
                 self.outbound_proxy_id,
                 self.outbound_proxy_url,

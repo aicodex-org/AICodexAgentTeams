@@ -243,12 +243,17 @@ struct StoredAccount {
 pub struct MemoryProviderAccountStore {
     accounts: Mutex<BTreeMap<ProviderAccountId, StoredAccount>>,
     quota_reads: AtomicUsize,
+    profile_before_next_cas: Mutex<Option<ProviderAccountUpdate>>,
     fail_provider_listing: AtomicBool,
 }
 
 impl MemoryProviderAccountStore {
     pub fn shared() -> Arc<Self> {
         Arc::new(Self::default())
+    }
+
+    pub fn edit_profile_before_next_cas(&self, update: ProviderAccountUpdate) {
+        *lock(&self.profile_before_next_cas) = Some(update);
     }
 
     pub fn account(&self, id: &ProviderAccountId) -> Option<ProviderAccount> {
@@ -403,6 +408,11 @@ impl ProviderAccountStore for MemoryProviderAccountStore {
         &self,
         update: CredentialCasUpdate,
     ) -> Result<CredentialCasOutcome, StoreError> {
+        // 在读取和提交之间插入一次资料修改，稳定复现 credential revision 不变的并发编辑
+        let profile_update = lock(&self.profile_before_next_cas).take();
+        if let Some(update) = profile_update {
+            self.update_account(update).await?;
+        }
         let CredentialCasUpdateParts {
             account_id,
             expected_revision,

@@ -440,6 +440,8 @@ impl GrokCredentialRepository {
                 gateway_core::error::ErrorSource::new(source),
             ))
         })?;
+        // 退避同样不得用读取时的资料覆盖并发名称编辑
+        let update = update.preserving_profile();
         match self
             .store
             .compare_and_swap_credential(update)
@@ -753,6 +755,8 @@ fn prepare_rotation(
             gateway_core::error::ErrorSource::new(source),
         ))
     })?;
+    // 刷新只轮换凭据，保留提交时的名称与资料，避免覆盖并发编辑
+    let credential = credential.preserving_profile();
     Ok(PreparedGrokCredentialRotation::new(profile, credential))
 }
 

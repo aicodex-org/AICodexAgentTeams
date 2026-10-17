@@ -102,6 +102,15 @@ async fn rotate_uses_revision_cas_and_replaces_plaintext_tokens() {
             verified_account: profile("subject-rotate"),
         })
         .expect("rotate");
+    store
+        .update_account(gateway_core::account::ProviderAccountUpdate {
+            account_id: input.account_id.clone(),
+            name: "Grok 手动名称".to_owned(),
+            email: Some("manual@example.test".to_owned()),
+            plan_type: Some("super".to_owned()),
+        })
+        .await
+        .expect("edit profile while rotation is prepared");
     assert!(matches!(
         store
             .compare_and_swap_credential(prepared.credential)
@@ -109,6 +118,10 @@ async fn rotate_uses_revision_cas_and_replaces_plaintext_tokens() {
             .expect("persist rotation"),
         CredentialCasOutcome::Updated(revision) if revision.get() == 2
     ));
+    let account = store.account(&input.account_id).expect("account");
+    assert_eq!(account.name(), "Grok 手动名称");
+    assert_eq!(account.email(), Some("manual@example.test"));
+    assert_eq!(account.plan_type(), Some("super"));
     let credential = store.credential(&input.account_id).expect("credential");
     assert_eq!(
         credential_object(&credential)

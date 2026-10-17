@@ -1064,3 +1064,35 @@ mod import_settings {
         }
     }
 }
+
+#[test]
+fn single_update_should_validate_optional_account_name() {
+    use gateway_api::admin::accounts::UpdateAccountRequest;
+    use serde_json::json;
+    for name in [
+        serde_json::Value::Null,
+        json!("Grok 工作账号"),
+        json!("  Team @ Grok  "),
+    ] {
+        let request: UpdateAccountRequest = serde_json::from_value(json!({
+            "accountId": "acct_grok", "enabled": true, "concurrencyLimit": null,
+            "weight": 1, "groupIds": [], "name": name
+        }))
+        .unwrap();
+        request.validate().expect("accept optional account name");
+    }
+    for name in [
+        "".to_owned(),
+        "  ".to_owned(),
+        "a".repeat(513),
+        "Grok\nname".to_owned(),
+        "Grok\0".to_owned(),
+    ] {
+        let request: UpdateAccountRequest = serde_json::from_value(json!({
+            "accountId": "acct_grok", "enabled": true, "concurrencyLimit": null,
+            "weight": 1, "groupIds": [], "name": name
+        }))
+        .unwrap();
+        assert_eq!(request.validate().unwrap_err().field(), "name");
+    }
+}

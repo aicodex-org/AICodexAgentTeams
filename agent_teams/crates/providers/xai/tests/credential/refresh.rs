@@ -615,6 +615,30 @@ async fn scheduled_refresh_stops_retrying_rejected_disabled_credentials() {
 }
 
 #[tokio::test]
+async fn transient_refresh_backoff_preserves_concurrent_profile_edit() {
+    let input = due_input("transient-profile-edit");
+    let id = input.account_id.clone();
+    let (store, _, _, service) = fixture(input, [Err(GrokRefreshFailure::Transient)], true).await;
+    store.edit_profile_before_next_cas(ProviderAccountUpdate {
+        account_id: id.clone(),
+        name: "Grok 并发名称".to_owned(),
+        email: Some("edited@example.test".to_owned()),
+        plan_type: Some("super".to_owned()),
+    });
+    let outcomes = service.refresh_due().await.expect("refresh cycle");
+    assert!(matches!(
+        outcomes.as_slice(),
+        [GrokCredentialRefreshOutcome::Transient { .. }]
+    ));
+    let account = store.account(&id).expect("account after backoff");
+    assert_eq!(account.name(), "Grok 并发名称");
+    assert_eq!(account.email(), Some("edited@example.test"));
+    assert_eq!(account.plan_type(), Some("super"));
+    assert!(account.next_refresh_at().is_some());
+    assert_eq!(account.revision().get(), 2);
+}
+
+#[tokio::test]
 async fn successful_refresh_rotates_plaintext_tokens_once() {
     let input = due_input("success");
     let id = input.account_id.clone();

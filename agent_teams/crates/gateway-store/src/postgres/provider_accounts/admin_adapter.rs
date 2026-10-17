@@ -683,12 +683,16 @@ impl AccountStore for PgAdminAccountStore {
         if command.outbound_proxy.is_some() {
             changed_fields.push("outbound_proxy".to_owned());
         }
+        if command.name.is_some() {
+            changed_fields.push("name".to_owned());
+        }
         if command.notes.is_some() {
             changed_fields.push("notes".to_owned());
         }
         let config_revision = self
             .accounts
             .batch_update_provider_accounts_admin(BatchUpdateProviderAccountsAdmin {
+                name: command.name,
                 account_ids: vec![command.account_id.clone()],
                 notes: command.notes,
                 enabled: Some(command.enabled),
@@ -851,6 +855,7 @@ impl AccountStore for PgAdminAccountStore {
         let config_revision = self
             .accounts
             .batch_update_provider_accounts_admin(BatchUpdateProviderAccountsAdmin {
+                name: None,
                 account_ids: command.account_ids,
                 notes: None,
                 enabled: command.enabled,
@@ -1081,6 +1086,9 @@ pub(super) fn prepare_rotation(
         }
         if settings.outbound_proxy.is_some() {
             changed_fields.push("outbound_proxy".to_owned());
+        }
+        if settings.name.is_some() {
+            changed_fields.push("name".to_owned());
         }
         if settings.notes.is_some() {
             changed_fields.push("notes".to_owned());

@@ -3,7 +3,7 @@ import type { ApiKeyAccountForm } from '../utils/upstreamApiKey'
 
 import type { Account, AccountGroupRef, AccountModelAccess } from '@/api'
 
-import { ZButton, ZDialog, ZFormItem, ZSegmented, ZTextarea } from '@codex-proxy/ui'
+import { ZButton, ZDialog, ZFormItem, ZInput, ZSegmented, ZTextarea } from '@codex-proxy/ui'
 import AccountPlanBadge from '@/components/account/AccountPlanBadge.vue'
 import ProviderIconGroup from '@/components/ProviderIconGroup.vue'
 import { isApiKeyAccount, isOpenAiOAuthAccount } from '../utils/upstreamApiKey'
@@ -31,6 +31,7 @@ const transportOptions = [
   { label: 'WS', value: 'prefer_websocket' },
   { label: 'SSE', value: 'http' },
 ]
+const name = defineModel<string>('name', { required: true })
 const notes = defineModel<string>('notes', { required: true })
 const enabled = defineModel<boolean>('enabled', { required: true })
 const concurrencyLimit = defineModel<string>('concurrencyLimit', { required: true })
@@ -45,7 +46,7 @@ const selectedGroupIds = defineModel<string[]>('selectedGroupIds', { required: t
   <ZDialog
     v-model="open"
     title="编辑账号"
-    width="42rem"
+    width="min(42rem, calc(100vw - 2rem))"
     :show-close="!saving" :close-on-click-modal="!saving" :close-on-press-escape="!saving"
   >
     <div v-if="account" class="grid gap-5">
@@ -65,6 +66,10 @@ const selectedGroupIds = defineModel<string[]>('selectedGroupIds', { required: t
           />
         </div>
       </div>
+
+      <ZFormItem v-if="account.provider === 'xai'" label="账号名称" required>
+        <ZInput v-model="name" :maxlength="128" placeholder="填写便于识别的名称" :disabled="saving" />
+      </ZFormItem>
 
       <ZFormItem v-if="isOpenAiOAuthAccount(account)" label="上游传输方式">
         <p v-if="configurationLoading" role="status" class="m-0 text-cp-sm text-cp-text-secondary">
