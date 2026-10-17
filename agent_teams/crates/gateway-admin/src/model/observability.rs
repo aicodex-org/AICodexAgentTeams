@@ -1312,3 +1312,36 @@ pub struct DiagnosticsResult {
     pub dimension: DiagnosticDimension,
     pub items: Vec<DiagnosticsItem>,
 }
+
+/// 单账号固定周期的轻量观测快照
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AccountStatisticsObservation {
+    pub range: TimeRange,
+    pub points: Vec<RequestMetricPoint>,
+    pub analytics: AnalyticsMetadata,
+}
+
+/// 账号周期摘要，仅包含已知 USD 费用
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AccountStatisticsPeriod {
+    pub range: TimeRange,
+    pub request_count: u64,
+    pub cost_usd: Option<DecimalAmount>,
+    pub known_cost_count: u64,
+    pub unknown_cost_count: u64,
+    pub partial_cost_count: u64,
+    pub not_billable_count: u64,
+    pub non_usd_cost_present: bool,
+}
+
+/// 账号近七天、近三十天及实际使用日日均
+#[derive(Debug, Clone, PartialEq)]
+pub struct AccountStatistics {
+    pub account_id: String,
+    pub seven_days: AccountStatisticsPeriod,
+    pub thirty_days: AccountStatisticsPeriod,
+    pub active_days: u64,
+    pub daily_average_requests: Option<f64>,
+    pub daily_average_cost_usd: Option<DecimalAmount>,
+    pub analytics: AnalyticsMetadata,
+}

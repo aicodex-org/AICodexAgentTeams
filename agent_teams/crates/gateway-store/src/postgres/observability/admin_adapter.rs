@@ -407,6 +407,28 @@ impl PgObservabilityRepository {
 
 #[async_trait]
 impl AdminObservabilityStore for PgAdminObservabilityStore {
+    async fn account_exists(&self, account_id: &str) -> AdminStoreResult<bool> {
+        self.repository
+            .query_budget
+            .run(
+                &self.repository.pool,
+                "check account statistics account",
+                |mut connection| async move {
+                    sqlx::query_scalar(
+                        "select exists(select 1 from provider_accounts where id = $1)",
+                    )
+                    .bind(account_id)
+                    .fetch_one(&mut *connection)
+                    .await
+                    .map_err(|error| {
+                        postgres_unavailable("check account statistics account", error)
+                    })
+                },
+            )
+            .await
+            .map_err(observability_error)
+    }
+
     async fn analytics_cache_generation(&self) -> AdminStoreResult<u64> {
         self.repository
             .query_budget
@@ -478,6 +500,34 @@ impl AdminObservabilityStore for PgAdminObservabilityStore {
             .into_iter()
             .map(admin_request_metric_point)
             .collect())
+    }
+
+    async fn account_statistics(
+        &self,
+        account_id: String,
+        range: admin_observability::TimeRange,
+    ) -> AdminStoreResult<admin_observability::AccountStatisticsObservation> {
+        let range = store_range(range).map_err(observability_error)?;
+        let filter = UsageRecordFilter {
+            provider_account_ref: Some(account_id),
+            ..Default::default()
+        };
+        self.repository
+            .query_budget
+            .run(
+                &self.repository.pool,
+                "load account statistics",
+                |mut connection| async move {
+                    let mut snapshot = analytics::AnalyticsSnapshot::new(&mut connection).await?;
+                    let result = snapshot
+                        .account_statistics(range, &filter, self.repository.timezone)
+                        .await?;
+                    snapshot.finish().await?;
+                    Ok(result)
+                },
+            )
+            .await
+            .map_err(observability_error)
     }
 
     async fn usage_insights_observation(

@@ -765,6 +765,7 @@ async fn dashboard_should_preserve_provider_plan_names() {
 }
 
 struct FixtureObservabilityStore {
+    account_deleted: AtomicBool,
     trend: Mutex<Vec<RequestMetricPoint>>,
     overview: Mutex<UsageOverview>,
     projected_costs: Mutex<Vec<UsageProjectedCostPoint>>,
@@ -785,6 +786,7 @@ struct FixtureObservabilityStore {
 impl FixtureObservabilityStore {
     fn new(range: TimeRange) -> Self {
         Self {
+            account_deleted: AtomicBool::new(false),
             trend: Mutex::new(Vec::new()),
             overview: Mutex::new(UsageOverview {
                 analytics: Default::default(),
@@ -844,6 +846,40 @@ impl FixtureObservabilityStore {
 
 #[async_trait]
 impl ObservabilityStore for FixtureObservabilityStore {
+    async fn account_exists(&self, account_id: &str) -> AdminStoreResult<bool> {
+        Ok(account_id == "acct_test" && !self.account_deleted.load(Ordering::SeqCst))
+    }
+
+    async fn account_statistics(
+        &self,
+        _account_id: String,
+        range: TimeRange,
+    ) -> AdminStoreResult<gateway_admin::model::observability::AccountStatisticsObservation> {
+        if self.summary_fail.load(Ordering::SeqCst) {
+            return Err(super::unavailable("account statistics"));
+        }
+        self.dashboard_summary_calls.fetch_add(1, Ordering::Relaxed);
+        let delay = *self.dashboard_delay.lock().unwrap();
+        if !delay.is_zero() {
+            tokio::time::sleep(delay).await;
+        }
+        Ok(
+            gateway_admin::model::observability::AccountStatisticsObservation {
+                range,
+                points: self
+                    .trend
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .filter(|point| {
+                        point.bucket_start >= range.start && point.bucket_start < range.end
+                    })
+                    .cloned()
+                    .collect(),
+                analytics: self.overview.lock().unwrap().analytics.clone(),
+            },
+        )
+    }
     async fn dashboard_summary(
         &self,
         query: DashboardQuery,
@@ -1439,4 +1475,208 @@ async fn insights_cache_should_reject_deleted_building_and_old_generation_times(
             "{reason}"
         );
     }
+}
+
+#[tokio::test]
+async fn account_statistics_preserve_cost_coverage_periods_and_active_day_divisor() {
+    let now = Utc::now();
+    let timezone = gateway_core::time::DeploymentTimeZone::default();
+    let store = Arc::new(FixtureObservabilityStore::new(observation_range(now)));
+    let points = (1..=26)
+        .map(|day| RequestMetricPoint {
+            bucket_start: timezone.days_before(now, day).unwrap(),
+            granularity: Granularity::Day,
+            metrics: RequestMetrics {
+                request_count: 2,
+                ..Default::default()
+            },
+            cost_coverage: CostCoverage {
+                calculated_count: 1,
+                unavailable_count: 1,
+                ..Default::default()
+            },
+            costs: vec![CurrencyCost {
+                currency: "USD".into(),
+                amount: "2.5".parse().unwrap(),
+            }],
+        })
+        .collect();
+    store.replace_trend(points);
+    let services = account_statistics_services(store).await;
+    let result = services
+        .observability()
+        .account_statistics("acct_test")
+        .await
+        .unwrap();
+    assert_eq!(result.thirty_days.request_count, 52);
+    assert_eq!(result.seven_days.request_count, 12);
+    assert_eq!(result.thirty_days.cost_usd.unwrap().as_str(), "65");
+    assert_eq!(result.seven_days.cost_usd.unwrap().as_str(), "15");
+    assert_eq!(result.thirty_days.known_cost_count, 26);
+    assert_eq!(result.thirty_days.unknown_cost_count, 26);
+    assert_eq!(result.active_days, 26);
+    assert_eq!(result.daily_average_requests, Some(2.0));
+    assert_eq!(result.daily_average_cost_usd.unwrap().as_str(), "2.5");
+}
+
+#[tokio::test]
+async fn account_statistics_empty_unknown_currency_and_missing_account_are_distinct() {
+    let now = Utc::now();
+    let store = Arc::new(FixtureObservabilityStore::new(observation_range(now)));
+    let services = account_statistics_services(store.clone()).await;
+    let empty = services
+        .observability()
+        .account_statistics("acct_test")
+        .await
+        .unwrap();
+    assert_eq!(empty.active_days, 0);
+    assert_eq!(empty.thirty_days.request_count, 0);
+    assert_eq!(empty.thirty_days.cost_usd, None);
+    assert_eq!(empty.daily_average_requests, None);
+    assert_eq!(empty.daily_average_cost_usd, None);
+    assert!(
+        services
+            .observability()
+            .account_statistics("missing_account")
+            .await
+            .is_err()
+    );
+    store.replace_trend(vec![RequestMetricPoint {
+        bucket_start: gateway_core::time::DeploymentTimeZone::default()
+            .days_before(now, 1)
+            .unwrap(),
+        granularity: Granularity::Day,
+        metrics: RequestMetrics {
+            request_count: 3,
+            ..Default::default()
+        },
+        cost_coverage: CostCoverage {
+            partial_count: 1,
+            unavailable_count: 1,
+            calculated_count: 1,
+            ..Default::default()
+        },
+        costs: vec![CurrencyCost {
+            currency: "CNY".into(),
+            amount: "99".parse().unwrap(),
+        }],
+    }]);
+    store.overview.lock().unwrap().analytics.generation += 1;
+    let unknown = services
+        .observability()
+        .account_statistics("acct_test")
+        .await
+        .unwrap();
+    assert_eq!(unknown.thirty_days.cost_usd, None);
+    assert_eq!(unknown.daily_average_cost_usd, None);
+    assert!(unknown.thirty_days.non_usd_cost_present);
+    assert_eq!(unknown.thirty_days.partial_cost_count, 1);
+    assert_eq!(unknown.thirty_days.unknown_cost_count, 1);
+}
+
+#[tokio::test]
+async fn account_statistics_share_inflight_refresh_and_invalidate_deleted_generation() {
+    let now = Utc::now();
+    let store = Arc::new(FixtureObservabilityStore::new(observation_range(now)));
+    store.set_dashboard_delay(StdDuration::from_millis(25));
+    let services = account_statistics_services(store.clone()).await;
+    let service = services.observability();
+    let (left, right) = tokio::join!(
+        service.account_statistics("acct_test"),
+        service.account_statistics("acct_test")
+    );
+    let left = left.unwrap();
+    let right = right.unwrap();
+    if left.thirty_days.range == right.thirty_days.range {
+        assert_eq!(store.dashboard_summary_calls(), 1);
+    }
+    store.overview.lock().unwrap().analytics.generation += 1;
+    let result = service.account_statistics("acct_test").await.unwrap();
+    assert_eq!(result.analytics.generation, 1);
+    assert!(store.dashboard_summary_calls() >= 2);
+}
+
+#[tokio::test]
+async fn account_statistics_budget_includes_refresh_waiters() {
+    let store = Arc::new(FixtureObservabilityStore::new(
+        observation_range(Utc::now()),
+    ));
+    store.set_dashboard_delay(StdDuration::from_secs(5));
+    let services = account_statistics_services(store).await;
+    let started = std::time::Instant::now();
+    let service = services.observability();
+    let (first, waiter) = tokio::join!(
+        service.account_statistics("acct_test"),
+        service.account_statistics("acct_test")
+    );
+    assert!(first.is_err());
+    assert!(waiter.is_err());
+    assert!(started.elapsed() < StdDuration::from_secs(3));
+}
+
+async fn account_statistics_services(store: Arc<FixtureObservabilityStore>) -> AdminServices {
+    super::AdminHarness::new()
+        .observability(store)
+        .accounts(super::accounts::FakeAccountStore::new(
+            "openai",
+            Arc::new(Mutex::new(Vec::new())),
+        ))
+        .build()
+        .await
+}
+
+#[tokio::test(start_paused = true)]
+async fn account_statistics_expired_cache_preserves_snapshot_bounds_when_serving_stale() {
+    let store = Arc::new(FixtureObservabilityStore::new(
+        observation_range(Utc::now()),
+    ));
+    store.overview.lock().unwrap().analytics.state = AnalyticsState::Ready;
+    store.overview.lock().unwrap().analytics.generated_at = Utc::now();
+    let services = account_statistics_services(store.clone()).await;
+    let first = services
+        .observability()
+        .account_statistics("acct_test")
+        .await
+        .unwrap();
+    tokio::time::advance(StdDuration::from_secs(16)).await;
+    store.summary_fail.store(true, Ordering::SeqCst);
+    let stale = services
+        .observability()
+        .account_statistics("acct_test")
+        .await
+        .unwrap();
+    assert_eq!(stale.analytics.state, AnalyticsState::Stale);
+    assert_eq!(stale.thirty_days.range, first.thirty_days.range);
+    assert_eq!(stale.seven_days.range, first.seven_days.range);
+    store.overview.lock().unwrap().analytics.generation += 1;
+    assert!(
+        services
+            .observability()
+            .account_statistics("acct_test")
+            .await
+            .is_err(),
+        "deleted facts cannot revive from stale cache"
+    );
+}
+
+#[tokio::test]
+async fn account_statistics_cached_account_deletion_returns_not_found() {
+    let store = Arc::new(FixtureObservabilityStore::new(
+        observation_range(Utc::now()),
+    ));
+    let services = account_statistics_services(store.clone()).await;
+    services
+        .observability()
+        .account_statistics("acct_test")
+        .await
+        .unwrap();
+    assert_eq!(store.dashboard_summary_calls(), 1);
+    store.account_deleted.store(true, Ordering::SeqCst);
+    let error = services
+        .observability()
+        .account_statistics("acct_test")
+        .await
+        .unwrap_err();
+    assert_eq!(error.kind(), gateway_admin::model::AdminErrorKind::NotFound);
+    assert_eq!(store.dashboard_summary_calls(), 1);
 }

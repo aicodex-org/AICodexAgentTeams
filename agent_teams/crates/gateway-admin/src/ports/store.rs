@@ -453,8 +453,18 @@ pub trait UsageBillingProjector: Send + Sync {
 /// 用量、趋势、诊断与运维错误的只读能力
 #[async_trait]
 pub trait ObservabilityStore: Send + Sync {
+    /// 在观测连接预算内检查账号，缓存命中也不绕过删除可见性
+    async fn account_exists(&self, account_id: &str) -> AdminStoreResult<bool>;
+
     /// 缓存必须与删除和后台投影提交的版本一致
     async fn analytics_cache_generation(&self) -> AdminStoreResult<u64>;
+
+    /// 同一快照读取单账号日计数和费用，不加载分布
+    async fn account_statistics(
+        &self,
+        account_id: String,
+        range: TimeRange,
+    ) -> AdminStoreResult<crate::model::observability::AccountStatisticsObservation>;
 
     /// 返回历史统计区间和指定观测时刻下的实时账号状态
     async fn dashboard_summary(

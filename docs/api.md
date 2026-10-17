@@ -691,6 +691,7 @@ config 返回 `{ name, plaintextKey }`，仅读取服务端会话绑定的当前
 | --- | --- | --- | --- |
 | `GET` | `/api/admin/accounts` | `page`、`pageSize`、`provider`、`groupId`、`search`、`status`、排序字段 | 分页查询账号与汇总 |
 | `GET` | `/api/admin/accounts/detail` | `accountId` | 查询账号详情、额度和本地用量 |
+| `GET` | `/api/admin/accounts/{accountId}/statistics` | 无 | 按需查询单账号近 7 天、近 30 天及使用日日均统计 |
 | `GET` | `/api/admin/accounts/export` | `accountIds`、`confirm=export_sensitive_accounts` | 显式导出最多 200 个账号的敏感 Provider 文档 |
 | `POST` | `/api/admin/accounts/import` | `{ provider, data, settings?, outboundProxyId? }` | 导入或按上游身份更新账号，可同时应用调度、分组设置与默认代理 |
 | `POST` | `/api/admin/accounts/import-tasks` | `{ submissionId, items: [{ provider, data, settings?, outboundProxyId? }] }` | 接受后台导入，返回 HTTP 202 和任务摘要 |
@@ -771,6 +772,25 @@ ChatGPT OAuth 使用动态注册的客户端 ID，新增与重新授权均显式
 重新授权须传入账号原有的认证类型，不能在同一账号上混换 Codex 与 ChatGPT 凭据。
 ChatGPT 账号只有取得 `chatgpt.tokens.use.direct` 权限后才参与调度，未授予共享权限的账号保留为 `unknown`，可通过重新授权补齐权限
 共享权限不保证订阅资格，上游仍可能返回 `subscription_sharing_user_not_eligible`，连接测试保留原始错误码与诊断
+
+### 账号请求统计
+
+`GET /api/admin/accounts/{accountId}/statistics` 仅允许管理员访问，账号不存在时返回 `404`。
+时间范围按部署时区包含今天，快照截止时间对齐 15 秒时间切片，两个周期使用同一读取快照
+
+- `sevenDays`、`thirtyDays` 包含 `start`、`end`、`startDisplay`、`endDisplay`、`requestCount` 和 `costUsd`
+- `knownCostCount`、`unknownCostCount`、`partialCostCount`、`notBillableCount` 表示费用覆盖，`nonUsdCostPresent` 表示存在未并入 USD 合计的其他币种费用
+- `activeDays` 为近 30 天内请求数大于零的部署日历天数；`dailyAverageRequests` 和 `dailyAverageCostUsd` 使用该分母，没有使用日时返回 `null`
+- `generatedAtDisplay`、`timezone` 和 `analytics` 提供更新时间、部署时区及统计投影的新鲜度
+
+请求数与费用沿用[记录范围与统计口径](#记录范围与统计口径)，费用来自历史请求事实，不代表上游平台实际扣款。
+没有已知 USD 费用时 `costUsd` 为 `null`，未知或其他币种费用不按零补齐；有部分已知费用时合计必须结合覆盖字段解释
+
+统计复用后台汇总及有界短缓存，不刷新上游额度。投影未就绪、删除尚未收敛或查询预算耗尽时可能返回 `503`，
+调用方应展示更新中或重试状态，不能将不可用解释为零统计；旧缓存仅在有效版本及允许的新鲜度内复用
+
+未汇总区间最多补算 10,000 条账号事实，超过限制时不返回截断统计；高流量当前桶可能因此暂不可用。
+回退旧快照时 `analytics.state` 为 `stale`，时间范围和更新时间保留该快照的实际值
 
 ### 账号模型限制
 

@@ -44,6 +44,10 @@ pub(crate) use store_cache::CachedObservabilityStore;
 /// API 消费的观测控制面服务
 #[async_trait]
 pub trait ObservabilityService: Send + Sync {
+    async fn account_statistics(
+        &self,
+        account_id: &str,
+    ) -> Result<crate::model::observability::AccountStatistics, AdminError>;
     async fn dashboard_summary(
         &self,
         range: TimeRange,
@@ -192,6 +196,66 @@ impl DefaultObservabilityService {
 
 #[async_trait]
 impl ObservabilityService for DefaultObservabilityService {
+    async fn account_statistics(
+        &self,
+        account_id: &str,
+    ) -> Result<crate::model::observability::AccountStatistics, AdminError> {
+        use crate::model::observability::{AccountStatistics, CalendarPeriod};
+        tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            if !self
+                .store
+                .account_exists(account_id)
+                .await
+                .map_err(|error| map_store_error(error, "account statistics account"))?
+            {
+                return Err(AdminError::not_found("账号不存在"));
+            }
+            // 固定十五秒观测切片，缓存保留实际终点且跨部署自然日失效
+            let now = Utc::now();
+            let end = DateTime::from_timestamp(now.timestamp().div_euclid(15) * 15, 0)
+                .ok_or_else(|| AdminError::internal("时间超出支持范围"))?;
+            let thirty_range =
+                TimeRange::calendar_at(CalendarPeriod::ThirtyDays, end, self.timezone)
+                    .map_err(|_| AdminError::internal("时间超出支持范围"))?;
+            let observation = self
+                .store
+                .account_statistics(account_id.to_owned(), thirty_range)
+                .await
+                .map_err(|error| map_store_error(error, "account statistics"))?;
+            let seven_range = TimeRange::calendar_at(
+                CalendarPeriod::SevenDays,
+                observation.range.end,
+                self.timezone,
+            )
+            .map_err(|_| AdminError::internal("时间超出支持范围"))?;
+            let thirty_range = observation.range;
+            let thirty_days = account_statistics_period(thirty_range, &observation.points)?;
+            let seven_days = account_statistics_period(seven_range, &observation.points)?;
+            let active_days = observation
+                .points
+                .iter()
+                .filter(|point| point.metrics.request_count > 0)
+                .count() as u64;
+            let daily_average_requests =
+                (active_days > 0).then(|| thirty_days.request_count as f64 / active_days as f64);
+            let daily_average_cost_usd = thirty_days
+                .cost_usd
+                .as_ref()
+                .and_then(|amount| amount.checked_div_u64(active_days));
+            Ok(AccountStatistics {
+                account_id: account_id.to_owned(),
+                seven_days,
+                thirty_days,
+                active_days,
+                daily_average_requests,
+                daily_average_cost_usd,
+                analytics: observation.analytics,
+            })
+        })
+        .await
+        .map_err(|_| AdminError::unavailable("账号统计更新中，请稍后重试"))?
+    }
+
     async fn dashboard_summary(
         &self,
         range: TimeRange,
@@ -1189,4 +1253,54 @@ fn service_failure_count(metrics: &RequestMetrics) -> u64 {
     metrics
         .failure_count
         .saturating_sub(metrics.caller_error_count)
+}
+
+fn account_statistics_period(
+    range: TimeRange,
+    points: &[RequestMetricPoint],
+) -> Result<crate::model::observability::AccountStatisticsPeriod, AdminError> {
+    use crate::model::observability::AccountStatisticsPeriod;
+    let mut result = AccountStatisticsPeriod {
+        range,
+        request_count: 0,
+        cost_usd: None,
+        known_cost_count: 0,
+        unknown_cost_count: 0,
+        partial_cost_count: 0,
+        not_billable_count: 0,
+        non_usd_cost_present: false,
+    };
+    for point in points
+        .iter()
+        .filter(|point| point.bucket_start >= range.start && point.bucket_start < range.end)
+    {
+        result.request_count = result
+            .request_count
+            .saturating_add(point.metrics.request_count);
+        result.known_cost_count = result
+            .known_cost_count
+            .saturating_add(point.cost_coverage.known_count());
+        result.unknown_cost_count = result
+            .unknown_cost_count
+            .saturating_add(point.cost_coverage.unavailable_count);
+        result.partial_cost_count = result
+            .partial_cost_count
+            .saturating_add(point.cost_coverage.partial_count);
+        result.not_billable_count = result
+            .not_billable_count
+            .saturating_add(point.cost_coverage.not_billable_count);
+        for cost in &point.costs {
+            if cost.currency == "USD" {
+                result.cost_usd = Some(match result.cost_usd.take() {
+                    Some(total) => total
+                        .checked_add(&cost.amount)
+                        .ok_or_else(|| AdminError::internal("账号费用超出支持范围"))?,
+                    None => cost.amount.clone(),
+                });
+            } else {
+                result.non_usd_cost_present = true;
+            }
+        }
+    }
+    Ok(result)
 }

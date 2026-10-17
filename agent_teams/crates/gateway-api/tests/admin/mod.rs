@@ -114,6 +114,8 @@ pub(super) struct AdminTestFixture {
     pub provider_error: Arc<Mutex<Option<ProviderAdminError>>>,
     pub account: Arc<Mutex<Option<AccountPageItem>>>,
     pub account_usage: Arc<Mutex<Vec<AccountUsage>>>,
+    pub account_statistics_observation:
+        Arc<Mutex<Option<gateway_admin::model::observability::AccountStatisticsObservation>>>,
 }
 
 impl AdminTestFixture {
@@ -157,6 +159,7 @@ impl AdminTestFixture {
         let provider_error = Arc::new(Mutex::new(None));
         let account = Arc::new(Mutex::new(None));
         let account_usage = Arc::new(Mutex::new(Vec::new()));
+        let account_statistics_observation = Arc::new(Mutex::new(None));
         let unused = Arc::new(UnusedStore {
             observations: observations.clone(),
             usage_records: Arc::clone(&usage_records),
@@ -167,6 +170,7 @@ impl AdminTestFixture {
             dashboard_summary_range: Arc::clone(&dashboard_summary_range),
             account: Arc::clone(&account),
             account_usage: Arc::clone(&account_usage),
+            account_statistics_observation: Arc::clone(&account_statistics_observation),
         });
         let plugin_ports = Arc::new(plugins::TestPluginPorts::default());
         let published_snapshot = gateway_core::runtime::RuntimeSnapshotHandle::default();
@@ -238,6 +242,7 @@ impl AdminTestFixture {
             provider_error,
             account,
             account_usage,
+            account_statistics_observation,
         }
     }
 
@@ -1148,6 +1153,8 @@ struct UnusedStore {
     dashboard_summary_range: Arc<Mutex<Option<TimeRange>>>,
     account: Arc<Mutex<Option<AccountPageItem>>>,
     account_usage: Arc<Mutex<Vec<AccountUsage>>>,
+    account_statistics_observation:
+        Arc<Mutex<Option<gateway_admin::model::observability::AccountStatisticsObservation>>>,
 }
 
 struct UnusedClientKeyVerifier;
@@ -1417,6 +1424,27 @@ impl AccountRuntimeStore for UnusedStore {
 
 #[async_trait]
 impl ObservabilityStore for UnusedStore {
+    async fn account_exists(&self, account_id: &str) -> AdminStoreResult<bool> {
+        Ok(self
+            .account
+            .lock()
+            .expect("account")
+            .as_ref()
+            .is_some_and(|account| account.account.id == account_id))
+    }
+    async fn account_statistics(
+        &self,
+        _account_id: String,
+        _range: gateway_admin::model::observability::TimeRange,
+    ) -> gateway_admin::ports::store::AdminStoreResult<
+        gateway_admin::model::observability::AccountStatisticsObservation,
+    > {
+        self.account_statistics_observation
+            .lock()
+            .expect("account statistics observation")
+            .clone()
+            .ok_or_else(|| unavailable("account statistics"))
+    }
     async fn dashboard_summary(
         &self,
         query: DashboardQuery,

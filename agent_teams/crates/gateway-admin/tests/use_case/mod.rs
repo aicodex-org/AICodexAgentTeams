@@ -772,6 +772,19 @@ impl ClientKeyStore for UnavailableStore {
 
 #[async_trait]
 impl ObservabilityStore for UnavailableStore {
+    async fn account_exists(&self, _account_id: &str) -> AdminStoreResult<bool> {
+        Err(unavailable("account existence"))
+    }
+
+    async fn account_statistics(
+        &self,
+        _account_id: String,
+        _range: gateway_admin::model::observability::TimeRange,
+    ) -> gateway_admin::ports::store::AdminStoreResult<
+        gateway_admin::model::observability::AccountStatisticsObservation,
+    > {
+        panic!("unexpected account statistics query")
+    }
     async fn dashboard_summary(
         &self,
         _: DashboardQuery,

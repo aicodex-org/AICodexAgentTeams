@@ -2,7 +2,7 @@
 import { useTableColumns, ZCard, ZCheckbox, ZConfirmDialog, ZPageHeader, ZPagination, ZTable, ZTableColumnSettings } from '@codex-proxy/ui'
 
 import { ChevronDown } from '@lucide/vue'
-import { ref } from 'vue'
+import { defineAsyncComponent, ref } from 'vue'
 import AccountPlanBadge from '@/components/account/AccountPlanBadge.vue'
 import AccountGroupMarks from '@/components/AccountGroupMarks.vue'
 import LastUsedAtCell from '@/components/LastUsedAtCell.vue'
@@ -28,7 +28,11 @@ import { useAccountImportTasks } from './composables/useAccountImportTasks'
 import { useAccountMutations } from './composables/useAccountMutations'
 import { useAccountsQuery } from './composables/useAccountsQuery'
 import { useAccountsTable } from './composables/useAccountsTable'
+import { useAccountStatistics } from './composables/useAccountStatistics'
 import { accountColumns } from './constants'
+
+const AccountStatisticsModal = defineAsyncComponent(() => import('./components/AccountStatisticsModal.vue'))
+const { showStatistics, statisticsAccount, statistics, loading: statisticsLoading, error: statisticsError, open: openStatistics, refresh: refreshStatistics } = useAccountStatistics()
 
 const selectedIds = ref<Set<string>>(new Set())
 const { visibleColumns, columnOptions, setColumnVisible, setColumnOrder, resetColumns } = useTableColumns(accountColumns, 'accounts')
@@ -335,6 +339,7 @@ const {
                 :refreshing="refreshingAccountIds.has(row.id)"
                 :testing="testingConnectionIds.has(row.id)"
                 :toggling-scheduling="togglingSchedulingAccountIds.has(row.id)"
+                @statistics="openStatistics"
                 @edit="openAccountEdit"
                 @delete="requestDeleteAccount"
                 @download-model-catalog="handleDownloadModelCatalog"
@@ -368,6 +373,16 @@ const {
         </div>
       </template>
     </ZCard>
+
+    <AccountStatisticsModal
+      v-if="statisticsAccount"
+      v-model="showStatistics"
+      :account="statisticsAccount"
+      :statistics="statistics"
+      :loading="statisticsLoading"
+      :error="statisticsError"
+      @refresh="refreshStatistics"
+    />
 
     <AccountConnectionTestModal
       v-model="showConnectionTestModal"

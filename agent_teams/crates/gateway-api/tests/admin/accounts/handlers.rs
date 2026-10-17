@@ -371,3 +371,212 @@ async fn quota_forecast_requires_admin_and_valid_account_query() {
         assert!(value["message"].is_string());
     }
 }
+
+#[tokio::test]
+async fn account_statistics_requires_admin_session_and_returns_missing_account() {
+    let fixture = AdminTestFixture::new().await;
+    *fixture.account.lock().unwrap() = Some(account_page_item(
+        gateway_core::account::AccountStatusFacts {
+            enabled: true,
+            credential_state: gateway_core::account::CredentialState::Ready,
+            access_token_expires_at: None,
+            quota: gateway_core::account::QuotaState::unknown(),
+            cooldown: None,
+            last_error_reason: None,
+            last_error_message: None,
+        },
+        chrono::Utc::now(),
+        "oauth",
+    ));
+    let router = admin::accounts::router::<AdminTestState>().with_state(fixture.state());
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/admin/accounts/acct_missing/statistics")
+                .header("x-request-id", "statistics_no_session")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    fixture.auth.insert_session("valid-session");
+    let response = router
+        .oneshot(
+            Request::builder()
+                .uri("/api/admin/accounts/acct_missing/statistics")
+                .header("x-request-id", "statistics_missing_account")
+                .header(header::COOKIE, "aicodex_agent_teams_session=valid-session")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+fn seed_statistics_account(fixture: &AdminTestFixture) {
+    *fixture.account.lock().unwrap() = Some(account_page_item(
+        gateway_core::account::AccountStatusFacts {
+            enabled: true,
+            credential_state: gateway_core::account::CredentialState::Ready,
+            access_token_expires_at: None,
+            quota: gateway_core::account::QuotaState::unknown(),
+            cooldown: None,
+            last_error_reason: None,
+            last_error_message: None,
+        },
+        chrono::Utc::now(),
+        "oauth",
+    ));
+}
+
+#[tokio::test]
+async fn account_statistics_returns_decimal_or_null_cost_and_deployment_calendar_wire() {
+    use gateway_admin::model::observability::{
+        AccountStatisticsObservation, AnalyticsMetadata, AnalyticsState, CalendarPeriod,
+        CostCoverage, CurrencyCost, Granularity, RequestMetricPoint, RequestMetrics, TimeRange,
+    };
+    let timezone = "Asia/Kathmandu"
+        .parse::<gateway_core::time::DeploymentTimeZone>()
+        .unwrap();
+    let end = chrono::DateTime::parse_from_rfc3339("2026-10-17T12:00:00Z")
+        .unwrap()
+        .to_utc();
+    for amount in [Some("2.500001"), None] {
+        let fixture = AdminTestFixture::with_timezone(timezone).await;
+        fixture.auth.insert_session("valid-session");
+        seed_statistics_account(&fixture);
+        let range = TimeRange::calendar_at(CalendarPeriod::ThirtyDays, end, timezone).unwrap();
+        *fixture.account_statistics_observation.lock().unwrap() =
+            Some(AccountStatisticsObservation {
+                range,
+                points: vec![RequestMetricPoint {
+                    bucket_start: timezone.day_start(end).unwrap(),
+                    granularity: Granularity::Day,
+                    metrics: RequestMetrics {
+                        request_count: 2,
+                        ..Default::default()
+                    },
+                    cost_coverage: CostCoverage {
+                        calculated_count: u64::from(amount.is_some()),
+                        unavailable_count: if amount.is_some() { 1 } else { 2 },
+                        ..Default::default()
+                    },
+                    costs: amount
+                        .map(|amount| {
+                            vec![CurrencyCost {
+                                currency: "USD".to_owned(),
+                                amount: amount.parse().unwrap(),
+                            }]
+                        })
+                        .unwrap_or_default(),
+                }],
+                analytics: AnalyticsMetadata {
+                    coverage_start: Some(range.start),
+                    coverage_end: Some(end),
+                    generated_at: end,
+                    lag_seconds: 0,
+                    state: AnalyticsState::Ready,
+                    percentiles_approximate: false,
+                    schema_version: 1,
+                    histogram_version: 1,
+                    generation: 0,
+                },
+            });
+        let response = admin::accounts::router::<AdminTestState>()
+            .with_state(fixture.state())
+            .oneshot(
+                Request::builder()
+                    .uri("/api/admin/accounts/acct_cooldown/statistics")
+                    .header("x-request-id", "statistics_wire")
+                    .header(header::COOKIE, "aicodex_agent_teams_session=valid-session")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), 32768).await.unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let data = &value["data"];
+        assert_eq!(data["accountId"], "acct_cooldown");
+        assert_eq!(data["timezone"], "Asia/Kathmandu");
+        assert_eq!(data["generatedAtDisplay"], "2026-10-17 17:45:00");
+        assert_eq!(data["activeDays"], 1);
+        assert_eq!(data["dailyAverageRequests"], 2.0);
+        assert_eq!(data["dailyAverageCostUsd"], serde_json::json!(amount));
+        for period in ["sevenDays", "thirtyDays"] {
+            assert_eq!(data[period]["requestCount"], 2);
+            assert_eq!(data[period]["costUsd"], serde_json::json!(amount));
+            assert_eq!(data[period]["knownCostCount"], u64::from(amount.is_some()));
+            assert_eq!(
+                data[period]["unknownCostCount"],
+                if amount.is_some() { 1 } else { 2 }
+            );
+            assert_eq!(data[period]["partialCostCount"], 0);
+            assert_eq!(data[period]["notBillableCount"], 0);
+            assert_eq!(data[period]["nonUsdCostPresent"], false);
+            assert_eq!(data[period]["endDisplay"], "2026-10-17 17:45:00");
+            assert_eq!(
+                chrono::DateTime::parse_from_rfc3339(data[period]["end"].as_str().unwrap())
+                    .unwrap()
+                    .to_utc(),
+                end
+            );
+        }
+        assert_eq!(data["thirtyDays"]["startDisplay"], "2026-09-18 00:00:00");
+        assert_eq!(data["sevenDays"]["startDisplay"], "2026-10-11 00:00:00");
+        assert_eq!(data["analytics"]["state"], "ready");
+    }
+}
+
+#[tokio::test]
+async fn account_statistics_accepts_management_key_and_maps_store_failure_to_503() {
+    let fixture = AdminTestFixture::new().await;
+    seed_statistics_account(&fixture);
+    let key = format!("admin-{}", "a".repeat(64));
+    fixture.auth.set_api_key(&key);
+    let response = admin::accounts::router::<AdminTestState>()
+        .with_state(fixture.state())
+        .oneshot(
+            Request::builder()
+                .uri("/api/admin/accounts/acct_cooldown/statistics")
+                .header("x-request-id", "statistics_unavailable")
+                .header("x-api-key", key)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    let body = to_bytes(response.into_body(), 8192).await.unwrap();
+    let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert!(value["data"].is_null());
+    assert!(value["message"].is_string());
+}
+
+#[tokio::test]
+async fn account_statistics_rejects_non_management_key_even_with_valid_session() {
+    let fixture = AdminTestFixture::new().await;
+    seed_statistics_account(&fixture);
+    fixture.auth.insert_session("valid-session");
+    fixture
+        .auth
+        .set_api_key(&format!("admin-{}", "a".repeat(64)));
+    let response = admin::accounts::router::<AdminTestState>()
+        .with_state(fixture.state())
+        .oneshot(
+            Request::builder()
+                .uri("/api/admin/accounts/acct_cooldown/statistics")
+                .header("x-request-id", "statistics_invalid_key")
+                .header("x-api-key", "ordinary-client-key")
+                .header(header::COOKIE, "aicodex_agent_teams_session=valid-session")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}

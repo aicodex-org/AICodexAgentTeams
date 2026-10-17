@@ -1,4 +1,5 @@
 import type { RequestOptions } from '../request'
+import type { AnalyticsMetadata } from './analytics'
 import type { AccountGroupRef } from './groups'
 import request from '../request'
 
@@ -206,6 +207,32 @@ export interface AccountQuotaForecastResponse {
   accountId: string
   generatedAt: string
   forecasts: AccountQuotaForecast[]
+}
+
+export interface AccountStatisticsPeriod {
+  start: string
+  end: string
+  startDisplay: string
+  endDisplay: string
+  requestCount: number
+  costUsd: string | null
+  knownCostCount: number
+  partialCostCount: number
+  unknownCostCount: number
+  notBillableCount: number
+  nonUsdCostPresent: boolean
+}
+
+export interface AccountStatistics {
+  accountId: string
+  sevenDays: AccountStatisticsPeriod
+  thirtyDays: AccountStatisticsPeriod
+  activeDays: number
+  dailyAverageRequests: number | null
+  dailyAverageCostUsd: string | null
+  generatedAtDisplay: string
+  timezone: string
+  analytics: AnalyticsMetadata
 }
 
 export interface AccountPageMeta {
@@ -517,6 +544,14 @@ export function recoverAccount(data: AccountIdParam) {
     url: '/api/admin/accounts/recover',
     method: 'POST',
     data,
+  })
+}
+
+export function getAccountStatistics(accountId: string, options: RequestOptions = {}) {
+  return request<AccountStatistics>({
+    url: `/api/admin/accounts/${encodeURIComponent(accountId)}/statistics`,
+    method: 'GET',
+    ...options,
   })
 }
 

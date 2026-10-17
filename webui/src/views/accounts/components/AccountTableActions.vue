@@ -3,7 +3,7 @@ import type { Account } from '@/api'
 
 import { ZIconButton, ZMenuItem, ZPopover } from '@codex-proxy/ui'
 
-import { Download, KeyRound, MoreHorizontal, Pencil, Power, RefreshCw, RotateCcw, Trash2, Wifi } from '@lucide/vue'
+import { ChartNoAxesCombined, Download, KeyRound, MoreHorizontal, Pencil, Power, RefreshCw, RotateCcw, Trash2, Wifi } from '@lucide/vue'
 import { computed } from 'vue'
 
 const props = defineProps<{
@@ -16,6 +16,7 @@ const props = defineProps<{
   togglingScheduling: boolean
 }>()
 const emit = defineEmits<{
+  statistics: [account: Account]
   edit: [account: Account]
   delete: [account: Account]
   recover: [accountId: string]
@@ -57,6 +58,12 @@ const credentialEligible = computed(() => ['oauth', 'chatgpt_oauth'].includes(pr
 
       <template #default="{ close }">
         <div class="w-40 p-1.5">
+          <ZMenuItem @click.stop="(close(), emit('statistics', account))">
+            <template #icon>
+              <ChartNoAxesCombined class="size-3.5 text-cp-text-quaternary" />
+            </template>
+            查看统计
+          </ZMenuItem>
           <ZMenuItem
             :loading="testing"
             :disabled="testing"

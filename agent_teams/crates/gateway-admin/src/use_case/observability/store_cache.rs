@@ -37,6 +37,11 @@ impl<K, T> Default for Cache<K, T> {
 trait AnalyticsValue: Clone {
     fn metadata(&mut self) -> &mut AnalyticsMetadata;
 }
+impl AnalyticsValue for AccountStatisticsObservation {
+    fn metadata(&mut self) -> &mut AnalyticsMetadata {
+        &mut self.analytics
+    }
+}
 impl AnalyticsValue for DashboardObservation {
     fn metadata(&mut self) -> &mut AnalyticsMetadata {
         &mut self.analytics
@@ -183,6 +188,7 @@ fn normalized(mut filter: UsageFilter) -> UsageFilter {
 type UsageKey = (TimeRange, UsageFilter);
 pub(crate) struct CachedObservabilityStore {
     inner: Arc<dyn ObservabilityStore>,
+    accounts: Cache<(String, DateTime<Utc>), AccountStatisticsObservation>,
     dashboard: Cache<DashboardQuery, DashboardObservation>,
     summaries: Cache<UsageKey, UsageOverview>,
     insights: Cache<(UsageKey, Granularity), UsageInsightsObservation>,
@@ -192,6 +198,7 @@ impl CachedObservabilityStore {
     pub(crate) fn new(inner: Arc<dyn ObservabilityStore>) -> Self {
         Self {
             inner,
+            accounts: Cache::default(),
             dashboard: Cache::default(),
             summaries: Cache::default(),
             insights: Cache::default(),
@@ -202,8 +209,41 @@ impl CachedObservabilityStore {
 
 #[async_trait]
 impl ObservabilityStore for CachedObservabilityStore {
+    async fn account_exists(&self, account_id: &str) -> AdminStoreResult<bool> {
+        self.inner.account_exists(account_id).await
+    }
+
     async fn analytics_cache_generation(&self) -> AdminStoreResult<u64> {
         self.inner.analytics_cache_generation().await
+    }
+    async fn account_statistics(
+        &self,
+        account_id: String,
+        range: TimeRange,
+    ) -> AdminStoreResult<AccountStatisticsObservation> {
+        // 同一自然日共用刷新槽，过期失败可回用携带实际范围的旧快照
+        self.accounts
+            .get(
+                (account_id.clone(), range.start),
+                self.inner.as_ref(),
+                TTL,
+                || async {
+                    tokio::time::timeout(
+                        Duration::from_millis(1500),
+                        self.inner.account_statistics(account_id, range),
+                    )
+                    .await
+                    .map_err(|source| {
+                        AdminStoreError::new(
+                            AdminStoreErrorKind::Unavailable,
+                            "account statistics",
+                            "account statistics execution budget is exhausted",
+                        )
+                        .with_source(source)
+                    })?
+                },
+            )
+            .await
     }
     async fn dashboard_summary(
         &self,

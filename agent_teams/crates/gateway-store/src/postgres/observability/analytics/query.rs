@@ -7,6 +7,7 @@ pub(crate) struct AnalyticsSnapshot<'a> {
     pub tx: sqlx::Transaction<'a, Postgres>,
     status: AnalyticsStatus,
     approximate: bool,
+    fact_row_budget: usize,
 }
 
 struct ReadSelection<'a> {
@@ -36,6 +37,7 @@ impl<'a> AnalyticsSnapshot<'a> {
             tx,
             status,
             approximate: false,
+            fact_row_budget: MAX_FACT_ROWS,
         })
     }
 
@@ -114,6 +116,53 @@ impl<'a> AnalyticsSnapshot<'a> {
             .commit()
             .await
             .map_err(|error| postgres_unavailable("complete analytics query snapshot", error))
+    }
+
+    pub async fn account_statistics(
+        &mut self,
+        range: ObservabilityRange,
+        filter: &UsageRecordFilter,
+        timezone: gateway_core::time::DeploymentTimeZone,
+    ) -> StoreResult<admin_observability::AccountStatisticsObservation> {
+        self.fact_row_budget = 10_000;
+        sqlx::query("set local statement_timeout = '1500ms'")
+            .execute(&mut *self.tx)
+            .await
+            .map_err(|error| postgres_unavailable("bound account statistics statements", error))?;
+        let states = self
+            .load_selected(
+                range,
+                filter,
+                None,
+                Some(ObservationGranularity::Day),
+                timezone,
+                ReadSelection {
+                    distributions: false,
+                    costs: true,
+                    keys: None,
+                },
+            )
+            .await?;
+        let points = states
+            .into_iter()
+            .map(|((bucket_start, _), state)| {
+                Ok(admin_request_metric_point(RequestMetricPoint {
+                    bucket_start,
+                    granularity: ObservationGranularity::Day,
+                    metrics: state.request_metrics()?,
+                    cost_coverage: state.coverage(),
+                    costs: state.costs()?,
+                }))
+            })
+            .collect::<StoreResult<Vec<_>>>()?;
+        Ok(admin_observability::AccountStatisticsObservation {
+            range: admin_observability::TimeRange {
+                start: range.start,
+                end: range.end,
+            },
+            points,
+            analytics: self.metadata(),
+        })
     }
 
     pub async fn totals(&mut self) -> StoreResult<DashboardTotals> {
@@ -749,9 +798,13 @@ impl<'a> AnalyticsSnapshot<'a> {
             }
             query.push(")");
         }
-        query.push(" limit 100001");
+        query
+            .push(" limit ")
+            .push_bind((self.fact_row_budget + 1) as i64);
         if !single_span {
-            query.push(") fact limit 100001");
+            query
+                .push(") fact limit ")
+                .push_bind((self.fact_row_budget + 1) as i64);
         }
         let mut rows = query.build().fetch(&mut *self.tx);
         let mut count = 0;
@@ -761,7 +814,7 @@ impl<'a> AnalyticsSnapshot<'a> {
             .map_err(|error| postgres_unavailable("read bounded analytics facts", error))?
         {
             count += 1;
-            if count > MAX_FACT_ROWS {
+            if count > self.fact_row_budget {
                 return Err(unavailable("analytics fact row budget exceeded"));
             }
             let bucket = output_bucket(
