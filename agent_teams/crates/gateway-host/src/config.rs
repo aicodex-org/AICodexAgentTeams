@@ -157,7 +157,7 @@ pub struct LoggingConfig {
     /// 请求报文的留存窗口由 request_dump_retention_days 独立控制
     #[serde(default)]
     pub request_dump: bool,
-    /// 完整报文的最少保留天数；按 UTC 日期整组清理，默认 1 天
+    /// 完整报文的最少保留天数；按部署时区日期整组清理，默认 1 天
     #[serde(default = "default_request_dump_retention_days")]
     pub request_dump_retention_days: usize,
 }

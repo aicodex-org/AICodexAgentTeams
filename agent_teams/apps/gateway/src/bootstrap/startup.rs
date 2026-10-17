@@ -16,12 +16,13 @@ pub(super) enum Mode {
 }
 
 pub(super) struct Environment {
-    pub(super) host: HostBundle,
     pub(super) store: StoreBundle,
     pub(super) timezone: DeploymentTimeZone,
     pub(super) plugin_cache: PathBuf,
     pub(super) version: String,
     pub(super) plugin_http: Arc<HttpClient>,
+    // 日志随 Host 最后释放，覆盖其余环境资源的析构
+    pub(super) host: HostBundle,
 }
 
 impl Environment {
@@ -38,19 +39,26 @@ impl Environment {
             Mode::Command | Mode::Help => gateway_host::initialize_command_line(host).await?,
         };
         host.report_startup_ready("Host");
-        let store = match mode {
-            Mode::Server => gateway_store::initialize(store).await?,
-            Mode::Command => gateway_store::initialize_command_line(store).await?,
-            Mode::Help => gateway_store::initialize_read_only(store).await?,
-        };
-        host.report_startup_ready("Store");
-        let version = host
-            .system_operations()
-            .version()
-            .await
-            .map_err(|_| ConfigError::InvalidField("host.version"))?
-            .version;
-        let plugin_http = Arc::new(HttpClient::new()?);
+        let initialized = async {
+            let store = match mode {
+                Mode::Server => gateway_store::initialize(store).await?,
+                Mode::Command => gateway_store::initialize_command_line(store).await?,
+                Mode::Help => gateway_store::initialize_read_only(store).await?,
+            };
+            host.report_startup_ready("Store");
+            let version = host
+                .system_operations()
+                .version()
+                .await
+                .map_err(|_| ConfigError::InvalidField("host.version"))?
+                .version;
+            let plugin_http = Arc::new(HttpClient::new()?);
+            Ok::<_, BootstrapError>((store, version, plugin_http))
+        }
+        .await;
+        let (store, version, plugin_http) = initialized.inspect_err(|error| {
+            host.report_startup_failed(error.stage(), error.category());
+        })?;
         Ok(Self {
             host,
             store,
@@ -73,17 +81,18 @@ pub(super) struct Providers {
 impl Providers {
     pub(super) async fn initialize(
         config: provider_openai::OpenAiConfig,
-        environment: &Environment,
+        store: &StoreBundle,
+        timezone: DeploymentTimeZone,
+        host: &HostBundle,
     ) -> Result<Self, BootstrapError> {
-        let ports = environment.store.provider_ports();
+        let ports = store.provider_ports();
         let openai =
-            provider_openai::initialize(config.with_timezone(environment.timezone), ports.clone())
-                .await?;
-        environment.host.report_startup_ready("OpenAI Provider");
+            provider_openai::initialize(config.with_timezone(timezone), ports.clone()).await?;
+        host.report_startup_ready("OpenAI Provider");
         let xai = provider_xai::initialize(ports.clone()).await?;
-        environment.host.report_startup_ready("xAI Provider");
+        host.report_startup_ready("xAI Provider");
         let deepseek = provider_deepseek::initialize(ports).await?;
-        environment.host.report_startup_ready("DeepSeek Provider");
+        host.report_startup_ready("DeepSeek Provider");
         let core = ProviderRegistry::new([
             openai.core_provider(),
             xai.core_provider(),

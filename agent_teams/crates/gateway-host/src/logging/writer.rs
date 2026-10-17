@@ -9,7 +9,7 @@ use std::sync::Arc;
 use chrono::{NaiveDate, Utc};
 use flate2::{Compression, write::GzEncoder};
 
-use super::sink::LogHealth;
+use super::health::LogHealth;
 
 pub(super) struct RotatingLogWriter {
     timezone: gateway_core::time::DeploymentTimeZone,
@@ -67,7 +67,7 @@ impl RotatingLogWriter {
                 && entry.path != path
                 && let Err(error) = compress_log_file(&entry.path)
             {
-                writer.health.maintenance_failed(error.kind());
+                writer.health.maintenance_failed("compress", error.kind());
             }
         }
         Ok(writer)
@@ -105,7 +105,7 @@ impl RotatingLogWriter {
         self.segment = segment;
         self.bytes_written = self.file.get_ref().metadata()?.len();
         if let Err(error) = compress_log_file(&previous) {
-            self.health.maintenance_failed(error.kind());
+            self.health.maintenance_failed("compress", error.kind());
         }
         // 维护失败不能丢弃触发轮转的日志记录
         if let Err(error) = cleanup_log_files(
@@ -115,7 +115,7 @@ impl RotatingLogWriter {
             self.retention_days,
             self.timezone,
         ) {
-            self.health.maintenance_failed(error.kind());
+            self.health.maintenance_failed("cleanup", error.kind());
         }
         Ok(())
     }
@@ -173,22 +173,7 @@ fn managed_log_files(directory: &Path, prefix: &str) -> io::Result<Vec<ManagedLo
         let entry = entry?;
         let name = entry.file_name();
         let name = name.to_string_lossy();
-        let Some(body) = name.strip_prefix(&format!("{prefix}.")) else {
-            continue;
-        };
-        let (body, compressed) = match body.strip_suffix(".log.gz") {
-            Some(body) => (body, true),
-            None => match body.strip_suffix(".log") {
-                Some(body) => (body, false),
-                None => continue,
-            },
-        };
-        let (date, segment) = body
-            .split_once('.')
-            .map_or((body, Some(0)), |(date, segment)| {
-                (date, segment.parse::<usize>().ok())
-            });
-        if let (Ok(date), Some(segment)) = (NaiveDate::parse_from_str(date, "%Y-%m-%d"), segment) {
+        if let Some((date, segment, compressed)) = parse_log_file_name(&name, prefix) {
             files.push(ManagedLogFile {
                 date,
                 segment,
@@ -198,6 +183,39 @@ fn managed_log_files(directory: &Path, prefix: &str) -> io::Result<Vec<ManagedLo
         }
     }
     Ok(files)
+}
+
+fn parse_log_file_name(name: &str, prefix: &str) -> Option<(NaiveDate, usize, bool)> {
+    let body = name.strip_prefix(prefix)?.strip_prefix('.')?;
+    let (body, compressed) = match body.strip_suffix(".log.gz") {
+        Some(body) => (body, true),
+        None => (body.strip_suffix(".log")?, false),
+    };
+    let (date, segment) = match body.split_once('.') {
+        Some((date, segment)) => (date, segment.parse::<usize>().ok()?),
+        None => (body, 0),
+    };
+    Some((
+        NaiveDate::parse_from_str(date, "%Y-%m-%d").ok()?,
+        segment,
+        compressed,
+    ))
+}
+
+fn cleanup_temporary_archives(directory: &Path, prefix: &str) -> io::Result<()> {
+    for entry in fs::read_dir(directory)? {
+        let entry = entry?;
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if name.strip_suffix(".tmp").is_some_and(|name| {
+            parse_log_file_name(name, prefix).is_some_and(|(_, _, compressed)| compressed)
+        }) && entry.file_type()?.is_file()
+        {
+            // 临时归档尚未发布，不能作为完整记录保留；源文件缺失时也须回收孤儿
+            fs::remove_file(entry.path())?;
+        }
+    }
+    Ok(())
 }
 
 fn cleanup_log_files(
@@ -212,6 +230,7 @@ fn cleanup_log_files(
     let cutoff = today
         .checked_sub_days(chrono::Days::new(days))
         .unwrap_or(NaiveDate::MIN);
+    cleanup_temporary_archives(directory, prefix)?;
     let mut files = managed_log_files(directory, prefix)?;
     // 产品改名不改变既有日志的保留期限，旧前缀只参与清理，不再用于写入
     let legacy_prefix = match prefix {
@@ -221,6 +240,7 @@ fn cleanup_log_files(
         _ => None,
     };
     if let Some(legacy_prefix) = legacy_prefix {
+        cleanup_temporary_archives(directory, legacy_prefix)?;
         files.extend(managed_log_files(directory, legacy_prefix)?);
     }
     let mut dates = BTreeMap::<NaiveDate, Vec<PathBuf>>::new();
@@ -254,12 +274,23 @@ fn compress_log_file(path: &Path) -> io::Result<()> {
     let temporary = path.with_extension("log.gz.tmp");
     // 只有已关闭且由当前写入器管理的分段才能拥有此临时归档
     let output = File::create(&temporary)?;
-    let mut encoder = GzEncoder::new(output, Compression::fast());
-    io::copy(&mut source, &mut encoder)?;
-    let output = encoder.finish()?;
-    output.set_modified(modified)?;
-    output.sync_all()?;
-    fs::rename(&temporary, &archive)?;
+    let result = (|| {
+        let mut encoder = GzEncoder::new(output, Compression::fast());
+        io::copy(&mut source, &mut encoder)?;
+        let output = encoder.finish()?;
+        output.set_modified(modified)?;
+        output.sync_all()?;
+        fs::rename(&temporary, &archive)
+    })();
+    if let Err(error) = result {
+        // 发布失败保留源文件，清理失败交给下次维护重试并继续报告故障
+        if let Err(cleanup_error) = fs::remove_file(&temporary)
+            && cleanup_error.kind() != io::ErrorKind::NotFound
+        {
+            return Err(cleanup_error);
+        }
+        return Err(error);
+    }
     // 完整归档同步并发布后才能删除原文件
     fs::remove_file(path)
 }

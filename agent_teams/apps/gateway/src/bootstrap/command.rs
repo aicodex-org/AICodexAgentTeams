@@ -27,25 +27,44 @@ pub async fn plugin_command(
     command: PluginCommand,
 ) -> Result<gateway_plugin_runtime::PluginCommandOutput, BootstrapError> {
     let config = gateway_host::load_config::<GatewayConfig>()?;
-    if command.is_help() {
-        let environment = Environment::initialize(config.host, config.store, Mode::Help).await?;
-        help(command, environment).await
+    let mode = if command.is_help() {
+        Mode::Help
     } else {
-        let environment = Environment::initialize(config.host, config.store, Mode::Command).await?;
-        let providers = Providers::initialize(config.openai, &environment).await?;
-        execute(command, environment, providers).await
+        Mode::Command
+    };
+    let mut environment = Environment::initialize(config.host, config.store, mode).await?;
+    let result = async {
+        if command.is_help() {
+            help(command, &environment).await
+        } else {
+            let providers = Providers::initialize(
+                config.openai,
+                &environment.store,
+                environment.timezone,
+                &environment.host,
+            )
+            .await?;
+            execute(command, &mut environment, providers).await
+        }
     }
+    .await;
+    if let Err(error) = &result {
+        environment
+            .host
+            .report_command_failed(error.stage(), error.category());
+    }
+    result
 }
 
 async fn help(
     command: PluginCommand,
-    environment: Environment,
+    environment: &Environment,
 ) -> Result<gateway_plugin_runtime::PluginCommandOutput, BootstrapError> {
     let runtime = prepare_plugins(
         &environment.store,
-        environment.plugin_cache,
+        environment.plugin_cache.clone(),
         &environment.version,
-        environment.plugin_http,
+        environment.plugin_http.clone(),
     )?;
     let commands = or_shutdown!(runtime, runtime.prepare_command_line().await);
     let stdout = commands.help(command.instance_id.as_deref(), command.name.as_deref());
@@ -61,18 +80,19 @@ async fn help(
 
 async fn execute(
     command: PluginCommand,
-    environment: Environment,
+    environment: &mut Environment,
     providers: Providers,
 ) -> Result<gateway_plugin_runtime::PluginCommandOutput, BootstrapError> {
     let Environment {
         host,
-        mut store,
+        store,
         plugin_cache,
         version,
         plugin_http,
         ..
     } = environment;
-    let plugin_runtime = prepare_plugins(&store, plugin_cache, &version, plugin_http)?;
+    let plugin_runtime =
+        prepare_plugins(store, plugin_cache.clone(), version, plugin_http.clone())?;
     let instance_id = or_shutdown!(
         plugin_runtime,
         command
@@ -95,7 +115,7 @@ async fn execute(
         Some(plugin_runtime.policy_registry()),
         Some(plugin_runtime.execution_registry()),
     );
-    let management = ManagementPorts::new(&store, providers.admin.clone(), core.snapshot_control());
+    let management = ManagementPorts::new(store, providers.admin.clone(), core.snapshot_control());
     or_shutdown!(plugin_runtime, management.bind(&plugin_runtime));
     let core = or_shutdown!(plugin_runtime, core.activate().await);
     let nested_models = core.nested_model_execution_port();

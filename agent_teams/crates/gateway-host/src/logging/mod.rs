@@ -5,16 +5,20 @@ use std::io;
 use std::sync::Arc;
 
 use gateway_core::health::HealthProbe;
-use tracing_appender::non_blocking::{NonBlockingBuilder, WorkerGuard};
+use std::time::Instant;
 use tracing_subscriber::EnvFilter;
+use tracing_subscriber::filter::{FilterExt as _, filter_fn};
 use tracing_subscriber::{Layer as _, layer::SubscriberExt as _, util::SubscriberInitExt as _};
 
 use crate::config::LoggingConfig;
 
+mod health;
+mod panic;
 mod sink;
 mod writer;
 
-use sink::{FileLogGuard, FileLogSink, LogHealth};
+use health::{LogHealth, LoggingHealth};
+use sink::{LogOutput, LogSink, SHUTDOWN_TIMEOUT, SinkGuard};
 use writer::RotatingLogWriter;
 
 // 文件前缀统一为 AICodexAgentTeams-<kebab-case 类别>；专用 tracing target 使用 snake_case
@@ -28,11 +32,10 @@ const OAUTH_RECOVERY_LOG_FILE_PREFIX: &str = "AICodexAgentTeams-oauth-recovery";
 const REQUEST_DUMP_LOG_TARGET: &str = "request_dump";
 const REQUEST_DUMP_LOG_FILE_PREFIX: &str = "AICodexAgentTeams-request-dump";
 
-/// 文件日志在正常退出时排空队列并等待落盘；控制台日志单独持有守卫
+/// 所有输出共用关闭预算，正常退出排空，永久阻塞时明确报告缺口
 pub struct LogGuard {
-    _stdout: Vec<WorkerGuard>,
-    _files: Vec<FileLogGuard>,
-    health: Arc<LogHealth>,
+    outputs: Vec<SinkGuard>,
+    health: Arc<LoggingHealth>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -60,54 +63,65 @@ pub fn initialize_logging(
         EnvFilter::try_new(stdout_filter_directive(&directive, config.file.enabled))
             .map_err(|_| LogError::InvalidFilter)?;
     let mut guards = Vec::new();
-    let mut file_guards = Vec::new();
-    let health = Arc::new(LogHealth::default());
+    let mut health = Vec::new();
 
-    let stdout_writer = config.stdout.then(|| {
-        let (writer, guard) = NonBlockingBuilder::default()
-            .thread_name("gateway-log-stdout")
-            .finish(io::stdout());
+    let stdout_writer = if config.stdout {
+        let output_health = LogHealth::new("stdout");
+        let (writer, guard) = LogSink::spawn(
+            LogOutput::Stdout(io::stdout()),
+            "gateway-log-stdout",
+            Arc::clone(&output_health),
+        )?;
         guards.push(guard);
-        writer
-    });
+        health.push(output_health);
+        Some(writer)
+    } else {
+        None
+    };
     let file_writer = if config.file.enabled {
+        let output_health = LogHealth::new("application");
         let (writer, guard) = create_file_writer(
             config,
             timezone,
             config.file.retention_days,
             APPLICATION_LOG_FILE_PREFIX,
             "gateway-log-application-file",
-            Arc::clone(&health),
+            Arc::clone(&output_health),
         )?;
-        file_guards.push(guard);
+        guards.push(guard);
+        health.push(output_health);
         Some(writer)
     } else {
         None
     };
     let recovery_file_writer = if config.oauth_recovery {
+        let output_health = LogHealth::new("oauth_recovery");
         let (writer, guard) = create_file_writer(
             config,
             timezone,
             config.file.retention_days,
             OAUTH_RECOVERY_LOG_FILE_PREFIX,
             "gateway-log-oauth-recovery-file",
-            Arc::clone(&health),
+            Arc::clone(&output_health),
         )?;
-        file_guards.push(guard);
+        guards.push(guard);
+        health.push(output_health);
         Some(writer)
     } else {
         None
     };
     let request_dump_file_writer = if config.request_dump {
+        let output_health = LogHealth::new("request_dump");
         let (writer, guard) = create_file_writer(
             config,
             timezone,
             config.request_dump_retention_days,
             REQUEST_DUMP_LOG_FILE_PREFIX,
             "gateway-log-request-dump-file",
-            Arc::clone(&health),
+            Arc::clone(&output_health),
         )?;
-        file_guards.push(guard);
+        guards.push(guard);
+        health.push(output_health);
         Some(writer)
     } else {
         None
@@ -120,7 +134,7 @@ pub fn initialize_logging(
             .with_writer(writer)
             .with_target(false)
             .with_ansi(false)
-            .with_filter(stdout_filter)
+            .with_filter(stdout_filter.and(filter_fn(is_public_metadata)))
     });
     let file_layer = file_writer.map(|writer| {
         tracing_subscriber::fmt::layer()
@@ -134,7 +148,7 @@ pub fn initialize_logging(
             .with_thread_names(true)
             .with_current_span(true)
             .with_span_list(true)
-            .with_filter(file_filter)
+            .with_filter(file_filter.and(filter_fn(is_public_metadata)))
     });
     let recovery_file_layer = recovery_file_writer.map(|writer| {
         tracing_subscriber::fmt::layer()
@@ -148,7 +162,9 @@ pub fn initialize_logging(
             .with_thread_names(true)
             .with_current_span(true)
             .with_span_list(true)
-            .with_filter(recovery_file_filter)
+            .with_filter(recovery_file_filter.and(filter_fn(|metadata| {
+                metadata.is_span() || metadata.target() == OAUTH_RECOVERY_LOG_TARGET
+            })))
     });
     let request_dump_file_layer = request_dump_file_writer.map(|writer| {
         tracing_subscriber::fmt::layer()
@@ -162,33 +178,48 @@ pub fn initialize_logging(
             .with_thread_names(true)
             .with_current_span(true)
             .with_span_list(true)
-            .with_filter(request_dump_file_filter)
+            .with_filter(request_dump_file_filter.and(filter_fn(|metadata| {
+                metadata.is_span() || metadata.target() == REQUEST_DUMP_LOG_TARGET
+            })))
     });
+    let oauth_recovery_enabled = config.oauth_recovery;
+    let request_dump_enabled = config.request_dump;
     tracing_subscriber::registry()
         .with(stdout_layer)
         .with(file_layer)
         .with(recovery_file_layer)
         .with(request_dump_file_layer)
+        // enabled! 是采集前的探测，不能只依赖各输出层的过滤结果
+        // 全局门禁仅处理敏感 target，开关之外的动态指令没有采集授权
+        .with(filter_fn(move |metadata| match metadata.target() {
+            OAUTH_RECOVERY_LOG_TARGET => oauth_recovery_enabled,
+            REQUEST_DUMP_LOG_TARGET => request_dump_enabled,
+            _ => is_public_metadata(metadata),
+        }))
         .try_init()
         .map_err(|_| LogError::AlreadyInitialized)?;
+    panic::install();
     Ok(LogGuard {
-        _stdout: guards,
-        _files: file_guards,
-        health,
+        outputs: guards,
+        health: Arc::new(LoggingHealth(health)),
     })
 }
 
+// 敏感边界独立于 EnvFilter；动态 span 和更具体的环境指令均不能重新启用
+fn is_public_metadata(metadata: &tracing::Metadata<'_>) -> bool {
+    ![OAUTH_RECOVERY_LOG_TARGET, REQUEST_DUMP_LOG_TARGET]
+        .iter()
+        .any(|target| {
+            metadata.target() == *target
+                || metadata
+                    .target()
+                    .strip_prefix(target)
+                    .is_some_and(|suffix| suffix.starts_with("::"))
+        })
+}
+
 fn application_file_filter(directive: &str) -> Result<EnvFilter, LogError> {
-    let recovery_directive = format!("{OAUTH_RECOVERY_LOG_TARGET}=off")
-        .parse()
-        .expect("static OAuth recovery log directive is valid");
-    let request_dump_directive = format!("{REQUEST_DUMP_LOG_TARGET}=off")
-        .parse()
-        .expect("static request dump log directive is valid");
-    EnvFilter::try_new(directive)
-        .map(|filter| filter.add_directive(recovery_directive))
-        .map(|filter| filter.add_directive(request_dump_directive))
-        .map_err(|_| LogError::InvalidFilter)
+    EnvFilter::try_new(directive).map_err(|_| LogError::InvalidFilter)
 }
 
 fn oauth_recovery_file_filter() -> EnvFilter {
@@ -205,7 +236,7 @@ fn request_dump_file_filter() -> EnvFilter {
 
 fn stdout_filter_directive(directive: &str, persistent_log_enabled: bool) -> String {
     if !persistent_log_enabled {
-        format!("{directive},{OAUTH_RECOVERY_LOG_TARGET}=off,{REQUEST_DUMP_LOG_TARGET}=off")
+        directive.to_owned()
     } else {
         "off,gateway_startup=info,gateway_shutdown=info".to_owned()
     }
@@ -224,7 +255,7 @@ fn create_file_writer(
     prefix: &'static str,
     thread_name: &'static str,
     health: Arc<LogHealth>,
-) -> Result<(FileLogSink, FileLogGuard), LogError> {
+) -> Result<(LogSink, SinkGuard), LogError> {
     let maximum_bytes = config
         .file
         .max_file_size_mb
@@ -238,7 +269,11 @@ fn create_file_writer(
         Arc::clone(&health),
         timezone,
     )?;
-    Ok(FileLogSink::spawn(writer, thread_name, health)?)
+    Ok(LogSink::spawn(
+        LogOutput::File(Box::new(writer)),
+        thread_name,
+        health,
+    )?)
 }
 
 #[derive(Clone, Copy)]
@@ -250,5 +285,18 @@ impl tracing_subscriber::fmt::time::FormatTime for DeploymentClock {
         writer: &mut tracing_subscriber::fmt::format::Writer<'_>,
     ) -> std::fmt::Result {
         write!(writer, "{}", self.0.local(chrono::Utc::now()).to_rfc3339())
+    }
+}
+
+impl Drop for LogGuard {
+    fn drop(&mut self) {
+        let deadline = Instant::now() + SHUTDOWN_TIMEOUT;
+        // 先通知全部输出，避免多个故障输出串行放大退出等待
+        for output in &self.outputs {
+            output.begin_shutdown();
+        }
+        for output in &mut self.outputs {
+            output.finish_shutdown(deadline);
+        }
     }
 }

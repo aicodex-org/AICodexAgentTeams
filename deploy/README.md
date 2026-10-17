@@ -237,7 +237,7 @@ AICodexAgentTeams plugin '实例ID' '命令' --参数 '值'
 
 不带子命令或使用 `serve` 时启动网关；插件命令不监听 HTTP、不启动后台任务，也不恢复或清理正在运行的
 网关准入状态。顶层 `--help/--version` 不读取配置。插件帮助只读数据库，不执行迁移、登录或账号保存，
-因此需要先由正常部署完成数据库初始化。宿主诊断保留在配置的文件日志中，stdout/stderr 专用于命令结果
+因此需要先由正常部署完成数据库初始化。宿主诊断写入配置目录中的普通文件日志，即使服务模式只启用了 stdout；stdout/stderr 专用于命令结果
 
 参数支持 `--名称=值` 或 `--名称 值`；布尔参数可直接写 `--名称`，关闭时写 `--名称=false`。
 duration 使用 `500ms`、`1m30s` 等带单位形式。参数可能进入 shell 历史和系统进程列表，不能因为插件声明
@@ -443,6 +443,8 @@ Provider schema 以明文 JSON 保存于 PostgreSQL。Redis 只保存可重建�
 
 ### 日志与保留窗口
 
+普通诊断由 `host.logging.stdout` 或 `host.logging.file.enabled` 控制；两者均关闭而只启用敏感专用输出时，
+健康状态报告 `Degraded`，提示普通日志缺失。
 文件日志以时间完整性为清理依据，**没有文件数量淘汰上限**：
 
 | 文件集 | 保留配置 | 默认完整窗口 |
@@ -460,6 +462,8 @@ Provider schema 以明文 JSON 保存于 PostgreSQL。Redis 只保存可重建�
 按文件名日期与部署时区中的实际修改日期取较近值，旧日期分片近期被写入时整组延后删除。
 `max_file_size_mb` 仅决定分片大小（默认 20 MiB），不决定保存时长，单条大记录不会被截断。
 关闭的分片压缩为 `.log.gz`；成功压缩、同步并发布归档后才删除原文件，保留原修改时间。
+未发布的 `.log.gz.tmp` 不作为完整日志保留；发布失败时尝试清理，启动与轮转维护会回收受管名称的普通临时文件，
+保留窗口内的源文件在重启时恢复归档。
 清理发生在启动和轮转时；空闲期间过期文件可能暂时多保留。检索时须同时读取 `.log` 与 `.log.gz`
 
 报文开关为 `host.logging.request_dump`，默认关闭；开启时原始报文按块写入独立文件，
@@ -473,11 +477,15 @@ OAuth 恢复开关为 `host.logging.oauth_recovery`，默认关闭，与普通�
 
 恢复记录和请求转储含原始凭据，`.runtime/logs` 须按敏感数据控制访问和备份
 
-每个文件输出使用非阻塞队列，普通额度为 4096 条 / 64 MiB，WARN / ERROR 另有 512 条 / 8 MiB 预留，
-额度包含正在写入的记录。后台批量缓冲写文件，正常退出会排空已接收的队列并同步。
+每个文件输出及 stdout 都使用非阻塞队列，普通额度为 4096 条 / 64 MiB，WARN / ERROR 另有 512 条 / 8 MiB 预留，
+额度包含正在写入的记录。后台批量缓冲写文件，正常退出在组件收尾后排空已接收的队列并同步。
+所有日志输出共用 5 秒关闭预算；到期仍阻塞的输出停止等待并报告缺口，剩余记录可能随进程退出丢失。
 持续拥堵、超大记录或输出关闭导致的拒收会损失整条记录，所有接口均不会为日志等待；
-`file_logging` 健康探针在拒收或写入/同步失败后报告 `Unhealthy`，
+`file_logging` 健康探针覆盖文件与 stdout，在拒收、输出线程 panic、写入/同步失败或关闭超时后报告 `Unhealthy`，
+拒收按输出类别累计计数，输出和维护故障另记录操作阶段、错误类型及最近失败时间。
 本次进程内恢复写入也不会清除已有缺口；压缩或清理失败报告 `Degraded`。
+故障诊断由 `/healthz` 探测触发，应配置持续健康检查；首次输出故障另有不等待 stderr 的安全兜底提示。
+日志初始化后的进程 panic 只记录源码位置与固定事件 `process.panic`，不输出可能包含凭据的原始 payload。
 断电、强杀或磁盘故障可能造成日志丢失；需要恢复已删除文件时，应使用独立备份。
 容量不足时不会提前删除保留窗口内日志，必须根据完整日期的压缩后实际用量规划空间，并监控磁盘余量和
 健康探针。Docker stdout 的独立轮转不承担应用文件日志的完整保留承诺
@@ -497,7 +505,7 @@ OAuth 恢复开关为 `host.logging.oauth_recovery`，默认关闭，与普通�
    该包不含原始错误正文或完整 trace data。分享前仍应检查关联 ID 等内部信息
 4. 需要更细上下文时，在 `AICodexAgentTeams-application.*.log` 及 `.log.gz` 中按网关/上游 ID
    和时间检索，结合 `attempt.started`、`attempt.failed`、`request.finished` 与 transport 阶段判断。
-   **开启 `host.logging.file.enabled` 时，stdout 仅保留 `gateway_startup` 通道**；
+   **开启 `host.logging.file.enabled` 时，stdout 仅保留 `gateway_startup` 和 `gateway_shutdown` 通道**；
    `docker logs` 看不到业务错误不代表没有错误。关闭普通文件日志且开启 `host.logging.stdout`
    时，普通日志才按级别输出到 stdout；专用 dump/OAuth 恢复通道不会混入
 5. 查不到请求记录时，先用模型执行 ID 在“全部平台”下搜索：已进入执行会话的建流前失败也会记录，

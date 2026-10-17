@@ -146,3 +146,64 @@ fn generate_proxy_test_certificates(directory: &std::path::Path) {
         "extensions",
     ]);
 }
+
+#[test]
+fn startup_failures_are_recorded_before_server_and_cli_log_guards_close() {
+    let example = include_str!("../../../../../deploy/config.example.yaml");
+    let source = config::Config::builder()
+        .add_source(config::File::from_str(example, config::FileFormat::Yaml))
+        .build()
+        .unwrap();
+    let template: serde_json::Value = source.try_deserialize().unwrap();
+    for arguments in [
+        vec!["serve"],
+        vec!["plugin", "--help"],
+        vec!["plugin", "missing", "run"],
+    ] {
+        let directory = tempfile::tempdir().unwrap();
+        let deploy = directory.path().join("deploy");
+        fs::create_dir(&deploy).unwrap();
+        let mut document = template.clone();
+        document["store"]["database"]["password"] = serde_json::json!("1".repeat(48));
+        document["store"]["redis"]["password"] = serde_json::json!("2".repeat(48));
+        // URL 合法但 PostgreSQL 选项无效，在日志初始化后立即失败，不访问外部服务
+        document["store"]["database"]["url"] =
+            serde_json::json!("postgres://test@127.0.0.1/test?sslmode=invalid-test-mode");
+        document["admin"]["default_password"] = serde_json::json!("startup-test-secret-password");
+        document["host"]["logging"]["stdout"] = serde_json::json!(true);
+        document["host"]["logging"]["file"]["enabled"] = serde_json::json!(arguments[0] == "serve");
+        document["host"]["logging"]["file"]["directory"] = serde_json::json!("logs");
+        fs::write(
+            deploy.join("config.yaml"),
+            serde_json::to_vec(&document).unwrap(),
+        )
+        .unwrap();
+        let output = Command::new(env!("CARGO_BIN_EXE_AICodexAgentTeams"))
+            .args(&arguments)
+            .current_dir(directory.path())
+            .env_clear()
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        let logs: String = fs::read_dir(deploy.join("logs"))
+            .unwrap_or_else(|error| {
+                panic!(
+                    "{arguments:?}: {error}; stderr={}",
+                    String::from_utf8_lossy(&output.stderr)
+                )
+            })
+            .map(|entry| fs::read_to_string(entry.unwrap().path()).unwrap())
+            .collect();
+        assert!(
+            logs.contains("服务初始化失败，启动已终止"),
+            "{arguments:?}: {logs}"
+        );
+        assert!(logs.contains("\"stage\":\"store\""));
+        assert!(logs.contains("\"category\":\"postgres_unavailable\""));
+        assert!(!logs.contains("startup-test-secret-password"));
+        assert!(!logs.contains(&"1".repeat(48)));
+        if arguments[0] == "plugin" {
+            assert!(output.stdout.is_empty());
+        }
+    }
+}

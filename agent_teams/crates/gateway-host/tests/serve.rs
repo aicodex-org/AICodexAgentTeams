@@ -24,10 +24,38 @@ use tokio::sync::{Semaphore, mpsc};
 use crate::support::host::{configuration, run_in_child};
 
 #[test]
-fn host_bundle_serve_is_a_consuming_process_entrypoint() {
-    let _serve = HostBundle::serve;
-
-    assert_eq!(std::mem::size_of_val(&_serve), 0);
+fn application_logs_survive_http_shutdown_until_host_is_dropped() {
+    use crate::support::host::{CHILD_PROCESS_ENV, child_command};
+    const NAME: &str = "serve::application_logs_survive_http_shutdown_until_host_is_dropped";
+    if std::env::var(CHILD_PROCESS_ENV).as_deref() != Ok(NAME) {
+        let output = child_command(NAME)
+            .env("RUST_LOG", "info")
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        return;
+    }
+    run_in_child(NAME, async {
+        let directory = tempfile::tempdir().unwrap();
+        let (mut host, _) = listening_host(directory.path()).await;
+        host.cancellation().cancel();
+        host.serve(Router::new()).await.unwrap();
+        // 模拟组合根在 HTTP 停止后才完成的插件与组件清理
+        tracing::info!("component-cleanup-after-http");
+        host.report_startup_failed("store", "redis_unavailable");
+        drop(host);
+        let contents: String = std::fs::read_dir(directory.path().join("logs"))
+            .unwrap()
+            .map(|entry| std::fs::read_to_string(entry.unwrap().path()).unwrap())
+            .collect();
+        assert!(contents.contains("component-cleanup-after-http"));
+        assert!(contents.contains("服务初始化失败，启动已终止"));
+        assert!(contents.contains("\"stage\":\"store\""));
+    });
 }
 
 #[tokio::test]
@@ -103,7 +131,7 @@ async fn shutdown_with_pending_request(trigger: ShutdownTrigger) {
     config.system_update.build_type = "source".to_owned();
     config.system_update.self_restart_enabled = true;
     config.system_update.update_lock_file = directory.path().join("update.lock");
-    let host = gateway_host::initialize(config).await.unwrap();
+    let mut host = gateway_host::initialize(config).await.unwrap();
     drop(reservation);
     let system = host.system_operations();
     let cancellation = host.cancellation();
@@ -112,7 +140,7 @@ async fn shutdown_with_pending_request(trigger: ShutdownTrigger) {
     let probe = start_workers(&host, true);
     probe.started.cancelled().await;
     let (router, entered, _finish_request) = request_router(&host, &probe);
-    let server = tokio::spawn(host.serve(router));
+    let server = tokio::spawn(async move { host.serve(router).await });
     let client = connect_request(address).await;
     entered.cancelled().await;
     probe.sender.send(7).unwrap();
@@ -163,12 +191,12 @@ fn shutdown_aborts_workers_that_exceed_the_cleanup_budget() {
         "serve::shutdown_aborts_workers_that_exceed_the_cleanup_budget",
         async {
             let directory = tempfile::tempdir().unwrap();
-            let (host, address) = listening_host(directory.path()).await;
+            let (mut host, address) = listening_host(directory.path()).await;
             let cancellation = host.cancellation();
             let probe = start_workers(&host, true);
             probe.started.cancelled().await;
             let (router, entered, _finish_request) = request_router(&host, &probe);
-            let server = tokio::spawn(host.serve(router));
+            let server = tokio::spawn(async move { host.serve(router).await });
             let client = connect_request(address).await;
             entered.cancelled().await;
             cancellation.cancel();
@@ -203,7 +231,7 @@ fn bind_failure_cancels_and_joins_workers_before_returning() {
             let directory = tempfile::tempdir().unwrap();
             let mut config = configuration(directory.path());
             config.listen.host = "invalid address".to_owned();
-            let host = gateway_host::initialize(config).await.unwrap();
+            let mut host = gateway_host::initialize(config).await.unwrap();
             let cancellation = host.cancellation();
             let probe = start_workers(&host, false);
             probe.started.cancelled().await;
@@ -228,11 +256,11 @@ fn dropping_serve_cancels_public_operations_and_aborts_workers() {
         "serve::dropping_serve_cancels_public_operations_and_aborts_workers",
         async {
             let directory = tempfile::tempdir().unwrap();
-            let (host, address) = listening_host(directory.path()).await;
+            let (mut host, address) = listening_host(directory.path()).await;
             let cancellation = host.cancellation();
             let probe = start_workers(&host, true);
             probe.started.cancelled().await;
-            let server = tokio::spawn(host.serve(Router::new()));
+            let server = tokio::spawn(async move { host.serve(Router::new()).await });
             let client = connect_request(address).await;
 
             server.abort();
@@ -252,11 +280,11 @@ fn dropping_serve_during_worker_shutdown_aborts_the_joined_worker() {
         "serve::dropping_serve_during_worker_shutdown_aborts_the_joined_worker",
         async {
             let directory = tempfile::tempdir().unwrap();
-            let (host, address) = listening_host(directory.path()).await;
+            let (mut host, address) = listening_host(directory.path()).await;
             let cancellation = host.cancellation();
             let probe = start_workers(&host, true);
             probe.started.cancelled().await;
-            let server = tokio::spawn(host.serve(Router::new()));
+            let server = tokio::spawn(async move { host.serve(Router::new()).await });
             let client = connect_request(address).await;
 
             cancellation.cancel();
@@ -277,6 +305,75 @@ fn dropping_serve_during_worker_shutdown_aborts_the_joined_worker() {
             drop(client);
         },
     );
+}
+
+#[test]
+fn dropping_unpolled_serve_future_stops_workers_without_dropping_host() {
+    run_in_child(
+        "serve::dropping_unpolled_serve_future_stops_workers_without_dropping_host",
+        async {
+            let directory = tempfile::tempdir().unwrap();
+            let (mut host, _) = listening_host(directory.path()).await;
+            let connections = host.connection_lifecycle();
+            let probe = start_workers(&host, true);
+            probe.started.cancelled().await;
+            drop(host.serve(Router::new()));
+            assert!(host.cancellation().is_cancelled());
+            assert!(connections.is_draining());
+            assert!(connections.try_register().is_err());
+            tokio::time::timeout(Duration::from_secs(1), probe.dropped.cancelled())
+                .await
+                .expect("unpolled serve must retain its cancellation guard");
+            assert!(!probe.finished.is_cancelled());
+        },
+    );
+}
+
+#[test]
+fn dropping_serve_future_preserves_host_but_stops_its_public_capabilities() {
+    run_in_child(
+        "serve::dropping_serve_future_preserves_host_but_stops_its_public_capabilities",
+        cancel_borrowed_serve(false),
+    );
+}
+
+#[test]
+fn dropping_serve_future_during_worker_shutdown_preserves_host_and_aborts_workers() {
+    run_in_child(
+        "serve::dropping_serve_future_during_worker_shutdown_preserves_host_and_aborts_workers",
+        cancel_borrowed_serve(true),
+    );
+}
+
+async fn cancel_borrowed_serve(during_worker_shutdown: bool) {
+    let directory = tempfile::tempdir().unwrap();
+    let (mut host, address) = listening_host(directory.path()).await;
+    let cancellation = host.cancellation();
+    let connections = host.connection_lifecycle();
+    let probe = start_workers(&host, true);
+    probe.started.cancelled().await;
+    let mut serving = Box::pin(host.serve(Router::new()));
+    let client = tokio::select! {
+        result = &mut serving => panic!("serve unexpectedly ended: {result:?}"),
+        client = connect_request(address) => client,
+    };
+    if during_worker_shutdown {
+        cancellation.cancel();
+        tokio::select! {
+            result = &mut serving => panic!("worker cleanup unexpectedly ended: {result:?}"),
+            () = probe.cancelled.cancelled() => {},
+        }
+    }
+    // 只丢弃 future，Host 留在当前作用域，不能借助 Host 的 Drop 掩盖取消遗漏
+    drop(serving);
+    assert!(host.cancellation().is_cancelled());
+    assert!(connections.is_draining());
+    assert!(connections.try_register().is_err());
+    tokio::time::timeout(Duration::from_secs(1), probe.dropped.cancelled())
+        .await
+        .expect("cancelled serve must abort workers while retaining host");
+    assert!(!probe.finished.is_cancelled());
+    drop(client);
 }
 
 async fn listening_host(directory: &std::path::Path) -> (HostBundle, std::net::SocketAddr) {

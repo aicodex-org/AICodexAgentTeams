@@ -83,3 +83,37 @@ fn sigterm_cancels_command_line_without_http_serve() {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+#[test]
+fn command_line_keeps_file_diagnostics_for_stdout_only_configuration() {
+    use crate::support::host::{CHILD_PROCESS_ENV, child_command};
+    const NAME: &str =
+        "command_line::command_line_keeps_file_diagnostics_for_stdout_only_configuration";
+    if std::env::var(CHILD_PROCESS_ENV).as_deref() != Ok(NAME) {
+        let output = child_command(NAME)
+            .env("RUST_LOG", "info")
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(!String::from_utf8_lossy(&output.stdout).contains("cli-diagnostic-marker"));
+        return;
+    }
+    run_in_child(NAME, async {
+        let directory = tempfile::tempdir().unwrap();
+        let mut config = configuration(directory.path());
+        config.logging.stdout = true;
+        config.logging.file.enabled = false;
+        let host = gateway_host::initialize_command_line(config).await.unwrap();
+        tracing::warn!("cli-diagnostic-marker");
+        drop(host);
+        let contents: String = std::fs::read_dir(directory.path().join("logs"))
+            .unwrap()
+            .map(|entry| std::fs::read_to_string(entry.unwrap().path()).unwrap())
+            .collect();
+        assert!(contents.contains("cli-diagnostic-marker"));
+    });
+}

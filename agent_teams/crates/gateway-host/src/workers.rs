@@ -111,6 +111,15 @@ impl WorkerSupervisor {
         Ok(())
     }
 
+    /// 无法异步收尾时终止监督任务，句柄仍由监督器持有到后续清理
+    pub(crate) fn abort(&self) {
+        self.cancellation.cancel();
+        for (_, handle) in lock_unpoisoned(&self.handles).iter() {
+            handle.abort();
+        }
+        self.health.stop_all();
+    }
+
     /// 先协作取消；所有任务共享同一绝对截止点，逾期任务被 abort，
     /// lease 依赖 TTL 兜底
     /// 每个句柄恰好 join 一次：已在截止点前退出的
@@ -152,11 +161,7 @@ impl Drop for WorkerShutdown<'_> {
 
 impl Drop for WorkerSupervisor {
     fn drop(&mut self) {
-        self.cancellation.cancel();
-        for (_, handle) in lock_unpoisoned(&self.handles).iter() {
-            handle.abort();
-        }
-        self.health.stop_all();
+        self.abort();
     }
 }
 

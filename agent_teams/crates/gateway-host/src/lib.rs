@@ -38,7 +38,6 @@ use self::workers::WorkerSupervisor;
 /// Host 初始化的能力集；字段全部私有，不暴露内部监督器或进程状态
 pub struct HostBundle {
     config: HostConfig,
-    log_guard: LogGuard,
     cancellation: CancellationToken,
     connections: Arc<ConnectionTracker>,
     workers: WorkerSupervisor,
@@ -46,6 +45,8 @@ pub struct HostBundle {
     client_distribution: Arc<RgAdguardClientDistribution>,
     official_plugins: Arc<official_plugins::FileOfficialPluginRelease>,
     command_signal: Option<command_line::SignalGuard>,
+    // 所有宿主能力析构后才排空日志，保留清理阶段的诊断
+    log_guard: LogGuard,
 }
 
 /// 在启动其他包之前初始化进程级能力
@@ -80,9 +81,11 @@ pub async fn initialize(config: HostConfig) -> Result<HostBundle, HostError> {
     })
 }
 
-/// CLI 的 stdout/stderr 属于命令结果；宿主诊断只保留已配置的文件日志
+/// CLI 的 stdout/stderr 属于命令结果；宿主诊断写入配置目录中的普通文件日志
 pub async fn initialize_command_line(mut config: HostConfig) -> Result<HostBundle, HostError> {
     config.logging.stdout = false;
+    // CLI 输出属于命令结果，诊断沿用配置的文件目录独立留存
+    config.logging.file.enabled = true;
     let mut host = initialize(config).await?;
     host.command_signal = Some(command_line::SignalGuard::start(host.cancellation()));
     Ok(host)
@@ -92,6 +95,16 @@ impl HostBundle {
     /// 向启动控制台报告一个组装阶段已就绪
     pub fn report_startup_ready(&self, service: &'static str) {
         tracing::info!(target: "gateway_startup", service, "服务启动正常");
+    }
+
+    /// 组合根只提交稳定阶段分类，避免错误来源链中的凭据进入普通日志
+    pub fn report_startup_failed(&self, stage: &'static str, category: &'static str) {
+        tracing::error!(target: "gateway_startup", event = "startup.failed", stage, category, "服务初始化失败，启动已终止");
+    }
+
+    /// 命令失败与服务启动失败区分，日志只保留安全的阶段分类
+    pub fn report_command_failed(&self, stage: &'static str, category: &'static str) {
+        tracing::error!(target: "gateway_command", event = "command.failed", stage, category, "插件命令失败，命令已终止");
     }
 
     #[must_use]
@@ -165,35 +178,71 @@ impl HostBundle {
     }
 
     /// 进程唯一阻塞点；停止 HTTP 监听后完成 worker join
-    pub async fn serve(self, router: Router) -> Result<(), HostError> {
-        let result = serve_router(
-            router,
-            &self.config.listen.host,
-            self.config.listen.port,
-            self.cancellation.clone(),
-            Arc::clone(&self.connections),
-        )
-        .await;
-        self.cancellation.cancel();
-        self.workers
-            .shutdown(self.config.worker_shutdown_timeout())
+    pub fn serve(
+        &mut self,
+        router: Router,
+    ) -> impl std::future::Future<Output = Result<(), HostError>> + '_ {
+        let config = &self.config;
+        let workers = &self.workers;
+        let connections = &self.connections;
+        // 在创建 future 时安装守卫，未被 poll 的服务 future 被丢弃时也要取消公共能力
+        let cancellation = ServeCancellation {
+            connections,
+            workers,
+            completed: false,
+        };
+        async move {
+            let result = serve_router(
+                router,
+                &config.listen.host,
+                config.listen.port,
+                connections.cancellation(),
+                Arc::clone(connections),
+            )
             .await;
-        match &result {
-            Ok(()) => {
-                tracing::info!(target: "gateway_shutdown", pid = std::process::id(), "HTTP 监听已关闭，后台任务已结束")
+            connections.begin_draining();
+            workers.shutdown(config.worker_shutdown_timeout()).await;
+            cancellation.complete();
+            match &result {
+                Ok(()) => {
+                    tracing::info!(target: "gateway_shutdown", pid = std::process::id(), "HTTP 监听已关闭，后台任务已结束")
+                }
+                Err(error) => {
+                    tracing::error!(target: "gateway_shutdown", pid = std::process::id(), %error, "HTTP 服务异常停止，后台任务已清理")
+                }
             }
-            Err(error) => {
-                tracing::error!(target: "gateway_shutdown", pid = std::process::id(), %error, "HTTP 服务异常停止，后台任务已清理")
-            }
+            result?;
+            Ok(())
         }
-        result?;
-        Ok(())
+    }
+}
+
+/// 借用式 serve 被取消时，Host 仍可能被调用方保留，不能依赖 Host 析构关闭公共能力
+struct ServeCancellation<'a> {
+    connections: &'a ConnectionTracker,
+    workers: &'a WorkerSupervisor,
+    completed: bool,
+}
+
+impl ServeCancellation<'_> {
+    fn complete(mut self) {
+        self.completed = true;
+    }
+}
+
+impl Drop for ServeCancellation<'_> {
+    fn drop(&mut self) {
+        if !self.completed {
+            self.connections.begin_draining();
+            self.workers.abort();
+            tracing::warn!(target: "gateway_shutdown", event = "serve.cancelled", "HTTP 服务等待已取消，连接注册已停止，已请求终止后台任务");
+        }
     }
 }
 
 impl Drop for HostBundle {
     fn drop(&mut self) {
-        // CLI、启动失败和 serve future 被丢弃也要通知公共能力停止
+        // CLI 与启动失败也要通知公共能力停止
         // WorkerSupervisor 自己负责取消并终止剩余任务
         self.cancellation.cancel();
     }
