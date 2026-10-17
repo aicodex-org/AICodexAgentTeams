@@ -8,8 +8,10 @@ FROM node:26-bookworm-slim@sha256:86f07bc9c5dce4578cf37e5a418b7bfc7f817cda25cde6
 
 WORKDIR /app/webui
 COPY webui/package.json webui/pnpm-lock.yaml webui/pnpm-workspace.yaml ./
-RUN npm install --global "$(node -p 'require("./package.json").packageManager')" \
-    && pnpm install --frozen-lockfile
+RUN --mount=type=cache,target=/root/.npm \
+    --mount=type=cache,id=aicodex-webui-pnpm,target=/pnpm/store \
+    npm install --global "$(node -p 'require("./package.json").packageManager')" \
+    && pnpm install --frozen-lockfile --store-dir=/pnpm/store
 COPY webui ./
 RUN pnpm build
 
@@ -17,21 +19,22 @@ FROM rust:1.98-bookworm@sha256:93ce27a88655056a51dbdd8f5f2d7ddc071c7b0070fb288a3
 
 WORKDIR /app/agent_teams
 ARG TARGETARCH
-ARG AICODEX_AGENT_TEAMS_VERSION=
-ARG AICODEX_AGENT_TEAMS_GIT_SHA=unknown
-ARG AICODEX_AGENT_TEAMS_BUILD_TIME=unknown
-ARG AICODEX_AGENT_TEAMS_BUILD_TYPE=release
 ENV CARGO_TARGET_DIR=/app/agent_teams/target/${TARGETARCH}
-ENV AICODEX_AGENT_TEAMS_VERSION=${AICODEX_AGENT_TEAMS_VERSION}
-ENV AICODEX_AGENT_TEAMS_GIT_SHA=${AICODEX_AGENT_TEAMS_GIT_SHA}
-ENV AICODEX_AGENT_TEAMS_BUILD_TIME=${AICODEX_AGENT_TEAMS_BUILD_TIME}
-ENV AICODEX_AGENT_TEAMS_BUILD_TYPE=${AICODEX_AGENT_TEAMS_BUILD_TYPE}
 COPY agent_teams/Cargo.toml agent_teams/Cargo.lock ./
 COPY agent_teams/apps ./apps
 COPY agent_teams/crates ./crates
 COPY agent_teams/vendor ./vendor
 COPY agent_teams/migrations ./migrations
 COPY release/version.yaml /app/release/version.yaml
+# 构建元数据只影响编译，避免每次更新时间时使源码复制缓存失效
+ARG AICODEX_AGENT_TEAMS_VERSION=
+ARG AICODEX_AGENT_TEAMS_GIT_SHA=unknown
+ARG AICODEX_AGENT_TEAMS_BUILD_TIME=unknown
+ARG AICODEX_AGENT_TEAMS_BUILD_TYPE=release
+ENV AICODEX_AGENT_TEAMS_VERSION=${AICODEX_AGENT_TEAMS_VERSION}
+ENV AICODEX_AGENT_TEAMS_GIT_SHA=${AICODEX_AGENT_TEAMS_GIT_SHA}
+ENV AICODEX_AGENT_TEAMS_BUILD_TIME=${AICODEX_AGENT_TEAMS_BUILD_TIME}
+ENV AICODEX_AGENT_TEAMS_BUILD_TYPE=${AICODEX_AGENT_TEAMS_BUILD_TYPE}
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/app/agent_teams/target \
@@ -60,8 +63,10 @@ RUN apt-get update \
         /app/bin /app/deploy /app/.runtime/data /app/.runtime/logs /app/web \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=pg-client /usr/lib/postgresql/18/bin/pg_dump /usr/lib/postgresql/18/bin/pg_dump
-COPY --from=pg-client /usr/lib/postgresql/18/bin/pg_restore /usr/lib/postgresql/18/bin/pg_restore
+COPY --from=pg-client \
+    /usr/lib/postgresql/18/bin/pg_dump \
+    /usr/lib/postgresql/18/bin/pg_restore \
+    /usr/lib/postgresql/18/bin/
 RUN /usr/lib/postgresql/18/bin/pg_dump --version \
     && /usr/lib/postgresql/18/bin/pg_restore --version
 
@@ -88,11 +93,10 @@ FROM runtime-base AS runtime-prebuilt
 ARG TARGETARCH
 ARG AICODEX_AGENT_TEAMS_PREBUILT_DIR=dist/docker
 
-COPY --chown=aicodex-agent-teams:aicodex-agent-teams ${AICODEX_AGENT_TEAMS_PREBUILT_DIR}/linux-${TARGETARCH}/AICodexAgentTeams /app/bin/AICodexAgentTeams
+COPY --chown=aicodex-agent-teams:aicodex-agent-teams --chmod=0755 ${AICODEX_AGENT_TEAMS_PREBUILT_DIR}/linux-${TARGETARCH}/AICodexAgentTeams /app/bin/AICodexAgentTeams
 COPY --chown=aicodex-agent-teams:aicodex-agent-teams ${AICODEX_AGENT_TEAMS_PREBUILT_DIR}/web/dist ./web/dist
 COPY --chown=aicodex-agent-teams:aicodex-agent-teams ${AICODEX_AGENT_TEAMS_PREBUILT_DIR}/linux-${TARGETARCH}/plugins/official /app/bin/plugins/official
-RUN chmod +x /app/bin/AICodexAgentTeams \
-    && find /app/bin/plugins/official -type f -exec chmod 0444 '{}' + \
+RUN find /app/bin/plugins/official -type f -exec chmod 0444 '{}' + \
     && chmod 0555 /app/bin/plugins/official \
     && chmod 0755 /app/bin/plugins
 USER aicodex-agent-teams
