@@ -259,6 +259,17 @@ impl SettingsService for DefaultSettingsService {
         match &command.change {
             PricingChange::Replace(pricing) => {
                 pricing.validate().map_err(AdminError::invalid)?;
+                if command.provider != "deepseek" && pricing.bands.contains_key("off_peak") {
+                    return Err(AdminError::invalid("仅 DeepSeek 支持空闲价格档位"));
+                }
+                if command.provider == "deepseek"
+                    && pricing
+                        .bands
+                        .keys()
+                        .any(|band| !matches!(band.as_str(), "standard" | "off_peak"))
+                {
+                    return Err(AdminError::invalid("DeepSeek 仅支持高峰与空闲价格档位"));
+                }
                 if command.provider == "xai"
                     && pricing
                         .bands

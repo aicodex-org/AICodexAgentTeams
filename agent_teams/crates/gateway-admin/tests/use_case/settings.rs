@@ -101,6 +101,45 @@ async fn client_profile_preview_rejects_unknown_provider_before_loading_settings
 }
 
 #[tokio::test]
+async fn off_peak_band_is_accepted_only_for_deepseek() {
+    for provider in ["deepseek", "openai", "xai"] {
+        let store = Arc::new(PricingSettingsStore::default());
+        let services = super::AdminHarness::new()
+            .settings(store.clone())
+            .provider(super::test_provider(provider))
+            .build()
+            .await;
+        let context = MutationContext {
+            actor: gateway_admin::model::MutationActor::System,
+            request_id: "request-off-peak-pricing".to_owned(),
+        };
+        let rates = serde_json::json!({"input":"0.3","output":"1.2","cacheRead":"0.006","cacheWrite":"0.3"});
+        let pricing = serde_json::from_value(serde_json::json!({
+            "multiplierBps":10000,"bands":{"standard":rates,"off_peak":rates}
+        }))
+        .unwrap();
+        let result = services
+            .settings()
+            .update_pricing(
+                &context,
+                UpdatePricing {
+                    provider: provider.to_owned(),
+                    models: vec!["deepseek-flash".to_owned()],
+                    change: PricingChange::Replace(pricing),
+                },
+            )
+            .await;
+        if provider == "deepseek" {
+            result.expect("DeepSeek supports independent off-peak prices");
+            assert!(store.updated.lock().unwrap().is_some());
+        } else {
+            assert_eq!(result.unwrap_err().kind(), AdminErrorKind::Invalid);
+            assert!(store.updated.lock().unwrap().is_none());
+        }
+    }
+}
+
+#[tokio::test]
 async fn pricing_accepts_native_provider_and_rejects_unknown_sync_provider() {
     let store = Arc::new(PricingSettingsStore::default());
     let services = super::AdminHarness::new()

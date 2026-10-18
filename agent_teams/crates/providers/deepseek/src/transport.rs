@@ -201,6 +201,18 @@ pub(crate) fn stream(
         let cancellation=context.cancellation().clone();
         if cancellation.is_cancelled(){Err(not_sent(ProviderErrorKind::Cancelled))?;}
         if context.deadline().is_elapsed(){Err(not_sent(ProviderErrorKind::Timeout))?;}
+        // 首次轮询才实际发送，按此刻冻结单价，响应跨峰谷边界不重新选价
+        let price = crate::pricing::resolve(
+            model.as_str(),
+            context
+                .pricing()
+                .get("deepseek")
+                .and_then(|models| models.get(model.as_str())),
+            selected
+                .credential
+                .pricing_schedule
+                .is_off_peak(chrono::Utc::now()),
+        );
         let response=tokio::select!{biased;_=cancellation.cancelled()=>Err(ProviderError::new(ProviderErrorKind::Cancelled,UpstreamSendState::Ambiguous)),_=context.deadline().wait()=>Err(ProviderError::new(ProviderErrorKind::Timeout,UpstreamSendState::Ambiguous)),result=client.execute(request)=>result.map_err(|error|ProviderError::new(if error.is_timeout(){ProviderErrorKind::Timeout}else{ProviderErrorKind::Transport},UpstreamSendState::Ambiguous))}?;
         if !response.status().is_success(){
             let status=response.status().as_u16();
@@ -233,7 +245,7 @@ pub(crate) fn stream(
         let headers=response.headers().iter().filter(|(name,_)|gateway_protocol::openai::response_header_is_forwardable(name.as_str(),&connection_options)).map(|(name,value)|gateway_core::event::ProviderResponseHeader::new(name.as_str(),Bytes::copy_from_slice(value.as_bytes()))).collect();
         let mut observation=Some(gateway_core::event::ProviderResponseObservation::new(upstream_transport).with_status_code(response.status().as_u16()).with_client_headers(headers));
         let standard=body.get("service_tier").is_none_or(|v|v.is_null()||matches!(v.as_str(),Some("default"|"standard"))) && body.get("tools").and_then(Value::as_array).is_none_or(|tools|tools.iter().all(|tool|tool.get("type").is_none_or(|v|matches!(v.as_str(),Some("function"|"custom")))));
-        let price=standard.then(||context.pricing().get("deepseek").and_then(|models|models.get(model.as_str())).cloned()).flatten();
+        let price=standard.then_some(price).flatten();
         let mut decoder=Observation::new(protocol.clone(),model.as_str().to_owned(),selected.credential.api_key.clone(),price);
         if !streaming{
             let bytes=tokio::select!{biased;_=cancellation.cancelled()=>Err(sent(ProviderErrorKind::Cancelled)),_=context.deadline().wait()=>Err(sent(ProviderErrorKind::Timeout)),result=bounded_body(response,usize::MAX)=>result}?;

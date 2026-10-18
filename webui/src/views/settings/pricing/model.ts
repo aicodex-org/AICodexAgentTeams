@@ -2,6 +2,7 @@ import type { ModelPricing, PriceBand, PricingCatalog, TokenPrices } from '@/api
 
 export const bands: { value: PriceBand, label: string }[] = [
   { value: 'standard', label: '标准' },
+  { value: 'off_peak', label: '空闲' },
   { value: 'fast', label: 'Priority / Fast' },
   { value: 'flex', label: 'Flex' },
   { value: 'long_standard', label: '长上下文 · 标准' },

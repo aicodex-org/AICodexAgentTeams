@@ -52,7 +52,11 @@ async fn native_streams_preserve_bytes_and_complete_usage() {
             .expect(1)
             .mount(&server)
             .await;
-        let (provider, _, _) = fixture(&server.uri()).await;
+        let (provider, _, _) = crate::support::execution_fixture_with_schedule(
+            &server.uri(),
+            Some(json!({"enabled": false})),
+        )
+        .await;
         let mut stream = provider
             .execute(
                 request(operation(protocol, true)),
@@ -71,6 +75,7 @@ async fn native_streams_preserve_bytes_and_complete_usage() {
         let mut bytes = Vec::new();
         let mut usage = gateway_core::metering::Usage::new();
         let mut completed = 0;
+        let mut costs = Vec::new();
         while let Some(event) = stream.next().await {
             let event = event.unwrap_or_else(|e| panic!("{protocol}: {e:?}"));
             if let Some(observation) = event.response_observation() {
@@ -83,6 +88,9 @@ async fn native_streams_preserve_bytes_and_complete_usage() {
                 match fact {
                     GatewayEvent::Usage(value) => usage.merge(value),
                     GatewayEvent::Completed(_) => completed += 1,
+                    GatewayEvent::CalculatedCost(cost) => {
+                        costs.push(cost.total().amount().canonical())
+                    }
                     _ => {}
                 }
             }
@@ -91,6 +99,14 @@ async fn native_streams_preserve_bytes_and_complete_usage() {
         assert_eq!(usage.input_tokens, Some(10));
         assert_eq!(usage.output_tokens, Some(2));
         assert_eq!(completed, 1);
+        assert_eq!(
+            costs,
+            [if protocol == "anthropic" {
+                "0.000002406"
+            } else {
+                "0.0000027"
+            }]
+        );
     }
 }
 
@@ -113,7 +129,11 @@ async fn native_nonstream_keeps_raw_json() {
             .respond_with(ResponseTemplate::new(200).set_body_raw(raw, "application/json"))
             .mount(&server)
             .await;
-        let (provider, _, _) = fixture(&server.uri()).await;
+        let (provider, _, _) = crate::support::execution_fixture_with_schedule(
+            &server.uri(),
+            Some(json!({"enabled": false})),
+        )
+        .await;
         let mut stream = provider
             .execute(
                 request(operation(protocol, false)),
@@ -139,6 +159,15 @@ async fn native_nonstream_keeps_raw_json() {
                 .as_ref(),
             raw.as_bytes()
         );
+        let costs = event
+            .canonical_facts()
+            .iter()
+            .filter_map(|fact| match fact {
+                GatewayEvent::CalculatedCost(cost) => Some(cost.total().amount().canonical()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(costs, ["0.00000105"]);
         assert!(stream.next().await.is_none());
         let requests = server.received_requests().await.unwrap();
         let body: Value = serde_json::from_slice(&requests[0].body).unwrap();
@@ -315,12 +344,15 @@ async fn configured_cost_uses_sent_model_cache_tokens_and_multiplier() {
             },
         )]),
     };
-    for (has_price, has_usage, tier, expected) in [
-        (true, true, None, Some("0.00044")),
-        (false, true, None, None),
-        (true, false, None, None),
-        (true, true, Some("auto"), None),
-        (true, true, Some("fast"), None),
+    for (has_price, has_usage, tier, enabled, peak, expected) in [
+        (true, true, None, true, true, Some("0.00044")),
+        (false, true, None, true, true, Some("0.00003612")),
+        (false, true, None, true, false, Some("0.00001806")),
+        (true, true, None, false, true, Some("0.00003612")),
+        (false, true, None, false, true, Some("0.00001806")),
+        (true, false, None, true, true, None),
+        (true, true, Some("auto"), true, true, None),
+        (true, true, Some("fast"), true, true, None),
     ] {
         let server = MockServer::start().await;
         let mut body = json!({"id":"r1","model":"different-echo-name","choices":[{"message":{"content":"hi"},"finish_reason":"stop"}]});
@@ -332,7 +364,18 @@ async fn configured_cost_uses_sent_model_cache_tokens_and_multiplier() {
             .respond_with(ResponseTemplate::new(200).set_body_json(body))
             .mount(&server)
             .await;
-        let (provider, _, _) = fixture(&server.uri()).await;
+        let opposite_hour = (chrono::Timelike::hour(&chrono::Utc::now()) + 12) % 24;
+        let (start, end) = if peak {
+            ("00:00".to_owned(), "24:00".to_owned())
+        } else {
+            (
+                format!("{opposite_hour:02}:00"),
+                format!("{opposite_hour:02}:01"),
+            )
+        };
+        let schedule = json!({"enabled":enabled,"timezone":"UTC","peak_weekdays":[1,2,3,4,5,6,7],"peak_windows":[{"start":start,"end":end}],"exclude_chinese_holidays":false});
+        let (provider, _, _) =
+            crate::support::execution_fixture_with_schedule(&server.uri(), Some(schedule)).await;
         let pricing = if has_price {
             BTreeMap::from([(
                 "deepseek".to_owned(),

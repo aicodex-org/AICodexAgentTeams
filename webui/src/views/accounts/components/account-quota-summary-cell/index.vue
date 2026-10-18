@@ -6,12 +6,15 @@ import AccountUsageWindow from '@/components/account/account-usage-window/index.
 import { quotaWindowPresentation } from '@/components/account/account-usage-window/presenter'
 import { groupedAccountQuotaWindows, visibleSummaryQuotaWindows } from '../../constants'
 import AccountCapacityIndicator from '../AccountCapacityIndicator.vue'
+import DeepSeekBalanceSummary from '../DeepSeekBalanceSummary.vue'
 import AccountQuotaSummaryEntry from './Entry.vue'
 import { recentlyUsedQuotaEntry, representativeQuotaWindow } from './presenter'
 
 const props = defineProps<{
   account: Account
+  refreshing?: boolean
 }>()
+const emit = defineEmits<{ refreshQuota: [accountId: string] }>()
 
 const quotaWindows = computed(() => props.account.quota.windows)
 const visibleQuotaWindows = computed(() => visibleSummaryQuotaWindows(quotaWindows.value))
@@ -42,10 +45,11 @@ const additionalEntryCount = computed(() => Math.max(summaryEntries.value.length
       >
         <strong class="truncate text-cp-xs font-heavy text-cp-text">{{ account.usage.totalTokensDisplay }}</strong>
         <span class="shrink-0 text-[9px] font-emphasis tracking-[0.02em] text-cp-text-quaternary">Tokens</span>
+        <AccountCapacityIndicator v-if="isDeepSeek" class="ml-auto" :capacity="account.capacity" />
       </span>
       <div v-if="isDeepSeek" class="flex min-w-0 items-start justify-between gap-2">
-        <div class="grid min-w-0 gap-1">
-          <span class="text-[10px] font-bold text-cp-text-quaternary">{{ consumptionLabel }}</span>
+        <div class="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-1" :title="consumptionLabel">
+          <span class="shrink-0 text-[10px] text-cp-text-quaternary">{{ account.usage.costEstimateStatus === 'partial' ? '部分估算' : '消耗' }}</span>
           <template v-if="account.usage.costs.length > 0">
             <span
               v-for="cost in account.usage.costs"
@@ -53,12 +57,11 @@ const additionalEntryCount = computed(() => Math.max(summaryEntries.value.length
               class="break-all font-mono text-cp-xs font-emphasis tabular-nums text-cp-text"
               :title="`本地累计消耗估算 ${cost.currency} ${cost.estimatedAmount}`"
             >
-              {{ cost.estimatedAmountDisplay }}
+              <span class="text-cp-text-quaternary">≈</span> {{ cost.estimatedAmountDisplay }}
             </span>
           </template>
           <span v-else class="text-cp-xs text-cp-text-quaternary" title="暂无费用数据">—</span>
         </div>
-        <AccountCapacityIndicator :capacity="account.capacity" />
       </div>
       <div v-else class="grid min-w-0 gap-1.5">
         <div class="flex min-w-0 items-start justify-between gap-2 leading-3">
@@ -67,6 +70,7 @@ const additionalEntryCount = computed(() => Math.max(summaryEntries.value.length
         </div>
         <div class="h-1 w-full rounded-full bg-cp-success" title="上游额度未提供，绿色条不表示剩余额度" aria-hidden="true" />
       </div>
+      <DeepSeekBalanceSummary v-if="isDeepSeek" :account="account" :refreshing="refreshing ?? false" @refresh="emit('refreshQuota', $event)" />
     </template>
     <template v-else-if="summaryEntries.length > 0">
       <div class="flex min-w-0 items-baseline justify-between gap-2 leading-none">

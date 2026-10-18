@@ -41,7 +41,7 @@ pub fn format_compact_number(value: u64) -> String {
 }
 
 /// 货币展示格式化
-/// USD 常规金额保留两位，小于 1 美元时最多保留四位
+/// USD 常规金额保留两位，小于 1 美元时保留四位，微小非零金额保留精确值
 #[must_use]
 pub fn format_decimal_currency(amount: &str, currency: &str) -> String {
     if currency != "USD" {
@@ -50,7 +50,9 @@ pub fn format_decimal_currency(amount: &str, currency: &str) -> String {
 
     const DECIMAL_SCALE: u128 = 10_000_000_000;
     let scaled = amount.parse::<Decimal>().unwrap_or_default().scaled();
-    let precision = if scaled != 0 && scaled < DECIMAL_SCALE {
+    let precision = if scaled != 0 && scaled < DECIMAL_SCALE / 10_000 {
+        10_u32
+    } else if scaled != 0 && scaled < DECIMAL_SCALE {
         4_u32
     } else {
         2_u32

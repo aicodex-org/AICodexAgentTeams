@@ -976,6 +976,17 @@ pub async fn fixture_with_protocols(
     Arc<MemoryProviderAccountStore>,
     ProviderAccountId,
 ) {
+    fixture_with_schedule(base, protocols, None).await
+}
+pub async fn fixture_with_schedule(
+    base: &str,
+    protocols: &[&str],
+    pricing_schedule: Option<serde_json::Value>,
+) -> (
+    Arc<provider_deepseek::DeepSeekProvider>,
+    Arc<MemoryProviderAccountStore>,
+    ProviderAccountId,
+) {
     let store = Arc::new(MemoryProviderAccountStore::default());
     let id = ProviderAccountId::new("acct_deepseek_test").unwrap();
     let account = ProviderAccount::new(
@@ -999,10 +1010,11 @@ pub async fn fixture_with_protocols(
             account,
             model_access: None,
             credential: PlaintextCredential::new(
-                serde_json::json!({"api_key":"synthetic-key","base_url":base,"protocols":protocols})
-                    .as_object()
-                    .unwrap()
-                    .clone(),
+                {
+                    let mut value = serde_json::json!({"api_key":"synthetic-key","base_url":base,"protocols":protocols});
+                    if let Some(schedule) = pricing_schedule { value["pricing_schedule"] = schedule; }
+                    value.as_object().unwrap().clone()
+                },
             ),
         })
         .await
@@ -1147,7 +1159,18 @@ pub async fn execution_fixture(
     Arc<MemoryProviderAccountStore>,
     ProviderAccountId,
 ) {
-    let (_, store, id) = fixture(base).await;
+    execution_fixture_with_schedule(base, None).await
+}
+pub async fn execution_fixture_with_schedule(
+    base: &str,
+    pricing_schedule: Option<serde_json::Value>,
+) -> (
+    Arc<provider_deepseek::DeepSeekProvider>,
+    Arc<MemoryProviderAccountStore>,
+    ProviderAccountId,
+) {
+    let (_, store, id) =
+        fixture_with_schedule(base, &provider_deepseek::PROTOCOLS, pricing_schedule).await;
     let ports = ports(store.clone());
     ports
         .catalog_cache()

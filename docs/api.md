@@ -1010,16 +1010,36 @@ DeepSeek 导入使用独立的服务根地址合同：
     "name": "DeepSeek 团队账号",
     "api_key": "<upstream-api-key>",
     "base_url": "https://api.deepseek.com",
-    "protocols": ["openai", "openai-chat", "anthropic"]
+    "protocols": ["openai", "openai-chat", "anthropic"],
+    "pricing_schedule": {
+      "enabled": true,
+      "timezone": "Asia/Shanghai",
+      "peak_weekdays": [1, 2, 3, 4, 5],
+      "peak_windows": [{ "start": "09:00", "end": "12:00" }, { "start": "14:00", "end": "18:00" }],
+      "exclude_chinese_holidays": true
+    }
   }
 }
 ```
 
 省略 `base_url` 使用官方服务根，省略 `protocols` 启用三种协议；协议集合不能为空。
 服务根分别追加 `/responses`、`/v1/chat/completions`、`/anthropic/v1/messages`，不要额外填写 `/v1`。
-连接编辑可更新地址、协议集合或轮换密钥；管理端连接信息不回传密钥。
+连接编辑可更新地址、协议集合或轮换密钥；管理端连接信息不回传密钥
+
+`pricing_schedule` 为账号级本地费用估算规则，省略时使用上例默认值；`enabled: false` 时所有请求
+按空闲价估算，不限制账号调度，也不修改上游实际扣费。开启时在指定 IANA 时区中，按星期和高峰时段
+选价，其余时间为空闲；星期为 1（周一）至 7（周日），集合非空且不重复。高峰时段为 1～8 个不重叠的
+`HH:mm` 区间，开始包含、结束不包含，结束允许 `24:00`，跨日区间需拆分。关闭计价开关保留时段配置
+
+`exclude_chinese_holidays` 按北京时间判断中国法定假日，假日全天使用空闲价。内置日历覆盖 2026 年；
+未覆盖年度若请求命中高峰候选时段且需要排除假日，则费用保留未知。时区、时段和星期配置均由 Provider
+校验，非法配置不会落库。自定义时段或关闭峰谷计价只改变本地估算，实际费用以 DeepSeek 账单为准
+
 余额通过账号额度详情的 `balances` 返回币种及十进制字符串金额，保留上游币种，
-不换算成网关 USD 账本或 ChatGPT 额度；OAuth 续期、订阅和重置卡不适用
+不换算成网关 USD 账本或 ChatGPT 额度；OAuth 续期、订阅和重置卡不适用。
+账号列表展示已保存的上游余额快照，点击“刷新余额”通过现有 `/api/admin/accounts/quota/refresh`
+调用官方 `GET /user/balance`，详情包含可用总额、赠送和充值余额及最近刷新时间。未查询时不显示为零，
+查询失败保留原快照；金额按 CNY／USD 原始十进制字符串返回，不用本地估算消耗倒推上游余额
 
 sub2api 的 `platform=openai`、`type=apikey` 使用 `credentials.base_url` / `credentials.api_key`；
 导入时按其端点规则将服务根、版本前缀或完整 `/responses` 地址转换为 API 前缀，缺省地址为官方 `/v1`。
@@ -1082,9 +1102,12 @@ sub2api 的 `credentials.model_mapping` 不转换为本项目的账号模型限�
 `connection.transport` 支持 `http`、`prefer_websocket`。省略 `connection` 时只更新账号设置；
 省略 `connection.apiKey` 保留当前密钥，空字符串无效。
 OpenAI OAuth 账号只接受 `connection: { transport }`，不接受 `baseUrl`、`apiKey` 或 OAuth token。
+DeepSeek 连接更新使用 `transport: "http"`，可额外提交 `protocols` 和 `pricingSchedule`；
+`pricingSchedule` 的内部字段沿用上文 `pricing_schedule` 的 snake_case 合同，省略时保留已保存配置。
+DeepSeek 详情的 `credentialConfiguration` 返回 `base_url`、`transport`、`protocols`、`pricing_schedule`
 连接设置不能修改账号 ID、Provider 或认证类型，也不接受通用凭据文档。
 凭据与设置在同一事务中保存，任一校验或持久化失败均不落库。
-`GET /api/admin/accounts/detail` 对 API Key 账号额外返回 `credentialConfiguration: { base_url, transport }`；
+`GET /api/admin/accounts/detail` 对 OpenAI API Key 账号额外返回 `credentialConfiguration: { base_url, transport }`；
 OAuth 账号返回 `credentialConfiguration: { transport }`。响应不回显密钥或 token；不适用的账号省略该字段。
 更新会推进凭据 revision 并失效目录与连接；旧版本会话不可静默续接到新上游
 
@@ -1661,10 +1684,17 @@ Guardian 以 `subagent_kind` 或 `client_metadata.x-openai-subagent` 值 `guardi
 每个档位包含四个非负十进制字符串：`input`、`output`、`cacheRead`、`cacheWrite`，单位 USD / 百万
 Token，范围 0～1000000、最多四位小数。`"0"` 表示免费，缺少整个档位表示继承；不能只缺少部分单价
 
-`bands` 可用键为 `standard`、`fast`、`flex`、`long_standard`、`long_fast`、`long_flex`、`image`。
+`bands` 可用键为 `standard`、`fast`、`flex`、`long_standard`、`long_fast`、`long_flex`、`image`、`off_peak`。
 OpenAI 长上下文为输入超过 272000 Token，xAI 为输入达到 200000 Token；仍按 Provider 支持的
 模型与服务档位判断是否能估算。xAI 不接受 `flex`、`long_flex`、`image`。图像端点的 `standard`
 用于文本输入，`image` 用于图像 Token；不能用文本输出单价替代图像输出单价。用量无法完整拆分时不估算
+
+DeepSeek 仅接受 `standard`（高峰）与 `off_peak`（空闲）两档，`off_peak` 不适用于其他 Provider。
+内置模型为 `deepseek-flash`、`deepseek-v4-pro`，以及沿用 Flash 单价的官方旧名称
+`deepseek-v4-flash`、`deepseek-v4-flash-vision-exp`。默认 USD 单价采用
+[DeepSeek 官方美元价目](https://api-docs.deepseek.com/quick_start/pricing/)，不从人民币价格换算。
+峰谷选择使用账号配置，并在发送前冻结当次有效价格；人工覆盖与同步按档位继承，覆盖高峰价不会自动
+修改空闲价。未配置的模型或缺少所选档位时保留费用未知。价格目录不替代账号从上游获取的可用模型目录
 
 `multiplierBps` 为 0～1000000 的整数，10000 表示 1 倍、0 表示本地估算为零，最大 100 倍。
 它作用于本地费用及对应明细，独立于服务档位；缺少计价依据的请求即使倍率为零仍然是费用未知

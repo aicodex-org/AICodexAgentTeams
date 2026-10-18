@@ -42,7 +42,7 @@ watch(hasPersonalInfo, (available) => {
     <div class="mb-3 flex shrink-0 items-start justify-between gap-3">
       <div class="min-w-0">
         <h3 class="m-0 text-cp-lg font-heavy text-cp-text">
-          账号额度
+          {{ account.provider === 'deepseek' ? '账号余额' : '账号额度' }}
         </h3>
         <p
           v-if="account.capabilities.quota || quotaEntries.length > 0"
@@ -89,7 +89,7 @@ watch(hasPersonalInfo, (available) => {
         <ZIconButton
           v-if="account.capabilities.quotaRefresh"
           size="small"
-          aria-label="刷新额度"
+          :aria-label="account.provider === 'deepseek' ? '刷新 DeepSeek 余额' : '刷新额度'"
           :loading="refreshing"
           :disabled="refreshing"
           @click="emit('refreshQuota', account.id)"
@@ -124,7 +124,7 @@ watch(hasPersonalInfo, (available) => {
         </p>
       </div>
       <p v-if="quotaEntries.length === 0 && !account.quota.balances?.length" class="m-0 text-cp-sm font-emphasis text-cp-text-secondary">
-        额度待观测
+        {{ account.provider === 'deepseek' ? account.quota.refreshedAtDisplay === '—' ? '余额尚未查询，点击刷新获取上游余额' : '上游未返回余额' : '额度待观测' }}
       </p>
     </div>
   </section>

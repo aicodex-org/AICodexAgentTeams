@@ -38,6 +38,37 @@ fn override_validation_rejects_unsupported_bands_and_excessive_multiplier() {
 }
 
 #[test]
+fn off_peak_prices_validate_and_merge_independently_of_peak_prices() {
+    let builtin: PricingOverrides = serde_json::from_value(json!({"deepseek":{"deepseek-flash":{
+        "multiplierBps":10000, "bands":{
+            "standard":{"input":"0.3","output":"1.2","cacheRead":"0.006","cacheWrite":"0.3"},
+            "off_peak":{"input":"0.15","output":"0.6","cacheRead":"0.003","cacheWrite":"0.15"}
+        }
+    }}}))
+    .unwrap();
+    let manual: PricingOverrides = serde_json::from_value(json!({"deepseek":{"deepseek-flash":{
+        "multiplierBps":20000,"bands":{
+            "standard":{"input":"1","output":"2","cacheRead":"0.01","cacheWrite":"1"}
+        }
+    }}}))
+    .unwrap();
+    builtin["deepseek"]["deepseek-flash"].validate().unwrap();
+    let effective = merge_pricing(builtin.clone(), &manual);
+    assert_eq!(
+        effective["deepseek"]["deepseek-flash"].bands["off_peak"],
+        builtin["deepseek"]["deepseek-flash"].bands["off_peak"]
+    );
+    assert_eq!(
+        effective["deepseek"]["deepseek-flash"].bands["standard"],
+        manual["deepseek"]["deepseek-flash"].bands["standard"]
+    );
+    assert_eq!(
+        effective["deepseek"]["deepseek-flash"].multiplier_bps,
+        20000
+    );
+}
+
+#[test]
 fn sync_layer_cannot_erase_manual_bands_or_multiplier() {
     let synced: PricingOverrides = serde_json::from_value(json!({"openai":{"model":{
         "multiplierBps":10000, "bands":{"standard":{"input":"2", "output":"10", "cacheRead":"0.2", "cacheWrite":"0"}}

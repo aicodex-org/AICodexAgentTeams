@@ -524,6 +524,12 @@ mod response {
         assert_eq!(format_decimal_currency("0.1204956", "USD"), "$0.1205");
         assert_eq!(format_decimal_currency("0.99996", "USD"), "$1.00");
         assert_eq!(format_decimal_currency("0.0300", "USD"), "$0.03");
+        assert_eq!(format_decimal_currency("0.00001806", "USD"), "$0.00001806");
+        assert_eq!(
+            format_decimal_currency("0.0000000001", "USD"),
+            "$0.0000000001"
+        );
+        assert_eq!(format_decimal_currency("0", "USD"), "$0.00");
         assert_eq!(format_decimal_currency("12.3456", "USD"), "$12.35");
         assert_eq!(format_decimal_currency("0.1204956", "CNY"), "CNY 0.1204956");
     }
@@ -676,6 +682,29 @@ mod actions {
                 .validate()
                 .is_err()
         );
+    }
+
+    #[test]
+    fn account_connection_accepts_provider_owned_pricing_schedule_object() {
+        let schedule = json!({
+            "enabled":false,"timezone":"Asia/Shanghai","peak_weekdays":[1,2,3,4,5],
+            "peak_windows":[{"start":"09:00","end":"12:00"}],
+            "exclude_chinese_holidays":true
+        });
+        let mut request = json!({
+            "accountId":"acct_deepseek","enabled":true,"concurrencyLimit":null,"weight":1,"groupIds":[],
+            "connection":{"transport":"http","pricingSchedule":schedule}
+        });
+        let decoded: UpdateAccountRequest = serde_json::from_value(request.clone()).unwrap();
+        decoded.validate().unwrap();
+        assert_eq!(
+            serde_json::Value::Object(decoded.connection.unwrap().pricing_schedule.unwrap()),
+            schedule
+        );
+        for invalid in [json!(true), json!("invalid"), json!([])] {
+            request["connection"]["pricingSchedule"] = invalid;
+            assert!(serde_json::from_value::<UpdateAccountRequest>(request.clone()).is_err());
+        }
     }
 
     #[test]

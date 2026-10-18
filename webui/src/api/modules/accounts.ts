@@ -441,7 +441,7 @@ interface AccountResetCreditConsumeParam extends AccountIdParam {
 
 interface AccountUpdateParam {
   name?: string
-  connection?: { baseUrl?: string, protocols?: string[], transport: ApiKeyConfiguration['transport'], apiKey?: string }
+  connection?: { baseUrl?: string, protocols?: string[], transport: ApiKeyConfiguration['transport'], apiKey?: string, pricingSchedule?: DeepSeekPricingSchedule }
   outboundProxyUrl?: string
   outboundProxyId?: string
   accountId: string
@@ -733,7 +733,16 @@ export function completeAccountOAuth(data: AccountOAuthCompleteParam, options: R
   })
 }
 
+export interface DeepSeekPricingSchedule {
+  enabled: boolean
+  timezone: string
+  peak_weekdays: number[]
+  peak_windows: { start: string, end: string }[]
+  exclude_chinese_holidays: boolean
+}
+
 export interface ApiKeyConfiguration {
+  pricing_schedule?: DeepSeekPricingSchedule
   protocols?: string[]
   base_url: string
   transport: 'http' | 'prefer_websocket'

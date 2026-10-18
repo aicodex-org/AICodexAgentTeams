@@ -76,3 +76,66 @@ fn only_omitted_or_http_transport_is_accepted() {
         );
     }
 }
+
+#[test]
+fn pricing_schedule_defaults_and_custom_configuration_round_trip() {
+    let credential =
+        DeepSeekCredential::parse(json!({"api_key":"test-key"}).as_object().unwrap()).unwrap();
+    let serialized = serde_json::to_value(&credential).unwrap();
+    assert_eq!(
+        serialized["pricing_schedule"],
+        json!({
+            "enabled":true,"timezone":"Asia/Shanghai","peak_weekdays":[1,2,3,4,5],
+            "peak_windows":[{"start":"09:00","end":"12:00"},{"start":"14:00","end":"18:00"}],
+            "exclude_chinese_holidays":true
+        })
+    );
+    let schedule = json!({"enabled":false,"timezone":"America/New_York","peak_weekdays":[2,6],
+        "peak_windows":[{"start":"00:00","end":"03:00"},{"start":"22:00","end":"24:00"}],
+        "exclude_chinese_holidays":false});
+    let credential = DeepSeekCredential::parse(
+        json!({"api_key":"test-key","pricing_schedule":schedule})
+            .as_object()
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        serde_json::to_value(&credential).unwrap()["pricing_schedule"],
+        schedule
+    );
+}
+
+#[test]
+fn pricing_schedule_rejects_invalid_configuration_even_when_disabled() {
+    for invalid in [
+        json!(null),
+        json!(true),
+        json!({"enabled":"yes"}),
+        json!({"timezone":"Mars/Olympus"}),
+        json!({"peak_weekdays":[]}),
+        json!({"peak_weekdays":[0]}),
+        json!({"peak_weekdays":[8]}),
+        json!({"peak_weekdays":[1,1]}),
+        json!({"peak_windows":[]}),
+        json!({"peak_windows":[{"start":"24:00","end":"24:00"}]}),
+        json!({"peak_windows":[{"start":"23:00","end":"02:00"}]}),
+        json!({"peak_windows":[{"start":"09:00","end":"09:00"}]}),
+        json!({"peak_windows":[{"start":"9:00","end":"12:00"}]}),
+        json!({"peak_windows":[{"start":"09:60","end":"12:00"}]}),
+        json!({"peak_windows":[{"start":"09:00","end":"24:01"}]}),
+        json!({"peak_windows":[{"start":"09:00","end":"12:00"},{"start":"11:00","end":"14:00"}]}),
+        json!({"peak_windows":vec![json!({"start":"00:00","end":"01:00"});9]}),
+        json!({"unknown_flag":true}),
+        json!({"enabled":false,"peak_windows":[{"start":"23:00","end":"02:00"}]}),
+    ] {
+        assert!(
+            DeepSeekCredential::parse(
+                json!({"api_key":"test-key","pricing_schedule":invalid})
+                    .as_object()
+                    .unwrap()
+            )
+            .is_err(),
+            "accepted {invalid}"
+        );
+    }
+}

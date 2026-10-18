@@ -30,10 +30,16 @@ const priceMode = computed({
   set: value => toggleBand(value === 'custom'),
 })
 const bandOptions = computed(() => bands
-  .filter(band => props.row?.base.bands.image
-    ? ['standard', 'image'].includes(band.value)
-    : props.provider !== 'xai' || !['flex', 'long_flex', 'image'].includes(band.value))
-  .map(band => ({ ...band, label: band.value === 'standard' && props.row?.base.bands.image ? '文本 Token' : band.label })))
+  .filter((band) => {
+    if (props.provider === 'deepseek')
+      return ['standard', 'off_peak'].includes(band.value)
+    if (band.value === 'off_peak')
+      return false
+    return props.row?.base.bands.image
+      ? ['standard', 'image'].includes(band.value)
+      : props.provider !== 'xai' || !['flex', 'long_flex', 'image'].includes(band.value)
+  })
+  .map(band => ({ ...band, label: band.value === 'standard' ? props.provider === 'deepseek' ? '高峰' : props.row?.base.bands.image ? '文本 Token' : band.label : band.label })))
 
 watch(open, (value) => {
   if (!value)
@@ -76,7 +82,7 @@ function submit() {
     }
   }
   if (!props.row?.base.bands.standard && !draft.value.standard) {
-    validation.value = '新模型需要配置标准档单价'
+    validation.value = props.provider === 'deepseek' ? '新模型需要配置高峰档单价' : '新模型需要配置标准档单价'
     selectedBand.value = 'standard'
     return
   }
@@ -94,6 +100,9 @@ function submit() {
       </span>
     </template>
     <div class="grid gap-5">
+      <p v-if="provider === 'deepseek'" class="m-0 text-cp-sm text-cp-text-secondary">
+        高峰与空闲价格按账号的峰谷计价设置选用，关闭峰谷计价后全天使用空闲价格
+      </p>
       <div class="grid grid-cols-[minmax(0,1fr)_6.5rem] gap-3 sm:grid-cols-[minmax(0,1fr)_8rem] sm:gap-4">
         <ZFormItem label="上游模型 ID">
           <ZInput v-model="model" :disabled="saving || !!row" aria-label="上游模型 ID" placeholder="例如 gpt-5.4" class="font-mono" />

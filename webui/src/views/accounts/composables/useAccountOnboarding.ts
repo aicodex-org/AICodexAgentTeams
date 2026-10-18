@@ -73,7 +73,7 @@ export function useAccountOnboarding(options: {
           provider: requireImportProvider(provider),
           settings,
           outboundProxyId,
-          data: { provider, authentication_kind: 'api_key', name: form.apiKey.name.trim(), base_url: form.apiKey.base_url.trim(), api_key: form.apiKey.apiKey, transport: form.apiKey.transport, protocols: form.apiKey.protocols },
+          data: { provider, authentication_kind: 'api_key', name: form.apiKey.name.trim(), base_url: form.apiKey.base_url.trim(), api_key: form.apiKey.apiKey, transport: form.apiKey.transport, protocols: form.apiKey.protocols, pricing_schedule: provider === 'deepseek' ? form.apiKey.pricing_schedule : undefined },
         })
         await finishCreate('API Key 账号已添加')
         return

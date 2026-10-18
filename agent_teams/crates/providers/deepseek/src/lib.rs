@@ -3,6 +3,7 @@
 mod admin;
 mod credential;
 mod pricing;
+mod pricing_schedule;
 mod provider;
 mod selection;
 mod transport;

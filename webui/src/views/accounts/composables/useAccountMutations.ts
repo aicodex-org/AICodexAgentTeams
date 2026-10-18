@@ -226,7 +226,7 @@ export function useAccountMutations(options: {
           selectedIds.delete(accountId)
           options.selectedIds.value = selectedIds
         }
-        ZNotification.success({ message: '额度已刷新' })
+        ZNotification.success({ message: result.account.provider === 'deepseek' ? '余额已刷新' : '额度已刷新' })
       }
       catch {}
     })

@@ -68,6 +68,7 @@ impl ModelPriceOverride {
             !matches!(
                 band.as_str(),
                 "standard"
+                    | "off_peak"
                     | "fast"
                     | "flex"
                     | "long_standard"

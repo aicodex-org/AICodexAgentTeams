@@ -60,13 +60,19 @@ impl DeepSeekProvider {
         let response = client
             .get(format!("{}{path}", credential.base_url))
             .bearer_auth(&credential.api_key)
+            .timeout(std::time::Duration::from_secs(15))
             .send()
             .await
             .map_err(|_| unavailable())?;
         if !response.status().is_success() {
             return Err(ProviderAdminError::new(ProviderAdminErrorKind::BadGateway));
         }
-        let bytes = transport::bounded_body(response, 4 * 1024 * 1024)
+        let limit = if path == "/user/balance" {
+            64 * 1024
+        } else {
+            4 * 1024 * 1024
+        };
+        let bytes = transport::bounded_body(response, limit)
             .await
             .map_err(|_| unavailable())?;
         Ok((
@@ -79,6 +85,9 @@ impl DeepSeekProvider {
 
 #[async_trait]
 impl ProviderAdmin for DeepSeekProvider {
+    fn pricing_catalog(&self) -> gateway_admin::model::pricing::ProviderPricingCatalog {
+        crate::pricing::catalog()
+    }
     fn provider_kind(&self) -> &ProviderKind {
         &self.kind
     }
@@ -434,28 +443,40 @@ fn parse_balances(value: &Value) -> Result<Vec<ProviderMonetaryBalance>, Provide
         .ok_or_else(unavailable)?
         .iter()
         .map(|entry| {
+            let currency = entry
+                .get("currency")
+                .and_then(Value::as_str)
+                .ok_or_else(unavailable)?;
+            if !matches!(currency, "CNY" | "USD") {
+                return Err(unavailable());
+            }
             Ok(ProviderMonetaryBalance {
-                currency: entry
-                    .get("currency")
-                    .and_then(Value::as_str)
-                    .ok_or_else(unavailable)?
-                    .to_owned(),
-                total_balance: entry
-                    .get("total_balance")
-                    .and_then(Value::as_str)
-                    .ok_or_else(unavailable)?
-                    .to_owned(),
-                granted_balance: entry
-                    .get("granted_balance")
-                    .and_then(Value::as_str)
-                    .map(str::to_owned),
-                topped_up_balance: entry
-                    .get("topped_up_balance")
-                    .and_then(Value::as_str)
-                    .map(str::to_owned),
+                currency: currency.to_owned(),
+                total_balance: balance_amount(entry, "total_balance")?,
+                granted_balance: Some(balance_amount(entry, "granted_balance")?),
+                topped_up_balance: Some(balance_amount(entry, "topped_up_balance")?),
             })
         })
         .collect::<Result<Vec<_>, ProviderAdminError>>()?;
 
     Ok(balances)
+}
+
+// 上游余额保持原始十进制字符串，不转浮点或按网关 USD 精度截断
+fn balance_amount(entry: &Value, field: &str) -> Result<String, ProviderAdminError> {
+    let value = entry
+        .get(field)
+        .and_then(Value::as_str)
+        .ok_or_else(unavailable)?;
+    let unsigned = value.strip_prefix('-').unwrap_or(value);
+    let (whole, fraction) = unsigned
+        .split_once('.')
+        .map_or((unsigned, None), |(whole, fraction)| {
+            (whole, Some(fraction))
+        });
+    let digits = |part: &str| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit());
+    if !digits(whole) || fraction.is_some_and(|fraction| !digits(fraction)) {
+        return Err(unavailable());
+    }
+    Ok(value.to_owned())
 }

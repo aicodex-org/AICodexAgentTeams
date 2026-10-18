@@ -270,6 +270,7 @@ impl UpdateAccountRequest {
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AccountConnectionUpdateRequest {
+    pub pricing_schedule: Option<Map<String, Value>>,
     pub protocols: Option<Vec<String>>,
     pub base_url: Option<String>,
     pub transport: String,
@@ -297,6 +298,9 @@ impl AccountConnectionUpdateRequest {
     fn into_document(self) -> ProviderDocument {
         let mut material =
             Map::from_iter([("transport".to_owned(), Value::String(self.transport))]);
+        if let Some(schedule) = self.pricing_schedule {
+            material.insert("pricing_schedule".to_owned(), Value::Object(schedule));
+        }
         if let Some(base_url) = self.base_url {
             material.insert("base_url".to_owned(), Value::String(base_url));
         }

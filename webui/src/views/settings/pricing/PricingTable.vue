@@ -45,12 +45,18 @@ function summaryBand(row: PricingRow) {
         <div class="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
           <span class="truncate font-mono font-semibold" :title="row.model">{{ row.model }}</span>
           <span class="shrink-0 text-cp-xs" :class="row.source === 'custom' ? 'text-cp-primary-text' : 'text-cp-text-tertiary'">
-            {{ sourceLabels[row.source] }}<span v-if="row.effective.bands.image"> · 图像</span>
+            {{ sourceLabels[row.source] }}<span v-if="row.provider === 'deepseek'"> · 峰谷计价</span><span v-if="row.effective.bands.image"> · 图像</span>
           </span>
         </div>
         <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-cp-xs text-cp-text-secondary sm:hidden">
+          <span v-if="row.provider === 'deepseek'">高峰</span>
           <span>输入 <span class="font-mono">{{ effectivePrice(row.effective.bands[summaryBand(row)]?.input, row.effective.multiplierBps) }}</span></span>
           <span>输出 <span class="font-mono">{{ effectivePrice(row.effective.bands[summaryBand(row)]?.output, row.effective.multiplierBps) }}</span></span>
+        </div>
+        <div v-if="row.provider === 'deepseek'" class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-cp-xs text-cp-text-secondary sm:hidden">
+          <span>空闲</span>
+          <span>输入 <span class="font-mono">{{ effectivePrice(row.effective.bands.off_peak?.input, row.effective.multiplierBps) }}</span></span>
+          <span>输出 <span class="font-mono">{{ effectivePrice(row.effective.bands.off_peak?.output, row.effective.multiplierBps) }}</span></span>
         </div>
       </div>
     </template>
@@ -60,7 +66,10 @@ function summaryBand(row: PricingRow) {
           {{ effectivePrice(row.base.bands[summaryBand(row)]?.[field]) }}
         </div>
         <div :class="row.source === 'custom' ? 'text-cp-primary-text' : 'text-cp-text'">
-          {{ effectivePrice(row.effective.bands[summaryBand(row)]?.[field], row.effective.multiplierBps) }}
+          <span v-if="row.provider === 'deepseek'" class="mr-1 text-cp-xs font-normal text-cp-text-tertiary">高峰</span>{{ effectivePrice(row.effective.bands[summaryBand(row)]?.[field], row.effective.multiplierBps) }}
+        </div>
+        <div v-if="row.provider === 'deepseek'" class="mt-1 text-cp-xs text-cp-text-secondary">
+          <span class="mr-1 font-normal text-cp-text-tertiary">空闲</span>{{ effectivePrice(row.effective.bands.off_peak?.[field], row.effective.multiplierBps) }}
         </div>
       </div>
     </template>

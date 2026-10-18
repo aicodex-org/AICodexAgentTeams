@@ -331,7 +331,7 @@ const {
             </template>
 
             <template #usage="{ row }">
-              <AccountQuotaSummaryCell :account="row" />
+              <AccountQuotaSummaryCell :account="row" :refreshing="refreshingQuotaAccountIds.has(row.id)" @refresh-quota="handleRefreshQuota" />
             </template>
 
             <template #groups="{ row }">

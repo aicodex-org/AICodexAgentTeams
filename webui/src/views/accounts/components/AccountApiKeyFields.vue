@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ApiKeyAccountForm } from '../utils/upstreamApiKey'
 import { ZCheckbox, ZFormItem, ZInput, ZSegmented } from '@codex-proxy/ui'
+import DeepSeekPricingFields from './DeepSeekPricingFields.vue'
 
 defineProps<{ disabled?: boolean, editing?: boolean, provider?: string }>()
 const form = defineModel<ApiKeyAccountForm>({ required: true })
@@ -37,5 +38,6 @@ const transportOptions = [
         <ZCheckbox v-for="protocol in protocolOptions" :key="protocol.value" :label="protocol.label" :model-value="form.protocols?.includes(protocol.value) ?? false" :disabled="disabled" @update:model-value="toggleProtocol(protocol.value, $event)" />
       </div>
     </ZFormItem>
+    <DeepSeekPricingFields v-if="provider === 'deepseek'" v-model="form.pricing_schedule" :disabled="disabled" />
   </div>
 </template>

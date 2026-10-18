@@ -26,6 +26,8 @@ pub struct DeepSeekCredential {
     pub(crate) base_url: String,
     #[serde(default = "default_protocols")]
     pub(crate) protocols: BTreeSet<String>,
+    #[serde(default)]
+    pub(crate) pricing_schedule: crate::pricing_schedule::PricingSchedule,
 }
 impl std::fmt::Debug for DeepSeekCredential {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -42,6 +44,10 @@ impl DeepSeekCredential {
         }
         let mut credential: Self =
             serde_json::from_value(Value::Object(value.clone())).map_err(|_| invalid())?;
+        credential
+            .pricing_schedule
+            .validate()
+            .map_err(|_| invalid())?;
         if credential.api_key.trim().is_empty()
             || credential.api_key.chars().any(char::is_control)
             || credential.protocols.is_empty()
@@ -83,7 +89,7 @@ impl DeepSeekCredential {
     }
     pub(crate) fn configuration(&self) -> Result<ProviderDocument, ProviderAdminError> {
         document(
-            serde_json::json!({"base_url": self.base_url, "protocols": self.protocols, "transport": "http"}),
+            serde_json::json!({"base_url": self.base_url, "protocols": self.protocols, "transport": "http", "pricing_schedule": self.pricing_schedule}),
         )
     }
 }

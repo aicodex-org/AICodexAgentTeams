@@ -54,7 +54,7 @@ export function useAccountEditor(options: {
       if (!configuration)
         throw new Error('该账号没有 API Key 上游设置')
       apiKey.value = { ...emptyApiKeyAccountForm(), ...configuration }
-      savedConfiguration.value = configuration
+      savedConfiguration.value = structuredClone(configuration)
       configurationReady.value = true
     }
     catch (error) {
@@ -140,11 +140,12 @@ export function useAccountEditor(options: {
         || apiKey.value.base_url.trim() !== savedConfiguration.value?.base_url
         || apiKey.value.transport !== savedConfiguration.value?.transport
         || JSON.stringify(apiKey.value.protocols) !== JSON.stringify(savedConfiguration.value?.protocols)
+        || JSON.stringify(apiKey.value.pricing_schedule) !== JSON.stringify(savedConfiguration.value?.pricing_schedule)
       )
       await updateAccount({
         ...settings,
         connection: connectionChanged
-          ? { baseUrl: apiKey.value.base_url.trim(), transport: apiKey.value.transport, protocols: apiKey.value.protocols, apiKey: apiKey.value.apiKey || undefined }
+          ? { baseUrl: apiKey.value.base_url.trim(), transport: apiKey.value.transport, protocols: apiKey.value.protocols, pricingSchedule: apiKey.value.pricing_schedule, apiKey: apiKey.value.apiKey || undefined }
           : isOAuth && configurationReady.value && oauthTransport.value !== savedOAuthTransport.value
             ? { transport: oauthTransport.value }
             : undefined,
