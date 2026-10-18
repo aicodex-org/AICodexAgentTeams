@@ -17,6 +17,10 @@ const quotaWindows = computed(() => props.account.quota.windows)
 const visibleQuotaWindows = computed(() => visibleSummaryQuotaWindows(quotaWindows.value))
 const summaryEntries = computed(() => groupedAccountQuotaWindows(visibleQuotaWindows.value))
 const hasUsage = computed(() => (props.account.usage.requestCount ?? 0) > 0)
+const isDeepSeek = computed(() => props.account.provider === 'deepseek')
+const consumptionLabel = computed(() => props.account.usage.costEstimateStatus === 'partial'
+  ? '消耗金额（部分估算）'
+  : '消耗金额（估算）')
 const recentUsageEntry = computed(() => recentlyUsedQuotaEntry(
   summaryEntries.value,
   props.account.usage.models,
@@ -39,7 +43,24 @@ const additionalEntryCount = computed(() => Math.max(summaryEntries.value.length
         <strong class="truncate text-cp-xs font-heavy text-cp-text">{{ account.usage.totalTokensDisplay }}</strong>
         <span class="shrink-0 text-[9px] font-emphasis tracking-[0.02em] text-cp-text-quaternary">Tokens</span>
       </span>
-      <div class="grid min-w-0 gap-1.5">
+      <div v-if="isDeepSeek" class="flex min-w-0 items-start justify-between gap-2">
+        <div class="grid min-w-0 gap-1">
+          <span class="text-[10px] font-bold text-cp-text-quaternary">{{ consumptionLabel }}</span>
+          <template v-if="account.usage.costs.length > 0">
+            <span
+              v-for="cost in account.usage.costs"
+              :key="cost.currency"
+              class="break-all font-mono text-cp-xs font-emphasis tabular-nums text-cp-text"
+              :title="`本地累计消耗估算 ${cost.currency} ${cost.estimatedAmount}`"
+            >
+              {{ cost.estimatedAmountDisplay }}
+            </span>
+          </template>
+          <span v-else class="text-cp-xs text-cp-text-quaternary" title="暂无费用数据">—</span>
+        </div>
+        <AccountCapacityIndicator :capacity="account.capacity" />
+      </div>
+      <div v-else class="grid min-w-0 gap-1.5">
         <div class="flex min-w-0 items-start justify-between gap-2 leading-3">
           <span class="truncate text-[10px] font-bold text-cp-text-quaternary">{{ account.usage.windowLabelDisplay }}</span>
           <AccountCapacityIndicator :capacity="account.capacity" />
