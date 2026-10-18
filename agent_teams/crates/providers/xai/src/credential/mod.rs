@@ -47,8 +47,8 @@ pub use import::{
 pub use oidc_verifier::ReqwestOidcTokenVerifier;
 pub use pkce::Pkce;
 pub use quota::{
-    GROK_FREE_ROLLING_WINDOW_SECONDS, GrokBillingPresentation, GrokCredentialQuotaService,
-    GrokQuotaError, GrokQuotaPeriodKind, GrokQuotaSnapshot,
+    GrokBillingPresentation, GrokCredentialQuotaService, GrokQuotaError, GrokQuotaPeriodKind,
+    GrokQuotaSnapshot,
 };
 pub use refresh::{
     DueGrokCredential, GrokCredentialRecovery, GrokCredentialRecoveryOutcome,

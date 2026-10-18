@@ -48,11 +48,9 @@ const additionalEntryCount = computed(() => Math.max(summaryEntries.value.length
       </div>
     </template>
     <template v-else-if="summaryEntries.length > 0">
-      <div
-        v-if="hasUsage"
-        class="flex min-w-0 items-baseline justify-between gap-2 leading-none"
-      >
+      <div class="flex min-w-0 items-baseline justify-between gap-2 leading-none">
         <span
+          v-if="hasUsage"
           class="flex min-w-0 items-baseline gap-1 font-mono tabular-nums"
           :title="`${account.usage.windowLabelDisplay}总 Token`"
         >
@@ -64,8 +62,7 @@ const additionalEntryCount = computed(() => Math.max(summaryEntries.value.length
           </span>
         </span>
         <span
-          v-if="currentUsageWindow"
-          class="flex shrink-0 items-baseline gap-1 text-[9px] font-emphasis text-cp-text-quaternary"
+          class="ml-auto flex shrink-0 items-baseline gap-1 text-[9px] font-emphasis text-cp-text-quaternary"
           title="最近使用额度的当前已用比例"
         >
           <span>使用率</span>

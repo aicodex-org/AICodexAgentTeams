@@ -22,9 +22,6 @@ use crate::{
 const QUOTA_SCHEDULING_TTL: Duration = Duration::from_secs(10 * 60);
 const QUOTA_HYDRATION_FAILURE_TTL: Duration = Duration::from_secs(5);
 
-/// Grok Build Free 额度的滚动观察窗口
-pub const GROK_FREE_ROLLING_WINDOW_SECONDS: u64 = 86_400;
-
 /// xAI Provider 从当前 credits 文档解析出的账号页安全投影
 #[derive(Debug, Clone, PartialEq)]
 pub struct GrokBillingPresentation {

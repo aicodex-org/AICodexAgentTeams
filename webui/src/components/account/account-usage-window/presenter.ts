@@ -214,7 +214,8 @@ function usageWindowMode(
   window: AccountQuotaWindow | undefined,
   localUsage: AccountLocalUsage | null,
 ): AccountUsageWindowMode {
-  if (typeof window?.usedPercent === 'number')
+  // 已知上游重置边界的额度即使缺少比例，也不能退化为本地请求时间线
+  if (typeof window?.usedPercent === 'number' || (window && window.resetAtDisplay !== '—'))
     return 'quota'
   if (localUsage)
     return 'local'

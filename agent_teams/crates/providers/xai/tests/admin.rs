@@ -483,6 +483,75 @@ async fn xai_admin_provider_restores_full_pending_envelope_and_binds_owner() {
 }
 
 #[tokio::test]
+async fn xai_admin_quota_preserves_weekly_limits_when_percentage_is_unknown() {
+    let store = Arc::new(MemoryProviderAccountStore::default());
+    let input = create_input("weekly_projection", "subject-weekly-projection");
+    seed_input(&store, &input).await.expect("create account");
+    let account = store.account(&input.account_id).expect("stored account");
+    let bundle = provider_xai::initialize(provider_ports_with_catalog(
+        Arc::clone(&store),
+        Arc::new(TestOAuthPending::default()),
+        Arc::new(TestCatalogCache::default()),
+    ))
+    .await
+    .expect("xAI bundle");
+    let admin = bundle.admin_provider();
+    for (period, percent, label, seconds) in [
+        ("USAGE_PERIOD_TYPE_WEEKLY", None, "周限制额度", 604_800),
+        ("USAGE_PERIOD_TYPE_WEEKLY", Some(0.0), "周限制额度", 604_800),
+        (
+            "USAGE_PERIOD_TYPE_WEEKLY",
+            Some(37.5),
+            "周限制额度",
+            604_800,
+        ),
+        (
+            "USAGE_PERIOD_TYPE_WEEKLY",
+            Some(100.0),
+            "周限制额度",
+            604_800,
+        ),
+        ("USAGE_PERIOD_TYPE_MONTHLY", Some(25.0), "月限额", 2_678_400),
+    ] {
+        let start = DateTime::parse_from_rfc3339("2026-10-01T00:00:00Z")
+            .unwrap()
+            .to_utc();
+        let end = start + chrono::Duration::seconds(seconds);
+        store.compare_and_swap_quota(gateway_core::account::QuotaObservation {
+            plan_type: None,
+            account_id: account.id().clone(),
+            expected_revision: account.revision(),
+            quota: OpaqueProviderData::new(serde_json::from_value(json!({
+                "subscriptionTier": "SuperGrok",
+                "config": {
+                    "currentPeriod": {"type": period, "start": start.to_rfc3339(), "end": end.to_rfc3339()},
+                    "creditUsagePercent": percent,
+                    "onDemandCap": {"val": 0}, "onDemandUsed": {"val": 0}, "prepaidBalance": {"val": 0}
+                }
+            })).unwrap()),
+            observed_at: SystemTime::now(),
+            state: account.quota(),
+        }).await.expect("store quota");
+        let quota = admin
+            .quota(ProviderQuotaRequest {
+                account_id: account.id().clone(),
+                refresh: false,
+                rolling_usage: None,
+            })
+            .await
+            .expect("project quota");
+        let window = &quota.windows[0];
+        assert_eq!(quota.windows.len(), 1);
+        assert_eq!(window.label, label);
+        assert_eq!(window.used_percent, percent);
+        assert_eq!(window.reset_at, Some(end));
+        assert_eq!(window.window_seconds, Some(seconds as u64));
+        assert_eq!(window.limit_reached, percent == Some(100.0));
+        assert!(window.local_usage.is_none());
+    }
+}
+
+#[tokio::test]
 async fn xai_admin_provider_projects_cached_quota_models_and_canonical_export() {
     let store = Arc::new(MemoryProviderAccountStore::default());
     let input = create_input("admin_projection", "subject-admin-projection");
@@ -537,7 +606,11 @@ async fn xai_admin_provider_projects_cached_quota_models_and_canonical_export() 
         })
         .await
         .expect("cached quota");
-    assert!(quota.windows.is_empty());
+    assert_eq!(quota.windows.len(), 1);
+    assert_eq!(quota.windows[0].label, "周限制额度");
+    assert_eq!(quota.windows[0].used_percent, None);
+    assert_eq!(quota.windows[0].window_seconds, None);
+    assert_eq!(quota.observed_at, None);
     store
         .compare_and_swap_quota(gateway_core::account::QuotaObservation {
             plan_type: None,

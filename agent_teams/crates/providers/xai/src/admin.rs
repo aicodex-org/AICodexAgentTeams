@@ -760,7 +760,7 @@ impl ProviderAdmin for XaiAdminProvider {
         let ProviderQuotaRequest {
             account_id,
             refresh,
-            rolling_usage,
+            rolling_usage: _,
         } = request;
         let mut account = self.account(&account_id).await?;
         let lifecycle = self
@@ -787,7 +787,6 @@ impl ProviderAdmin for XaiAdminProvider {
             snapshot,
             account.quota().is_exhausted(),
             lifecycle.refresh_token_expires_at().copied(),
-            rolling_usage,
         ))
     }
 
@@ -1158,36 +1157,25 @@ fn project_quota(
     snapshot: Option<GrokQuotaSnapshot>,
     quota_exhausted: bool,
     refresh_token_expires_at: Option<DateTime<Utc>>,
-    rolling_usage: Option<gateway_admin::model::accounts::AccountUsage>,
 ) -> ProviderQuota {
-    let Some(snapshot) = snapshot else {
-        return ProviderQuota {
-            balances: Vec::new(),
-            credits: None,
-            plan_type: None,
-            observed_at: None,
-            refresh_token_expires_at,
-            windows: Vec::new(),
-            limit_reached: quota_exhausted,
-            provider_data: None,
-        };
-    };
-    let billing = snapshot.billing();
-    let window = if billing.has_authoritative_quota() {
-        let period_kind = billing.period_kind();
-        let window_seconds = quota_window_seconds(billing.period_start(), billing.period_end());
+    let billing = snapshot.as_ref().map(GrokQuotaSnapshot::billing);
+    // 周额度缺少比例时保留未知状态，不用本地日请求统计替代上游额度
+    let period_kind = billing
+        .filter(|billing| billing.period_type().is_some())
+        .map_or(GrokQuotaPeriodKind::Weekly, |billing| billing.period_kind());
+    let period_start = billing.and_then(|billing| billing.period_start());
+    let period_end = billing.and_then(|billing| billing.period_end());
+    let window_seconds = quota_window_seconds(period_start, period_end);
+    let used_percent = billing.and_then(|billing| billing.used_percent());
+    let provider_data = billing.map(|billing| {
         let mut data = Map::new();
         data.insert(
             "periodStart".to_owned(),
-            billing
-                .period_start()
-                .map_or(Value::Null, |value| Value::String(value.to_owned())),
+            period_start.map_or(Value::Null, |value| Value::String(value.to_owned())),
         );
         data.insert(
             "periodEnd".to_owned(),
-            billing
-                .period_end()
-                .map_or(Value::Null, |value| Value::String(value.to_owned())),
+            period_end.map_or(Value::Null, |value| Value::String(value.to_owned())),
         );
         for (key, value) in [
             ("onDemandCapCents", billing.on_demand_cap_cents()),
@@ -1199,8 +1187,21 @@ fn project_quota(
                 value.map_or(Value::Null, |value| Value::Number(Number::from(value))),
             );
         }
-        ProviderQuotaWindow {
-            key: billing.period_type().unwrap_or("billing").to_owned(),
+        ProviderDocument::new(OpaqueProviderData::new(data))
+    });
+    ProviderQuota {
+        balances: Vec::new(),
+        credits: None,
+        plan_type: billing
+            .and_then(|billing| billing.plan_type())
+            .map(str::to_owned),
+        observed_at: snapshot.as_ref().map(GrokQuotaSnapshot::observed_at),
+        refresh_token_expires_at,
+        windows: vec![ProviderQuotaWindow {
+            key: billing
+                .and_then(|billing| billing.period_type())
+                .unwrap_or("weekly")
+                .to_owned(),
             group: quota_group(period_kind).to_owned(),
             label: xai_quota_window_label(period_kind, window_seconds),
             limit_id: None,
@@ -1208,38 +1209,12 @@ fn project_quota(
             role: None,
             local_usage_attribution: QuotaLocalUsageAttribution::AccountWide,
             window_seconds,
-            used_percent: billing.used_percent(),
-            reset_at: billing.period_end().and_then(parse_utc),
-            limit_reached: billing
-                .used_percent()
-                .is_some_and(|used| used.is_finite() && used >= 100.0),
+            used_percent,
+            reset_at: period_end.and_then(parse_utc),
+            limit_reached: used_percent.is_some_and(|used| used.is_finite() && used >= 100.0),
             local_usage: None,
-            provider_data: Some(ProviderDocument::new(OpaqueProviderData::new(data))),
-        }
-    } else {
-        ProviderQuotaWindow {
-            key: "free-rolling-24h".to_owned(),
-            group: "shortTerm".to_owned(),
-            label: "日限额".to_owned(),
-            limit_id: None,
-            limit_name: None,
-            role: None,
-            local_usage_attribution: QuotaLocalUsageAttribution::AccountWide,
-            window_seconds: Some(crate::GROK_FREE_ROLLING_WINDOW_SECONDS),
-            used_percent: None,
-            reset_at: None,
-            limit_reached: false,
-            local_usage: rolling_usage,
-            provider_data: None,
-        }
-    };
-    ProviderQuota {
-        balances: Vec::new(),
-        credits: None,
-        plan_type: billing.plan_type().map(str::to_owned),
-        observed_at: Some(snapshot.observed_at()),
-        refresh_token_expires_at,
-        windows: vec![window],
+            provider_data,
+        }],
         limit_reached: quota_exhausted,
         provider_data: None,
     }
@@ -1255,7 +1230,7 @@ const fn quota_group(kind: GrokQuotaPeriodKind) -> &'static str {
 
 fn xai_quota_window_label(kind: GrokQuotaPeriodKind, window_seconds: Option<u64>) -> String {
     match kind {
-        GrokQuotaPeriodKind::Weekly => "周限额".to_owned(),
+        GrokQuotaPeriodKind::Weekly => "周限制额度".to_owned(),
         GrokQuotaPeriodKind::Monthly => "月限额".to_owned(),
         GrokQuotaPeriodKind::Other => custom_quota_window_label(window_seconds),
     }
