@@ -35,10 +35,11 @@ large_enum_variant = { level = "warn", priority = 8 }
 needless_collect = { level = "deny", priority = 7 }
 
 [profile.dev]
-debug = true
+# 保留回溯行号，减少日常构建的调试信息体积
+debug = "line-tables-only"
 
 # 测试保留真实密码参数和压缩数据量，优化热点依赖以减少 fixture 的计算开销。
-# test 继承 dev；workspace 代码仍保留默认调试与溢出检查。
+# test 继承 dev；workspace 代码仍保留默认调试断言与溢出检查。
 [profile.dev.package.argon2]
 opt-level = 2
 
@@ -50,6 +51,9 @@ opt-level = 2
 
 [profile.dev.package."miniz_oxide@0.9.1"]
 opt-level = 2
+
+[profile.test]
+debug = "line-tables-only"
 
 [profile.release]
 debug = false
