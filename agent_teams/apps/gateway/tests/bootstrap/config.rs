@@ -80,7 +80,7 @@ fn config_loader_should_reject_missing_runtime_data_dir() {
 fn config_loader_should_apply_only_explicit_topology_overrides() {
     let invalid = valid_config()
         .replace("host: '127.0.0.1'", "host: ''")
-        .replace("port: 8080", "port: 0")
+        .replace("port: 9699", "port: 0")
         .replace(
             "url: 'postgres://aicodex_agent_teams@127.0.0.1:5432/aicodex_agent_teams'",
             "url: 'invalid-postgres-url'",
@@ -100,7 +100,7 @@ fn config_loader_should_apply_only_explicit_topology_overrides() {
         ])
         .env(TOPOLOGY_CHILD_ENV, "1")
         .env("AICODEX_AGENT_TEAMS_SERVER_HOST", "127.0.0.1")
-        .env("AICODEX_AGENT_TEAMS_SERVER_PORT", "8080")
+        .env("AICODEX_AGENT_TEAMS_SERVER_PORT", "9699")
         .env(
             "AICODEX_AGENT_TEAMS_DATABASE_URL",
             "postgres://aicodex_agent_teams@127.0.0.1:5432/aicodex_agent_teams",
@@ -350,7 +350,7 @@ fn config_loader_should_reject_disabled_all_log_outputs() {
 
 #[test]
 fn config_loader_should_reject_zero_server_port() {
-    assert_rejected(valid_config().replace("port: 8080", "port: 0"));
+    assert_rejected(valid_config().replace("port: 9699", "port: 0"));
 }
 
 #[test]

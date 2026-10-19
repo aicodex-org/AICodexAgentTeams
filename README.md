@@ -67,7 +67,7 @@ INSTALL_DIR="$HOME/services/AICodexAgentTeams" bash install.sh
 
 ### 登录管理端
 
-部署完成后，打开 `http://127.0.0.1:8080`，使用 `admin@aicodexagentteams.local` 和管理员密码登录
+部署完成后，打开 `http://127.0.0.1:9699`，使用 `admin@aicodexagentteams.local` 和管理员密码登录
 
 API Key 持有者可在登录页切换身份，查看自己的用量与额度，并通过「密钥配置」复制 Codex 配置或导入 CCSwitch
 
@@ -90,13 +90,13 @@ API Key 持有者可在登录页切换身份，查看自己的用量与额度，
 
 | 配置 | 值 |
 | --- | --- |
-| Base URL | `http://127.0.0.1:8080/v1`；远程接入使用服务器的 HTTPS 地址 |
+| Base URL | `http://127.0.0.1:9699/v1`；远程接入使用服务器的 HTTPS 地址 |
 | API Key | 管理端创建的客户端密钥 |
 
 查询该密钥可见的模型目录：
 
 ```bash
-curl http://127.0.0.1:8080/v1/models \
+curl http://127.0.0.1:9699/v1/models \
   -H 'Authorization: Bearer <client-api-key>'
 ```
 

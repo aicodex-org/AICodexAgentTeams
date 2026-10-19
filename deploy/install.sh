@@ -267,7 +267,7 @@ check_health() {
     --output /dev/null \
     --write-out '%{http_code}' \
     --max-time 10 \
-    http://127.0.0.1:8080/healthz || true)"
+    http://127.0.0.1:9699/healthz || true)"
   [[ "$status" == "204" ]]
 }
 
@@ -352,7 +352,7 @@ main() {
 
   info "验证健康检查接口"
   if ! check_health; then
-    warn "Compose 已启动，但 http://127.0.0.1:8080/healthz 未返回 204。"
+    warn "Compose 已启动，但 http://127.0.0.1:9699/healthz 未返回 204。"
     warn "最近日志："
     (
       cd "$INSTALL_DIR"
@@ -366,7 +366,7 @@ main() {
   printf '%b%s%b\n' "$GREEN" ' 部署完成' "$NC"
   printf '%b%s%b\n' "$GREEN" '=============================================' "$NC"
   printf '\n'
-  printf '访问地址：      http://127.0.0.1:8080\n'
+  printf '访问地址：      http://127.0.0.1:9699\n'
   if [[ "$existing_config" -eq 0 ]]; then
     printf '管理员用户名：  admin@aicodexagentteams.local\n'
     printf '管理员密码：    %s\n' "$ADMIN_PASSWORD"
@@ -388,7 +388,7 @@ main() {
     printf '%b请立即保存管理员密码。%b\n' "$YELLOW" "$NC"
   fi
   printf '%b%s%b\n' "$YELLOW" \
-    'Compose 默认只把 8080 绑定到 127.0.0.1；公网访问请配置 HTTPS 反向代理。' "$NC"
+    'Compose 默认只把 9699 绑定到 127.0.0.1；公网访问请配置 HTTPS 反向代理。' "$NC"
   printf '\n'
 }
 

@@ -191,7 +191,7 @@ docker compose -f deploy/compose.yaml ps
 健康检查：
 
 ```bash
-curl -i http://127.0.0.1:8080/healthz
+curl -i http://127.0.0.1:9699/healthz
 ```
 
 `204 No Content` 表示应用、PostgreSQL、Redis 和后台任务的健康检查通过，不代表每个上游账号都可用
@@ -311,7 +311,7 @@ service_tier = "default"
 
 [model_providers.OpenAI]
 name = "OpenAI"
-base_url = "http://127.0.0.1:8080/v1"
+base_url = "http://127.0.0.1:9699/v1"
 wire_api = "responses"
 supports_websockets = false
 requires_openai_auth = false
