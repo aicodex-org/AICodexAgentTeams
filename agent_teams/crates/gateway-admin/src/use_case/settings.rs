@@ -259,6 +259,10 @@ impl SettingsService for DefaultSettingsService {
         match &command.change {
             PricingChange::Replace(pricing) => {
                 pricing.validate().map_err(AdminError::invalid)?;
+                if command.provider == "mimo" && pricing.bands.keys().any(|band| band != "standard")
+                {
+                    return Err(AdminError::invalid("MiMo 仅支持标准价格档位"));
+                }
                 if command.provider != "deepseek" && pricing.bands.contains_key("off_peak") {
                     return Err(AdminError::invalid("仅 DeepSeek 支持空闲价格档位"));
                 }

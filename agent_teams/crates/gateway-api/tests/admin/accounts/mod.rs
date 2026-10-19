@@ -685,6 +685,34 @@ mod actions {
     }
 
     #[test]
+    fn account_connection_accepts_mimo_access_mode_without_exposing_generic_material() {
+        let mut request = json!({
+            "accountId": "acct_mimo",
+            "enabled": true, "concurrencyLimit": null, "weight": 1, "groupIds": [],
+            "connection": {
+                "transport": "http", "accessMode": "token_plan",
+                "baseUrl": "https://token-plan-sgp.xiaomimimo.com/v1",
+                "protocols": ["openai", "openai-chat", "anthropic"]
+            }
+        });
+        let decoded: UpdateAccountRequest = serde_json::from_value(request.clone()).unwrap();
+        decoded.validate().unwrap();
+        assert_eq!(
+            decoded.connection.unwrap().access_mode.as_deref(),
+            Some("token_plan")
+        );
+        request["connection"]["accessMode"] = json!("");
+        assert_eq!(
+            serde_json::from_value::<UpdateAccountRequest>(request)
+                .unwrap()
+                .validate()
+                .unwrap_err()
+                .field(),
+            "connection.accessMode"
+        );
+    }
+
+    #[test]
     fn account_connection_accepts_provider_owned_pricing_schedule_object() {
         let schedule = json!({
             "enabled":false,"timezone":"Asia/Shanghai","peak_weekdays":[1,2,3,4,5],

@@ -63,6 +63,11 @@ const additionalEntryCount = computed(() => Math.max(summaryEntries.value.length
           <span v-else class="text-cp-xs text-cp-text-quaternary" title="暂无费用数据">—</span>
         </div>
       </div>
+      <div v-else-if="account.provider === 'mimo'" class="flex min-w-0 items-center justify-between gap-2 text-[10px] text-cp-text-quaternary">
+        <span>上游额度未提供</span>
+        <a href="https://platform.xiaomimimo.com/console" target="_blank" rel="noopener noreferrer" class="shrink-0 text-cp-primary hover:underline">官方控制台</a>
+        <AccountCapacityIndicator :capacity="account.capacity" />
+      </div>
       <div v-else class="grid min-w-0 gap-1.5">
         <div class="flex min-w-0 items-start justify-between gap-2 leading-3">
           <span class="truncate text-[10px] font-bold text-cp-text-quaternary">{{ account.usage.windowLabelDisplay }}</span>

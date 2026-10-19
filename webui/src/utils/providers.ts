@@ -1,11 +1,13 @@
 import type { Component } from 'vue'
 import { Deepseek, Key, LinkAlt, Openai, Xai } from '@boxicons/vue'
 import { Fingerprint, Plug } from '@lucide/vue'
+import MiMoIcon from '@/components/MiMoIcon.vue'
 
 const PROVIDER_DISPLAY_NAMES = {
   openai: 'OpenAI',
   xai: 'xAI',
   deepseek: 'DeepSeek',
+  mimo: 'MiMo',
 } as const
 
 export const PROVIDER_IDS = Object.keys(PROVIDER_DISPLAY_NAMES) as Array<keyof typeof PROVIDER_DISPLAY_NAMES>
@@ -27,6 +29,7 @@ export function providerIcon(value: string): Component {
     case 'openai': return Openai
     case 'xai': return Xai
     case 'deepseek': return Deepseek
+    case 'mimo': return MiMoIcon
     default: return Plug
   }
 }

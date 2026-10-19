@@ -32,6 +32,8 @@ pub enum BootstrapError {
     #[error(transparent)]
     DeepSeek(#[from] provider_deepseek::DeepSeekInitializeError),
     #[error(transparent)]
+    MiMo(#[from] provider_mimo::MiMoInitializeError),
+    #[error(transparent)]
     Xai(#[from] provider_xai::XaiInitializeError),
     #[error(transparent)]
     Registry(#[from] gateway_core::engine::provider::RegistryError),
@@ -74,6 +76,7 @@ impl BootstrapError {
             Self::Store(_) | Self::CommandStoreDrain(_) => "store",
             Self::OpenAi(_) => "provider_openai",
             Self::DeepSeek(_) => "provider_deepseek",
+            Self::MiMo(_) => "provider_mimo",
             Self::Xai(_) => "provider_xai",
             Self::Registry(_) => "provider_registry",
             Self::Core(_) => "core",

@@ -71,7 +71,7 @@ function connectionLogClass(tone: string) {
 
       <section class="rounded-cp-card bg-cp-fill-quaternary px-4 py-3">
         <div class="grid gap-2">
-          <template v-if="account.provider === 'deepseek'">
+          <template v-if="account.provider === 'deepseek' || account.provider === 'mimo'">
             <span class="text-cp-sm font-heavy text-cp-text-quaternary">测试协议</span>
             <ZSelect v-model="protocol" aria-label="测试协议" :options="protocolOptions" :disabled="status === 'running'" />
           </template>

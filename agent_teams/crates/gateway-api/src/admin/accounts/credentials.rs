@@ -270,6 +270,7 @@ impl UpdateAccountRequest {
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AccountConnectionUpdateRequest {
+    pub access_mode: Option<String>,
     pub pricing_schedule: Option<Map<String, Value>>,
     pub protocols: Option<Vec<String>>,
     pub base_url: Option<String>,
@@ -279,6 +280,9 @@ pub struct AccountConnectionUpdateRequest {
 
 impl AccountConnectionUpdateRequest {
     fn validate(&self) -> Result<(), WireValidationError> {
+        if let Some(mode) = &self.access_mode {
+            require_text(mode, 64, "connection.accessMode")?;
+        }
         if let Some(base_url) = &self.base_url {
             require_text(base_url, 2048, "connection.baseUrl")?;
         }
@@ -298,6 +302,9 @@ impl AccountConnectionUpdateRequest {
     fn into_document(self) -> ProviderDocument {
         let mut material =
             Map::from_iter([("transport".to_owned(), Value::String(self.transport))]);
+        if let Some(mode) = self.access_mode {
+            material.insert("access_mode".to_owned(), Value::String(mode));
+        }
         if let Some(schedule) = self.pricing_schedule {
             material.insert("pricing_schedule".to_owned(), Value::Object(schedule));
         }

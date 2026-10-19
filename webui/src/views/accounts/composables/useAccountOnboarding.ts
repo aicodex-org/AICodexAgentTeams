@@ -64,7 +64,7 @@ export function useAccountOnboarding(options: {
         return
       const provider = accountCreateProvider(form)
       if (mode === 'api_key') {
-        if (!['openai', 'deepseek'].includes(requireImportProvider(provider)))
+        if (!['openai', 'deepseek', 'mimo'].includes(requireImportProvider(provider)))
           throw new Error('当前平台不支持 API Key 账号')
         const error = apiKeyAccountError(form.apiKey)
         if (error)
@@ -73,7 +73,7 @@ export function useAccountOnboarding(options: {
           provider: requireImportProvider(provider),
           settings,
           outboundProxyId,
-          data: { provider, authentication_kind: 'api_key', name: form.apiKey.name.trim(), base_url: form.apiKey.base_url.trim(), api_key: form.apiKey.apiKey, transport: form.apiKey.transport, protocols: form.apiKey.protocols, pricing_schedule: provider === 'deepseek' ? form.apiKey.pricing_schedule : undefined },
+          data: { provider, access_mode: provider === 'mimo' ? form.apiKey.access_mode : undefined, authentication_kind: 'api_key', name: form.apiKey.name.trim(), base_url: form.apiKey.base_url.trim(), api_key: form.apiKey.apiKey, transport: form.apiKey.transport, protocols: form.apiKey.protocols, pricing_schedule: provider === 'deepseek' ? form.apiKey.pricing_schedule : undefined },
         })
         await finishCreate('API Key 账号已添加')
         return

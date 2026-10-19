@@ -17,8 +17,8 @@ withDefaults(defineProps<{
 })
 
 const model = defineModel<ProviderRequestProfiles>({ required: true })
-const provider = shallowRef<(typeof PROVIDER_IDS)[number]>('openai')
-const providerOptions = PROVIDER_IDS.map(value => ({
+const provider = shallowRef<'openai' | 'xai'>('openai')
+const providerOptions = PROVIDER_IDS.filter(value => value === 'openai' || value === 'xai').map(value => ({
   value,
   label: formatProviderLabel(value),
   icon: providerIcon(value),

@@ -139,13 +139,14 @@ export function useAccountEditor(options: {
         apiKey.value.apiKey !== ''
         || apiKey.value.base_url.trim() !== savedConfiguration.value?.base_url
         || apiKey.value.transport !== savedConfiguration.value?.transport
+        || apiKey.value.access_mode !== savedConfiguration.value?.access_mode
         || JSON.stringify(apiKey.value.protocols) !== JSON.stringify(savedConfiguration.value?.protocols)
         || JSON.stringify(apiKey.value.pricing_schedule) !== JSON.stringify(savedConfiguration.value?.pricing_schedule)
       )
       await updateAccount({
         ...settings,
         connection: connectionChanged
-          ? { baseUrl: apiKey.value.base_url.trim(), transport: apiKey.value.transport, protocols: apiKey.value.protocols, pricingSchedule: apiKey.value.pricing_schedule, apiKey: apiKey.value.apiKey || undefined }
+          ? { accessMode: apiKey.value.access_mode, baseUrl: apiKey.value.base_url.trim(), transport: apiKey.value.transport, protocols: apiKey.value.protocols, pricingSchedule: apiKey.value.pricing_schedule, apiKey: apiKey.value.apiKey || undefined }
           : isOAuth && configurationReady.value && oauthTransport.value !== savedOAuthTransport.value
             ? { transport: oauthTransport.value }
             : undefined,

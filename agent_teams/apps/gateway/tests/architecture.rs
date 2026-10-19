@@ -21,6 +21,7 @@ pub(super) const WORKSPACE_MEMBERS: &[&str] = &[
     "crates/gateway-protocol",
     "crates/gateway-store",
     "crates/providers/deepseek",
+    "crates/providers/mimo",
     "crates/providers/openai",
     "crates/providers/xai",
 ];
@@ -60,6 +61,7 @@ fn gateway_core_depends_on_no_http_db_redis_or_provider_crate() {
             "gateway-host",
             "gateway-store",
             "provider-deepseek",
+            "provider-mimo",
             "provider-openai",
             "provider-xai",
         ],
@@ -283,15 +285,19 @@ fn plugin_sdk_has_no_workspace_dependencies() {
 fn provider_crates_do_not_depend_on_each_other() {
     assert_no_dependency(
         "crates/providers/openai",
-        &["provider-xai", "provider-deepseek"],
+        &["provider-xai", "provider-deepseek", "provider-mimo"],
     );
     assert_no_dependency(
         "crates/providers/xai",
-        &["provider-openai", "provider-deepseek"],
+        &["provider-openai", "provider-deepseek", "provider-mimo"],
     );
     assert_no_dependency(
         "crates/providers/deepseek",
-        &["provider-openai", "provider-xai"],
+        &["provider-openai", "provider-xai", "provider-mimo"],
+    );
+    assert_no_dependency(
+        "crates/providers/mimo",
+        &["provider-openai", "provider-xai", "provider-deepseek"],
     );
 }
 
@@ -316,6 +322,7 @@ const PACKAGE_TO_MEMBER: &[(&str, &str)] = &[
     ("gateway-protocol", "crates/gateway-protocol"),
     ("gateway-store", "crates/gateway-store"),
     ("provider-deepseek", "crates/providers/deepseek"),
+    ("provider-mimo", "crates/providers/mimo"),
     ("provider-openai", "crates/providers/openai"),
     ("provider-xai", "crates/providers/xai"),
 ];
@@ -349,6 +356,7 @@ const ADAPTER_PUBLIC_MODULES: &[(&str, &[&str])] = &[
     ),
     ("crates/providers/xai", &["transport"]),
     ("crates/providers/deepseek", &[]),
+    ("crates/providers/mimo", &[]),
 ];
 
 /// 不对应单一生产模块、而是校验 crate/workspace 整体契约的根级测试场景
@@ -367,6 +375,7 @@ const ALLOWED_INTERNAL_EDGES: &[(&str, &str)] = &[
     ("aicodex-agent-teams", "gateway-plugin-runtime"),
     ("aicodex-agent-teams", "gateway-store"),
     ("aicodex-agent-teams", "provider-deepseek"),
+    ("aicodex-agent-teams", "provider-mimo"),
     ("aicodex-agent-teams", "provider-openai"),
     ("aicodex-agent-teams", "provider-xai"),
     ("gateway-admin", "gateway-core"),
@@ -385,6 +394,9 @@ const ALLOWED_INTERNAL_EDGES: &[(&str, &str)] = &[
     ("provider-deepseek", "gateway-admin"),
     ("provider-deepseek", "gateway-core"),
     ("provider-deepseek", "gateway-protocol"),
+    ("provider-mimo", "gateway-admin"),
+    ("provider-mimo", "gateway-core"),
+    ("provider-mimo", "gateway-protocol"),
     ("provider-openai", "gateway-admin"),
     ("provider-openai", "gateway-core"),
     ("provider-openai", "gateway-protocol"),

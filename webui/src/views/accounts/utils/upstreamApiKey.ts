@@ -1,8 +1,9 @@
 import type { Account, ApiKeyConfiguration } from '@/api'
 import { deepSeekPricingError, defaultDeepSeekPricingSchedule, parseDeepSeekPricingSchedule } from './deepseekPricing'
+import { inferMiMoAccessMode } from './mimo'
 
 export function isApiKeyAccount(account: Pick<Account, 'provider' | 'authenticationKind'> | null | undefined): boolean {
-  return Boolean(account && ['openai', 'deepseek'].includes(account.provider)) && account?.authenticationKind === 'api_key'
+  return Boolean(account && ['openai', 'deepseek', 'mimo'].includes(account.provider)) && account?.authenticationKind === 'api_key'
 }
 
 export function isOpenAiOAuthAccount(account: Pick<Account, 'provider' | 'authenticationKind'> | null | undefined): boolean {
@@ -15,16 +16,16 @@ export interface ApiKeyAccountForm extends ApiKeyConfiguration {
 }
 
 export function emptyApiKeyAccountForm(provider?: string): ApiKeyAccountForm {
-  return { pricing_schedule: provider === 'deepseek' ? defaultDeepSeekPricingSchedule() : undefined, name: '', base_url: provider === 'deepseek' ? 'https://api.deepseek.com' : '', apiKey: '', transport: 'http', protocols: provider === 'deepseek' ? ['openai', 'openai-chat', 'anthropic'] : undefined }
+  return { access_mode: provider === 'mimo' ? 'api_key' : undefined, pricing_schedule: provider === 'deepseek' ? defaultDeepSeekPricingSchedule() : undefined, name: '', base_url: provider === 'deepseek' ? 'https://api.deepseek.com' : provider === 'mimo' ? 'https://api.xiaomimimo.com/v1' : '', apiKey: '', transport: 'http', protocols: provider === 'deepseek' || provider === 'mimo' ? ['openai', 'openai-chat', 'anthropic'] : undefined }
 }
 
 export function parseApiKeyConfiguration(value: Record<string, unknown> | undefined, provider?: string): ApiKeyConfiguration | undefined {
-  if (!value || typeof value.base_url !== 'string' || (provider !== 'deepseek' && value.transport !== 'http' && value.transport !== 'prefer_websocket'))
+  if (!value || typeof value.base_url !== 'string' || (provider !== 'deepseek' && provider !== 'mimo' && value.transport !== 'http' && value.transport !== 'prefer_websocket'))
     return undefined
   const schedule = provider === 'deepseek' ? parseDeepSeekPricingSchedule(value.pricing_schedule) : undefined
   if (provider === 'deepseek' && !schedule)
     return undefined
-  return { pricing_schedule: schedule, base_url: value.base_url, transport: value.transport === 'prefer_websocket' ? 'prefer_websocket' : 'http', protocols: Array.isArray(value.protocols) ? value.protocols.filter((protocol): protocol is string => typeof protocol === 'string') : undefined }
+  return { access_mode: provider === 'mimo' ? inferMiMoAccessMode(value) : undefined, pricing_schedule: schedule, base_url: value.base_url, transport: provider !== 'mimo' && value.transport === 'prefer_websocket' ? 'prefer_websocket' : 'http', protocols: Array.isArray(value.protocols) ? value.protocols.filter((protocol): protocol is string => typeof protocol === 'string') : provider === 'mimo' ? ['openai', 'openai-chat', 'anthropic'] : undefined }
 }
 
 export function apiKeyAccountError(form: ApiKeyAccountForm, editing = false): string | undefined {

@@ -102,7 +102,7 @@ async fn client_profile_preview_rejects_unknown_provider_before_loading_settings
 
 #[tokio::test]
 async fn off_peak_band_is_accepted_only_for_deepseek() {
-    for provider in ["deepseek", "openai", "xai"] {
+    for provider in ["deepseek", "openai", "xai", "mimo"] {
         let store = Arc::new(PricingSettingsStore::default());
         let services = super::AdminHarness::new()
             .settings(store.clone())
@@ -135,6 +135,61 @@ async fn off_peak_band_is_accepted_only_for_deepseek() {
         } else {
             assert_eq!(result.unwrap_err().kind(), AdminErrorKind::Invalid);
             assert!(store.updated.lock().unwrap().is_none());
+        }
+    }
+}
+
+#[tokio::test]
+async fn mimo_pricing_accepts_only_the_standard_band() {
+    for band in [
+        "standard",
+        "off_peak",
+        "fast",
+        "flex",
+        "long_standard",
+        "long_fast",
+        "long_flex",
+        "image",
+    ] {
+        let store = Arc::new(PricingSettingsStore::default());
+        let services = super::AdminHarness::new()
+            .settings(store.clone())
+            .provider(super::test_provider("mimo"))
+            .build()
+            .await;
+        let context = MutationContext {
+            actor: gateway_admin::model::MutationActor::System,
+            request_id: "request-mimo-pricing".to_owned(),
+        };
+        let rates = serde_json::json!({
+            "input": "0.3", "output": "1.2", "cacheRead": "0.03", "cacheWrite": "0.3"
+        });
+        let pricing = serde_json::from_value(serde_json::json!({
+            "multiplierBps": 10000,
+            "bands": BTreeMap::from([("standard", rates.clone()), (band, rates)])
+        }))
+        .expect("valid pricing shape");
+        let result = services
+            .settings()
+            .update_pricing(
+                &context,
+                UpdatePricing {
+                    provider: "mimo".to_owned(),
+                    models: vec!["mimo-v2.6-pro".to_owned()],
+                    change: PricingChange::Replace(pricing),
+                },
+            )
+            .await;
+        if band == "standard" {
+            result.expect("MiMo supports standard prices");
+            assert!(store.updated.lock().unwrap().is_some());
+        } else {
+            assert_eq!(
+                result.unwrap_err().kind(),
+                AdminErrorKind::Invalid,
+                "{band}"
+            );
+            assert!(store.updated.lock().unwrap().is_none(), "{band}");
         }
     }
 }

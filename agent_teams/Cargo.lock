@@ -43,6 +43,7 @@ dependencies = [
  "gateway-plugin-runtime",
  "gateway-store",
  "provider-deepseek",
+ "provider-mimo",
  "provider-openai",
  "provider-xai",
  "serde",
@@ -3304,6 +3305,29 @@ dependencies = [
  "bytes",
  "chrono",
  "chrono-tz",
+ "futures",
+ "gateway-admin",
+ "gateway-core",
+ "gateway-protocol",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "url",
+ "uuid",
+ "wiremock",
+]
+
+[[package]]
+name = "provider-mimo"
+version = "0.0.0"
+dependencies = [
+ "async-stream",
+ "async-trait",
+ "base64 0.23.1",
+ "bytes",
+ "chrono",
  "futures",
  "gateway-admin",
  "gateway-core",

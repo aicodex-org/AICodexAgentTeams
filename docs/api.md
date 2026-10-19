@@ -38,7 +38,7 @@ Codex 原生生图配置还会携带 `X-OpenAI-Actor-Authorization: proxy-manage
 上游账号身份只由服务端选中的账号提供；不要把真实账号 token 放进该标记
 
 Client Key 通过账号分组限定路由范围：未绑定分组时可使用全部账号，绑定一个或多个分组时只能使用
-已启用分组成员的并集。分组可以混合 `openai`、`xai` 与 `deepseek` 账号；同一请求只会在模型能力明确匹配且满足
+已启用分组成员的并集。分组可以混合 `openai`、`xai`、`deepseek` 与 `mimo` 账号；同一请求只会在模型能力明确匹配且满足
 重放安全边界时跨 Provider fallback
 
 运行设置可以分别配置 `minCodexDesktopVersion` 与 `minCodexCliVersion`。两者只接受 SemVer，`null`
@@ -215,6 +215,17 @@ Messages 除 Bearer Client Key 外也接受 `x-api-key`；两者同时提供时�
 上游认证使用所选账号的 DeepSeek API Key，下游密钥不会发送到上游。
 Chat 与 Messages 保留原生 JSON/SSE；Responses 沿用现有 SSE 交付与非流式聚合链路，
 不会经过 Chat 协议转换。DeepSeek Responses 不支持 `previous_response_id`，调用方需要发送完整历史
+
+### MiMo 原生协议
+
+MiMo 使用同一组 Responses、Chat Completions 与 Messages 入口，协议 ID 为 `openai`、
+`openai-chat`、`anthropic`，共享账号权限、并发、请求记录与结算。仅支持 HTTP JSON/SSE；
+WebSocket、原生服务端续接与后台执行不适用。Responses 的非 `null` `previous_response_id`、
+`conversation`、`context_management` 和 `background: true` 在发送前拒绝，调用方需提供完整历史
+
+上游使用所选账号的 Bearer 密钥；客户端鉴权不会发送到上游。正文保留原生工具与推理历史，
+不在三种协议之间转换。模型目录按账号和凭据版本隔离，语音专用 ASR/TTS 模型不作为文本生成目标。
+接入方式、地区、凭据与额度边界见下文 MiMo 账号合同
 
 ### Provider 自有操作
 
@@ -685,7 +696,7 @@ config 返回 `{ name, plaintextKey }`，仅读取服务端会话绑定的当前
 ## 5. 账号
 
 账号 API 使用统一路由，不存在 Provider Instance 或 Provider 专属账号路由。`provider` 使用 Provider ID，
-固定为内置 `openai`、`xai`、`deepseek`；操作可用性由平台实现与账号认证类型决定
+固定为内置 `openai`、`xai`、`deepseek`、`mimo`；操作可用性由平台实现与账号认证类型决定
 
 | 方法 | 路由 | 主要 query/body | 说明 |
 | --- | --- | --- | --- |
@@ -721,7 +732,7 @@ config 返回 `{ name, plaintextKey }`，仅读取服务端会话绑定的当前
 
 账号列表支持以下稳定值：
 
-- `provider`: `openai`、`xai` 或 `deepseek`，省略或空值表示不过滤
+- `provider`: `openai`、`xai`、`deepseek` 或 `mimo`，省略或空值表示不过滤
 - `groupId`: 分组 ID、`ungrouped`，或省略以不过滤
 - `status`: `normal`、`quota_exhausted`、`rate_limited`、`disabled`、`error`
 - `sortBy`: `email`、`status`、`planType`、`usage`、`lastUsedAt`、`expiresAt`
@@ -901,7 +912,7 @@ OAuth 等待回调期间不持有保护；提交仍拒绝已删除或连接配�
 ### 账号连接测试 SSE
 
 `GET /api/admin/accounts/connection-test` 固定探测请求指定的账号，不参与普通账号轮换。成功流沿用
-`test_start`、`request`、`content`、`test_complete` 事件。DeepSeek 可以通过 `protocol` 查询参数分别测试
+`test_start`、`request`、`content`、`test_complete` 事件。DeepSeek 与 MiMo 可以通过 `protocol` 查询参数分别测试
 `openai`、`openai-chat`、`anthropic`；未指定时使用 Responses，显式不支持的协议不会静默回退。失败事件为：
 
 ```json
@@ -972,7 +983,7 @@ JSON 文件按 Provider 文档分项，不拆解内部代理引用或改变 Prov
   代理在 token 刷新前绑定。缺失、重复、停用、带到期时间或配置回退策略的 sub2api 代理会拒绝导入
 - xAI 从单账号 object 或 `accounts` 数组中提取 OAuth token；并发、优先级等字段不参与认证
 - xAI 批量导入逐条独立校验：失败条目跳过并记录日志，不中断其余条目，仅当没有任何条目成功时整个导入才报错
-- DeepSeek 接受单账号 API Key object 或 `accounts` 数组；同一条目保存一份密钥和启用的协议集合
+- DeepSeek 与 MiMo 接受单账号 API Key object 或 `accounts` 数组；同一条目保存一份密钥和启用的协议集合
 - xAI API Key 不是受支持的账号 credential
 - OAuth 导入由目标 Provider 完成必要的 token exchange 或身份投影。API Key 导入校验凭据格式与地址，不调用 OAuth 或 ChatGPT 身份接口；可用性由模型目录和连接测试验证
 
@@ -1041,6 +1052,34 @@ DeepSeek 导入使用独立的服务根地址合同：
 调用官方 `GET /user/balance`，详情包含可用总额、赠送和充值余额及最近刷新时间。未查询时不显示为零，
 查询失败保留原快照；金额按 CNY／USD 原始十进制字符串返回，不用本地估算消耗倒推上游余额
 
+MiMo 导入使用 API 前缀合同：
+
+```json
+{
+  "provider": "mimo",
+  "data": {
+    "name": "MiMo 团队账号",
+    "api_key": "<upstream-api-key>",
+    "access_mode": "token_plan",
+    "base_url": "https://token-plan-cn.xiaomimimo.com/v1",
+    "protocols": ["openai", "openai-chat", "anthropic"]
+  }
+}
+```
+
+`access_mode` 为 `api_key` 或 `token_plan`；省略时根据 `tp-`／`ttp-` 密钥识别 Token Plan，
+其余默认为按量 API。省略地址时分别使用 `https://api.xiaomimimo.com/v1` 或
+`https://token-plan-cn.xiaomimimo.com/v1`。Token Plan 可选择 `cn`、`sgp`、`ams` 集群，
+密钥与地区以官方控制台分配为准；按量 API 使用官方统一地址
+
+官方根地址统一保存为 `/v1` 前缀，分别解析 `/v1/responses`、`/v1/chat/completions` 与
+`/anthropic/v1/messages`。自定义地址保留前缀，分别追加 `/responses`、`/chat/completions`、
+`/messages`；不猜测中转的 Anthropic 专属路径。省略协议启用三种协议，显式集合不能为空。
+接入模式与协议独立，切换模式不清空已选协议；编辑不提交新密钥时保留当前密钥
+
+当前公开官方文档未发现 API Key 认证的余额或套餐用量查询合同，MiMo 不提供额度刷新、
+OAuth、订阅或重置卡能力。上游额度保持未知，本地 token 与费用不代表官方余额或 Token Plan Credits
+
 sub2api 的 `platform=openai`、`type=apikey` 使用 `credentials.base_url` / `credentials.api_key`；
 导入时按其端点规则将服务根、版本前缀或完整 `/responses` 地址转换为 API 前缀，缺省地址为官方 `/v1`。
 非空模型映射、请求头覆盖、其他协议和启用的 `extra.openai_*` 设置尚未适配，返回输入错误，需先移除并在本项目重新配置
@@ -1105,6 +1144,8 @@ OpenAI OAuth 账号只接受 `connection: { transport }`，不接受 `baseUrl`�
 DeepSeek 连接更新使用 `transport: "http"`，可额外提交 `protocols` 和 `pricingSchedule`；
 `pricingSchedule` 的内部字段沿用上文 `pricing_schedule` 的 snake_case 合同，省略时保留已保存配置。
 DeepSeek 详情的 `credentialConfiguration` 返回 `base_url`、`transport`、`protocols`、`pricing_schedule`
+MiMo 连接使用 `transport: "http"`，可提交 `accessMode`、`baseUrl`、`protocols` 与可选 `apiKey`；
+详情返回 `access_mode`、`base_url`、`protocols`、`transport`，不包含密钥
 连接设置不能修改账号 ID、Provider 或认证类型，也不接受通用凭据文档。
 凭据与设置在同一事务中保存，任一校验或持久化失败均不落库。
 `GET /api/admin/accounts/detail` 对 OpenAI API Key 账号额外返回 `credentialConfiguration: { base_url, transport }`；
@@ -1379,7 +1420,7 @@ HTTP 请求头及新建 WS 的握手提示按当时的最终出站档位构造�
 
 每条 `mappings` 必填 `protocol`、`requestedModel`、`routeModel`、`targetProvider`。
 协议取值是 `openai`（Responses）、`openai-chat`（Chat Completions）、`anthropic`（Messages）；入口协议、配置协议与目标平台实际调用协议必须相同。
-OpenAI 声明原生 Responses，DeepSeek 声明三种原生协议；xAI 的协议转换适配不作为同协议映射目标。
+OpenAI 声明原生 Responses，DeepSeek 与 MiMo 声明三种原生协议；xAI 的协议转换适配不作为同协议映射目标。
 请求与路由模型均是具体 ID，区分大小写，不接受空值、`all`、通配符或逗号列表；同策略内的 `protocol + requestedModel` 唯一。
 可输入目录尚未发现的目标模型 ID，仍须满足目标平台原生协议能力；目录已明确声明不支持该协议的模型不能保存。
 映射请求名不能与插件显式别名冲突
@@ -1696,10 +1737,15 @@ DeepSeek 仅接受 `standard`（高峰）与 `off_peak`（空闲）两档，`off
 峰谷选择使用账号配置，并在发送前冻结当次有效价格；人工覆盖与同步按档位继承，覆盖高峰价不会自动
 修改空闲价。未配置的模型或缺少所选档位时保留费用未知。价格目录不替代账号从上游获取的可用模型目录
 
+MiMo 仅接受 `standard` 文本 Token 档位，内置 V2.6 Pro、Flash 与 UltraSpeed 的官方 USD
+按量单价，支持人工覆盖；不从地区、人民币价格或 Token Plan Credits 换算。未知型号或输入／输出
+用量缺失时费用保持未知，缓存命中不重复按普通输入计费。包含内置联网搜索等无法完整计价的工具时，
+费用保持未知；普通 function/custom 工具仍按文本 Token 估算。models.dev 同步不包含 MiMo
+
 `multiplierBps` 为 0～1000000 的整数，10000 表示 1 倍、0 表示本地估算为零，最大 100 倍。
 它作用于本地费用及对应明细，独立于服务档位；缺少计价依据的请求即使倍率为零仍然是费用未知
 
-`provider` 为内置 `openai`、`xai` 或 `deepseek`，对应价目由 `GET` 返回的 `defaults` 提供。
+`provider` 为内置 `openai`、`xai`、`deepseek` 或 `mimo`，对应价目由 `GET` 返回的 `defaults` 提供。
 `models` 为 1～500 个模型 ID，每个 ID 为
 1～128 字节且不含空白、控制字符。`change` 为以下形式之一：
 
@@ -2109,7 +2155,7 @@ WebSocket 握手默认请求专项计时，客户端显式提供的开关保留�
 
 ### 费用与服务档位
 
-OpenAI、xAI 与 DeepSeek 的本地费用估算按实际发送给上游的请求模型（`upstreamModel`）查价，结合响应中的实际
+OpenAI、xAI、DeepSeek 与 MiMo 的本地费用估算按实际发送给上游的请求模型（`upstreamModel`）查价，结合响应中的实际
 用量计算；客户端请求 A、路由后发送 B 时按 B 计价，响应返回 C 不改变计价模型。实际发送模型缺少
 定价时不估算，也不借用响应模型的价格。Provider 明确上报的已计费金额仍优先于本地估算
 

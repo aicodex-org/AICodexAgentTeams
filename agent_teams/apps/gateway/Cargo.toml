@@ -23,6 +23,7 @@ gateway-host = { path = "../../crates/gateway-host" }
 gateway-plugin-runtime = { path = "../../crates/gateway-plugin/runtime" }
 gateway-store = { path = "../../crates/gateway-store" }
 provider-deepseek = { path = "../../crates/providers/deepseek" }
+provider-mimo = { path = "../../crates/providers/mimo" }
 provider-openai = { path = "../../crates/providers/openai" }
 provider-xai = { path = "../../crates/providers/xai" }
 serde = { version = "1.0.228", features = ["derive"] }

@@ -25,7 +25,7 @@ export function resolveAccountCreatePresentation(input: {
   else if ((form.mode === 'oauth' || form.mode === 'chatgpt_oauth'))
     description = `通过浏览器授权导入 ${label} 账号`
   else if (form.mode === 'api_key')
-    description = provider === 'deepseek' ? '使用同一密钥接入 Chat、Responses 和 Messages' : '接入 OpenAI Responses 兼容上游'
+    description = (provider === 'deepseek' || provider === 'mimo') ? '使用同一密钥接入 Chat、Responses 和 Messages' : '接入 OpenAI Responses 兼容上游'
   else if (form.mode === 'access_token')
     description = '逐行粘贴 Access Token，未包含 Refresh Token 时无法自动续期'
   else if (form.mode === 'refresh_token')

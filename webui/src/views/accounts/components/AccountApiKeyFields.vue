@@ -2,6 +2,7 @@
 import type { ApiKeyAccountForm } from '../utils/upstreamApiKey'
 import { ZCheckbox, ZFormItem, ZInput, ZSegmented } from '@codex-proxy/ui'
 import DeepSeekPricingFields from './DeepSeekPricingFields.vue'
+import MiMoApiKeyFields from './MiMoApiKeyFields.vue'
 
 defineProps<{ disabled?: boolean, editing?: boolean, provider?: string }>()
 const form = defineModel<ApiKeyAccountForm>({ required: true })
@@ -21,19 +22,20 @@ const transportOptions = [
     <ZFormItem v-if="!editing" label="账号名称" required>
       <ZInput v-model="form.name" placeholder="输入上游名称" :disabled="disabled" />
     </ZFormItem>
+    <MiMoApiKeyFields v-if="provider === 'mimo'" v-model="form" :disabled="disabled" />
     <ZFormItem label="Base URL" required>
       <template #extra>
-        <span class="text-cp-xs text-cp-text-quaternary">{{ provider === 'deepseek' ? '服务根地址，自动追加协议路径' : 'API 前缀' }}</span>
+        <span class="text-cp-xs text-cp-text-quaternary">{{ provider === 'deepseek' ? '服务根地址，自动追加协议路径' : provider === 'mimo' ? 'OpenAI API 前缀，自动追加协议路径' : 'API 前缀' }}</span>
       </template>
       <ZInput v-model="form.base_url" type="url" placeholder="https://api.example.com/v1" :disabled="disabled" autocomplete="off" />
     </ZFormItem>
     <ZFormItem label="API Key" :required="!editing">
       <ZInput v-model="form.apiKey" type="password" :placeholder="editing ? '留空保留当前密钥' : '输入上游密钥'" :disabled="disabled" autocomplete="new-password" />
     </ZFormItem>
-    <ZFormItem v-if="provider !== 'deepseek'" label="传输方式">
+    <ZFormItem v-if="provider !== 'deepseek' && provider !== 'mimo'" label="传输方式">
       <ZSegmented v-model="form.transport" aria-label="传输方式" :options="transportOptions" :disabled="disabled" title="WS 优先需要上游支持 Responses WebSocket" />
     </ZFormItem>
-    <ZFormItem v-if="provider === 'deepseek'" label="可用协议">
+    <ZFormItem v-if="provider === 'deepseek' || provider === 'mimo'" label="可用协议">
       <div class="flex flex-wrap gap-3">
         <ZCheckbox v-for="protocol in protocolOptions" :key="protocol.value" :label="protocol.label" :model-value="form.protocols?.includes(protocol.value) ?? false" :disabled="disabled" @update:model-value="toggleProtocol(protocol.value, $event)" />
       </div>

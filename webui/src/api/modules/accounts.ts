@@ -441,7 +441,7 @@ interface AccountResetCreditConsumeParam extends AccountIdParam {
 
 interface AccountUpdateParam {
   name?: string
-  connection?: { baseUrl?: string, protocols?: string[], transport: ApiKeyConfiguration['transport'], apiKey?: string, pricingSchedule?: DeepSeekPricingSchedule }
+  connection?: { accessMode?: ApiKeyConfiguration['access_mode'], baseUrl?: string, protocols?: string[], transport: ApiKeyConfiguration['transport'], apiKey?: string, pricingSchedule?: DeepSeekPricingSchedule }
   outboundProxyUrl?: string
   outboundProxyId?: string
   accountId: string
@@ -742,6 +742,7 @@ export interface DeepSeekPricingSchedule {
 }
 
 export interface ApiKeyConfiguration {
+  access_mode?: 'api_key' | 'token_plan'
   pricing_schedule?: DeepSeekPricingSchedule
   protocols?: string[]
   base_url: string

@@ -512,7 +512,7 @@ export function useAccountConnectionTest(options: { reload: () => Promise<unknow
               accountId: account.id,
               modelId: connectionTestSelectedModel.value,
             })
-            if (account.provider === 'deepseek')
+            if (account.provider === 'deepseek' || account.provider === 'mimo')
               params.set('protocol', connectionTestProtocol.value)
             connectionTestStreamUrl.value
               = `${API_BASE_URL}/api/admin/accounts/connection-test?${params}`

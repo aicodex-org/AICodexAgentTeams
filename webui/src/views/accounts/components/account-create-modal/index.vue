@@ -3,13 +3,13 @@ import type { AccountAuthorizationView } from '../../composables/useAccountAutho
 import type { AccountCreateForm, AccountImportMode } from '../../utils/accountCreate'
 
 import type { Account, AccountGroupRef } from '@/api'
-import { Deepseek, Openai, Xai } from '@boxicons/vue'
 import { ZButton, ZDialog, ZIconButton, ZSegmented } from '@codex-proxy/ui'
 import { Copy, LayoutGrid, Settings2 } from '@lucide/vue'
 import { computed } from 'vue'
 import AccountPlanBadge from '@/components/account/AccountPlanBadge.vue'
 import ProviderIconGroup from '@/components/ProviderIconGroup.vue'
 import { useCopyText } from '@/composables/useCopyText'
+import { providerIcon } from '@/utils/providers'
 import { accountCreateProvider, accountProxyError } from '../../utils/accountCreate'
 import { accountModelAccessError } from '../../utils/modelAccess'
 import { parseAccountSchedulingForm } from '../../utils/schedulingForm'
@@ -87,9 +87,7 @@ function continueToImport() {
     <template #icon>
       <Settings2 v-if="view.configuring" class="text-cp-text" :size="20" aria-hidden="true" />
       <LayoutGrid v-else-if="view.isBatch" class="text-cp-text" :size="20" aria-hidden="true" />
-      <Xai v-else-if="view.provider === 'xai'" class="text-cp-text" :width="20" :height="20" aria-hidden="true" />
-      <Deepseek v-else-if="view.provider === 'deepseek'" class="text-cp-text" :width="20" :height="20" aria-hidden="true" />
-      <Openai v-else-if="view.provider === 'openai'" class="text-cp-text" :width="20" :height="20" aria-hidden="true" />
+      <component :is="providerIcon(view.provider)" v-else-if="view.provider" class="text-cp-text" :width="20" :height="20" aria-hidden="true" />
     </template>
 
     <div class="grid gap-4">
