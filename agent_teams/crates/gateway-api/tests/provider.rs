@@ -29,6 +29,14 @@ use tower::ServiceExt as _;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum CapturedOperation {
+    StructuredInference {
+        images_enabled: bool,
+        provider: String,
+        model: String,
+        protocol: String,
+        endpoint: String,
+        body: Bytes,
+    },
     CountTokens {
         provider: String,
         model: String,
@@ -51,6 +59,7 @@ enum CapturedOperation {
 struct ProviderExecution {
     client: AuthenticatedClient,
     captured: Mutex<Vec<CapturedOperation>>,
+    committed: Arc<AtomicBool>,
 }
 
 impl ProviderExecution {
@@ -61,6 +70,7 @@ impl ProviderExecution {
                 "local-echo",
             ),
             captured: Mutex::new(Vec::new()),
+            committed: Arc::new(AtomicBool::new(false)),
         })
     }
 
@@ -102,6 +112,38 @@ impl ExecutionService for ProviderExecution {
     ) -> BoxFuture<'_, Result<StartedExecution, GatewayError>> {
         Box::pin(async move {
             let (captured, response, status) = match request.operation {
+                Operation::StructuredInference(inference) => {
+                    let model = request.upstream_model.expect("inference model binding");
+                    let body = if model.as_str() == "jev-malformed" {
+                        Bytes::from_static(b"{broken")
+                    } else {
+                        Bytes::from_static(br#"{ "model":"jev-1.13.0", "answers":{"ok":{"type":"noul","noul":0.9}}, "usage":{"input_tokens":100,"output_tokens":20}, "future":1e3 }"#)
+                    };
+                    (
+                        CapturedOperation::StructuredInference {
+                            images_enabled: inference
+                                .payload()
+                                .context()
+                                .get("typesafe_images_enabled")
+                                .and_then(serde_json::Value::as_bool)
+                                .unwrap_or(false),
+                            provider: request.provider.as_str().to_owned(),
+                            model: model.as_str().to_owned(),
+                            protocol: request.metadata.protocol,
+                            endpoint: request.metadata.endpoint,
+                            body: inference.payload().body().clone(),
+                        },
+                        SessionResponse::StructuredJson(match model.as_str() {
+                            "jev-multiple-wires" => vec![
+                                ("typesafe-systemone", body.clone()),
+                                ("typesafe-systemone", body),
+                            ],
+                            "jev-wrong-wire" => vec![("token-count", body)],
+                            _ => vec![("typesafe-systemone", body)],
+                        }),
+                        StatusCode::OK.as_u16(),
+                    )
+                }
                 Operation::CountTokens(count) => {
                     let model = request
                         .upstream_model
@@ -176,6 +218,7 @@ impl ExecutionService for ProviderExecution {
                     response: Some(response),
                     status,
                     finalized: AtomicBool::new(false),
+                    committed: self.committed.clone(),
                 }),
             })
         })
@@ -184,6 +227,7 @@ impl ExecutionService for ProviderExecution {
 
 enum SessionResponse {
     Json(Bytes),
+    StructuredJson(Vec<(&'static str, Bytes)>),
     Opaque(Vec<Bytes>),
 }
 
@@ -191,6 +235,7 @@ struct ProviderSession {
     response: Option<SessionResponse>,
     status: u16,
     finalized: AtomicBool,
+    committed: Arc<AtomicBool>,
 }
 
 impl ExecutionSession for ProviderSession {
@@ -201,6 +246,15 @@ impl ExecutionSession for ProviderSession {
     fn collect_uncommitted(&mut self) -> BoxFuture<'_, Result<Vec<ProviderEvent>, EngineError>> {
         Box::pin(async move {
             match self.response.take().expect("single response") {
+                SessionResponse::StructuredJson(bodies) => Ok(bodies
+                    .into_iter()
+                    .map(|(protocol, body)| {
+                        ProviderEvent::wire(
+                            ProtocolWireEvent::raw_json(protocol, body)
+                                .expect("System One protocol"),
+                        )
+                    })
+                    .collect()),
                 SessionResponse::Json(body) => Ok(vec![ProviderEvent::wire(
                     ProtocolWireEvent::raw_json("token-count", body).expect("JSON protocol"),
                 )]),
@@ -245,6 +299,7 @@ impl ExecutionSession for ProviderSession {
 
     fn commit_downstream(&mut self, _: Option<u16>) -> BoxFuture<'_, Result<(), EngineError>> {
         Box::pin(async move {
+            self.committed.store(true, Ordering::Release);
             self.finalized.store(true, Ordering::Release);
             Ok(())
         })
@@ -267,6 +322,154 @@ impl ExecutionSession for ProviderSession {
             self.finalized.store(true, Ordering::Release);
         })
     }
+}
+
+#[tokio::test]
+async fn system_one_should_bind_model_and_preserve_native_wire() {
+    let execution = ProviderExecution::new();
+    let request_body = Bytes::from_static(
+        br#"{ "model":"jev-1.13.0", "state":{"count":1e3}, "questions":{"ok":{"type":"noul","instructions":"Is it valid?"}}, "future":9007199254740993 }"#,
+    );
+    let response = crate::openai::api_router(execution.clone())
+        .await
+        .oneshot(
+            Request::post("/v1/systemone")
+                .header(AUTHORIZATION, "Bearer sk_provider_operation_test")
+                .body(Body::from(request_body.clone()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()["content-type"], "application/json");
+    assert!(response.headers().contains_key("x-gateway-request-id"));
+    assert!(!response.headers().contains_key("set-cookie"));
+    assert!(!response.headers().contains_key("location"));
+    assert!(!response.headers().contains_key("x-hop"));
+    let body = to_bytes(response.into_body(), 1024).await.unwrap();
+    assert_eq!(body.as_ref(), br#"{ "model":"jev-1.13.0", "answers":{"ok":{"type":"noul","noul":0.9}}, "usage":{"input_tokens":100,"output_tokens":20}, "future":1e3 }"#);
+    assert_eq!(
+        execution.captured(),
+        vec![CapturedOperation::StructuredInference {
+            images_enabled: false,
+            provider: "typesafe".to_owned(),
+            model: "jev-1.13.0".to_owned(),
+            protocol: "typesafe-systemone".to_owned(),
+            endpoint: "/v1/systemone".to_owned(),
+            body: request_body,
+        }]
+    );
+}
+
+#[tokio::test]
+async fn system_one_should_reject_missing_model_experiments_and_invalid_upstream_json() {
+    let execution = ProviderExecution::new();
+    let router = crate::openai::api_router(execution.clone()).await;
+    for body in ["{broken", "[]", "{}", r#"{"model":4}"#] {
+        let response = router
+            .clone()
+            .oneshot(
+                Request::post("/v1/systemone")
+                    .header(AUTHORIZATION, "Bearer sk_provider_operation_test")
+                    .body(Body::from(body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{body}");
+    }
+    for header in ["TypeSafe-Danger-Zone-Long-Context"] {
+        let response = router
+            .clone()
+            .oneshot(
+                Request::post("/v1/systemone")
+                    .header(AUTHORIZATION, "Bearer sk_provider_operation_test")
+                    .header(header, "true")
+                    .body(Body::from(r#"{"model":"jev-latest"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+    assert!(execution.captured().is_empty());
+    let unauthenticated = router
+        .clone()
+        .oneshot(
+            Request::post("/v1/systemone")
+                .body(Body::from(r#"{"model":"jev-latest"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(unauthenticated.status(), StatusCode::UNAUTHORIZED);
+    assert!(execution.captured().is_empty());
+    let malformed = router
+        .oneshot(
+            Request::post("/v1/systemone")
+                .header(AUTHORIZATION, "Bearer sk_provider_operation_test")
+                .body(Body::from(r#"{"model":"jev-malformed"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(malformed.status(), StatusCode::BAD_GATEWAY);
+}
+
+#[tokio::test]
+async fn system_one_should_not_commit_invalid_or_multiple_json_wires() {
+    for model in ["jev-malformed", "jev-multiple-wires", "jev-wrong-wire"] {
+        let execution = ProviderExecution::new();
+        let response = crate::openai::api_router(execution.clone())
+            .await
+            .oneshot(
+                Request::post("/v1/systemone")
+                    .header(AUTHORIZATION, "Bearer sk_provider_operation_test")
+                    .body(Body::from(format!(r#"{{"model":"{model}"}}"#)))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_GATEWAY, "{model}");
+        assert!(!execution.committed.load(Ordering::Acquire), "{model}");
+    }
+}
+
+#[tokio::test]
+async fn system_one_should_accept_bodies_over_legacy_limit_and_bound_at_32_mib() {
+    let execution = ProviderExecution::new();
+    let router = crate::openai::api_router(execution.clone()).await;
+    let document = serde_json::json!({"model":"jev-latest", "state":"a".repeat(8 * 1024 * 1024), "questions":{"ok":{"type":"noul", "instructions":"Is it valid?"}}}).to_string();
+    for (uri, expected) in [
+        ("/v1/systemone", StatusCode::OK),
+        (
+            "/v1/providers/local-echo/models/local-echo/count_tokens",
+            StatusCode::PAYLOAD_TOO_LARGE,
+        ),
+    ] {
+        let response = router
+            .clone()
+            .oneshot(
+                Request::post(uri)
+                    .header(AUTHORIZATION, "Bearer sk_provider_operation_test")
+                    .body(Body::from(document.clone()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), expected, "{uri}");
+    }
+    let response = router
+        .oneshot(
+            Request::post("/v1/systemone")
+                .header(AUTHORIZATION, "Bearer sk_provider_operation_test")
+                .body(Body::from(vec![b' '; 32 * 1024 * 1024 + 1]))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+    assert_eq!(execution.captured().len(), 1);
 }
 
 #[tokio::test]
@@ -473,4 +676,41 @@ async fn provider_http_should_enforce_fragment_aggregate_and_body_presence_bound
 
         assert_eq!(response.status(), StatusCode::BAD_GATEWAY, "{endpoint}");
     }
+}
+
+// API 必须保留显式启用语义，不把 Authorization 等无关头放入上下文
+#[tokio::test]
+async fn system_one_images_flag_reaches_execution_and_rejects_ambiguity() {
+    let execution = ProviderExecution::new();
+    let router = crate::openai::api_router(execution.clone()).await;
+    let body = r#"{"model":"jev-latest","state":"asset","assets":{"asset":{}},"questions":{}}"#;
+    let response = router
+        .clone()
+        .oneshot(
+            Request::post("/v1/systemone")
+                .header(AUTHORIZATION, "Bearer sk_provider_operation_test")
+                .header("TypeSafe-Danger-Zone-Images", "true")
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(
+        matches!(&execution.captured()[0], CapturedOperation::StructuredInference { images_enabled: true, body: captured, .. } if captured.as_ref() == body.as_bytes())
+    );
+    for values in [vec!["yes"], vec!["true", "false"], vec!["true", "true"]] {
+        let mut request = Request::post("/v1/systemone")
+            .header(AUTHORIZATION, "Bearer sk_provider_operation_test");
+        for value in values {
+            request = request.header("TypeSafe-Danger-Zone-Images", value);
+        }
+        let response = router
+            .clone()
+            .oneshot(request.body(Body::from(body)).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+    assert_eq!(execution.captured().len(), 1);
 }

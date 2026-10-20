@@ -75,6 +75,7 @@ pub(super) struct Providers {
     pub(super) xai: provider_xai::ProviderBundle,
     pub(super) deepseek: provider_deepseek::ProviderBundle,
     pub(super) mimo: provider_mimo::ProviderBundle,
+    pub(super) typesafe: provider_typesafe::ProviderBundle,
     pub(super) core: ProviderRegistry,
     pub(super) admin: ProviderAdminRegistry,
 }
@@ -94,19 +95,23 @@ impl Providers {
         host.report_startup_ready("xAI Provider");
         let deepseek = provider_deepseek::initialize(ports.clone()).await?;
         host.report_startup_ready("DeepSeek Provider");
-        let mimo = provider_mimo::initialize(ports).await?;
+        let mimo = provider_mimo::initialize(ports.clone()).await?;
         host.report_startup_ready("MiMo Provider");
+        let typesafe = provider_typesafe::initialize(ports).await?;
+        host.report_startup_ready("TypeSafe Provider");
         let core = ProviderRegistry::new([
             openai.core_provider(),
             xai.core_provider(),
             deepseek.core_provider(),
             mimo.core_provider(),
+            typesafe.core_provider(),
         ])?;
         let admin = ProviderAdminRegistry::new([
             openai.admin_provider(),
             xai.admin_provider(),
             deepseek.admin_provider(),
             mimo.admin_provider(),
+            typesafe.admin_provider(),
         ])
         .map_err(|_| gateway_admin::model::AdminError::invalid("Provider 管理身份冲突"))?;
         Ok(Self {
@@ -114,6 +119,7 @@ impl Providers {
             xai,
             deepseek,
             mimo,
+            typesafe,
             core,
             admin,
         })

@@ -34,6 +34,8 @@ interface ConnectionTestLog {
 
 interface ConnectionTestRequestPayload {
   input?: Array<{ content?: Array<{ type?: string, text?: string }> }>
+  state?: unknown
+  questions?: Record<string, unknown>
 }
 
 interface ConnectionTestStartEvent {
@@ -241,7 +243,7 @@ export function useAccountConnectionTest(options: { reload: () => Promise<unknow
   function openConnectionTest(account: Account) {
     abortConnectionTest()
     testingAccount.value = account
-    connectionTestProtocol.value = 'openai'
+    connectionTestProtocol.value = account.provider === 'typesafe' ? 'typesafe-systemone' : 'openai'
     connectionTestSelectedModel.value = ''
     connectionTestModelOptions.value = []
     showConnectionTestModal.value = true
@@ -270,6 +272,8 @@ export function useAccountConnectionTest(options: { reload: () => Promise<unknow
   }
 
   function connectionTestRequestText(payload?: ConnectionTestRequestPayload) {
+    if (payload?.questions)
+      return JSON.stringify(payload, null, 2)
     const texts = (payload?.input ?? [])
       .flatMap(item => item.content ?? [])
       .filter(item => item.type === 'input_text' && item.text)
@@ -512,7 +516,7 @@ export function useAccountConnectionTest(options: { reload: () => Promise<unknow
               accountId: account.id,
               modelId: connectionTestSelectedModel.value,
             })
-            if (account.provider === 'deepseek' || account.provider === 'mimo')
+            if (account.provider === 'deepseek' || account.provider === 'mimo' || account.provider === 'typesafe')
               params.set('protocol', connectionTestProtocol.value)
             connectionTestStreamUrl.value
               = `${API_BASE_URL}/api/admin/accounts/connection-test?${params}`

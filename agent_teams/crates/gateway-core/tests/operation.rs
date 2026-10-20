@@ -5,7 +5,7 @@ use gateway_core::operation::{
     Feature, GenerateRequest, ImageRequest, ImageRequestKind, Operation, OperationKind,
     ProtocolPayload, ProviderHttpHeader, ProviderHttpMethod, ProviderHttpRequest,
     ProviderSessionState, RawHttpPayload, RawJsonPayload, StandaloneSearchRequest,
-    TokenCountRequest,
+    StructuredInferenceRequest, TokenCountRequest,
 };
 use serde_json::{Map, Value, json};
 
@@ -522,4 +522,49 @@ fn disabled_thinking_and_empty_tools_do_not_require_model_capabilities() {
                 .is_empty()
         );
     }
+}
+
+#[test]
+fn structured_inference_preserves_wire_context_and_has_no_chat_capabilities() {
+    let body =
+        Bytes::from_static(br#"{ "model":"jev-1.14.0", "state":"private-state", "questions":[] }"#);
+    let context = Map::from_iter([("images_enabled".to_owned(), json!(true))]);
+    let operation = Operation::StructuredInference(StructuredInferenceRequest::from_raw_json(
+        RawJsonPayload::new("typesafe-systemone", body.clone())
+            .expect("structured payload")
+            .with_context(context.clone()),
+    ));
+    assert_eq!(operation.kind(), OperationKind::StructuredInference);
+    assert_eq!(operation.kind().as_str(), "structured_inference");
+    assert_eq!(operation.middleware_body().expect("wire"), body);
+    assert_eq!(operation.protocol(), "typesafe-systemone");
+    assert_eq!(
+        operation.capability_requirements(),
+        gateway_core::operation::CapabilityRequirements::new(OperationKind::StructuredInference)
+    );
+    assert!(!operation.image_generation_requested());
+    assert!(operation.provider_session_state("typesafe").is_none());
+    assert!(!format!("{operation:?}").contains("private-state"));
+    assert!(
+        operation
+            .clone()
+            .translate_protocol_wire("openai", Bytes::from_static(b"{}"))
+            .is_err()
+    );
+    assert!(
+        operation
+            .clone()
+            .replace_middleware_wire("openai-chat", Bytes::from_static(b"{}"))
+            .is_err()
+    );
+
+    let replacement = Bytes::from_static(br#"{ "model":"jev-preview", "questions":[] }"#);
+    let updated = operation
+        .replace_middleware_wire("typesafe-systemone", replacement.clone())
+        .expect("same protocol middleware rewrite");
+    let Operation::StructuredInference(request) = updated else {
+        panic!("operation must remain structured inference")
+    };
+    assert_eq!(request.payload().body(), &replacement);
+    assert_eq!(request.payload().context(), &context);
 }

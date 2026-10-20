@@ -264,6 +264,7 @@ pub enum AccountConnectionTestEvent {
         input_text: String,
         stream: bool,
         store: bool,
+        native_payload: Option<serde_json::Value>,
     },
     Content {
         text: String,

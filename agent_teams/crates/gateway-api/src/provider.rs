@@ -19,7 +19,7 @@ use gateway_core::{
     event::{ProviderEvent, ProviderResponseHeader},
     operation::{
         Operation, ProviderHttpHeader, ProviderHttpMethod, ProviderHttpRequest, RawHttpPayload,
-        RawJsonPayload, TokenCountRequest,
+        RawJsonPayload, StructuredInferenceRequest, TokenCountRequest,
     },
     routing::{ProviderKind, UpstreamModelId},
 };
@@ -39,6 +39,8 @@ const MAXIMUM_BODY_BYTES: usize = 8 * 1024 * 1024;
 const MAXIMUM_RAW_BODY_CHUNK_BYTES: usize = 64 * 1024;
 const TOKEN_COUNT_PROTOCOL: &str = "token-count";
 const PROVIDER_HTTP_PROTOCOL: &str = "provider-http";
+const SYSTEM_ONE_PROTOCOL: &str = "typesafe-systemone";
+const SYSTEM_ONE_BODY_BYTES: usize = 32 * 1024 * 1024;
 
 pub(crate) fn router() -> Router<ApiState> {
     Router::new()
@@ -52,6 +54,92 @@ pub(crate) fn router() -> Router<ApiState> {
             on(MethodFilter::GET.or(MethodFilter::POST), provider_http).head(provider_http_head),
         )
         .layer(DefaultBodyLimit::max(MAXIMUM_BODY_BYTES))
+        .merge(
+            Router::new()
+                .route("/v1/systemone", post(system_one))
+                .layer(DefaultBodyLimit::max(SYSTEM_ONE_BODY_BYTES)),
+        )
+}
+
+async fn system_one(
+    State(state): State<ApiState>,
+    connect_info: Option<Extension<ConnectInfo<SocketAddr>>>,
+    uri: Uri,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    let service = state.openai();
+    let client = match authenticate_client(service, &headers).await {
+        Ok(client) => client,
+        Err(error) => return client_access_error_response(error),
+    };
+    // 图片开关作为不透明协议上下文传递，图片正文的语义由 Provider 校验
+    // 拒绝重复或非法值，避免客户端与上游对是否启用图片产生不同解释
+    let image_values = headers
+        .get_all("typesafe-danger-zone-images")
+        .iter()
+        .collect::<Vec<_>>();
+    let images_enabled = match image_values.as_slice() {
+        [] => false,
+        [value] if value.as_bytes() == b"false" => false,
+        [value] if value.as_bytes() == b"true" => true,
+        _ => return invalid_request("System One image flag must be a single true or false value"),
+    };
+    if headers
+        .get_all("typesafe-danger-zone-long-context")
+        .iter()
+        .any(|value| value.as_bytes() != b"false")
+    {
+        return invalid_request("System One long context is not supported");
+    }
+    // API 只提取路由模型，问题与答案的语义由 TypeSafe Provider 独占
+    let document = match serde_json::from_slice::<serde_json::Value>(&body) {
+        Ok(serde_json::Value::Object(document)) => document,
+        _ => return invalid_request("System One request must be a JSON object"),
+    };
+    let model = match document
+        .get("model")
+        .and_then(serde_json::Value::as_str)
+        .and_then(|model| UpstreamModelId::new(model).ok())
+    {
+        Some(model) => model,
+        None => return invalid_request("System One model is required"),
+    };
+    let payload = match RawJsonPayload::new(SYSTEM_ONE_PROTOCOL, body) {
+        Ok(payload) => payload.with_context(serde_json::Map::from_iter([(
+            "typesafe_images_enabled".to_owned(),
+            serde_json::Value::Bool(images_enabled),
+        )])),
+        Err(_) => return invalid_request("System One request is invalid"),
+    };
+    let (client_ip, user_agent) = request_client_context(
+        &headers,
+        connect_info.map(|Extension(ConnectInfo(address))| address),
+    );
+    let started = match service
+        .start_bound_provider_endpoint(StartProviderExecution {
+            client,
+            provider: ProviderKind::new("typesafe").expect("static provider identifier"),
+            upstream_model: Some(model),
+            operation: Operation::StructuredInference(StructuredInferenceRequest::from_raw_json(
+                payload,
+            )),
+            metadata: ExecutionRequestMetadata {
+                protocol: SYSTEM_ONE_PROTOCOL.to_owned(),
+                endpoint: uri.path().to_owned(),
+                transport: ClientTransport::HttpJson,
+                stream: false,
+                client_ip,
+                user_agent,
+                previous_response_id: None,
+            },
+        })
+        .await
+    {
+        Ok(started) => started,
+        Err(error) => return gateway_error_response(&error),
+    };
+    collect_provider_response(started, ResponseBodyKind::Json(SYSTEM_ONE_PROTOCOL)).await
 }
 
 async fn provider_http_head() -> StatusCode {
@@ -111,7 +199,7 @@ async fn count_tokens(
         Ok(started) => started,
         Err(error) => return gateway_error_response(&error),
     };
-    collect_provider_response(started, ResponseBodyKind::Json).await
+    collect_provider_response(started, ResponseBodyKind::Json(TOKEN_COUNT_PROTOCOL)).await
 }
 
 async fn provider_http(
@@ -200,7 +288,7 @@ async fn provider_http(
 
 #[derive(Clone, Copy)]
 enum ResponseBodyKind {
-    Json,
+    Json(&'static str),
     Opaque,
 }
 
@@ -265,7 +353,7 @@ async fn collect_provider_session(
 
 fn response_body(events: Vec<ProviderEvent>, kind: ResponseBodyKind) -> Option<Bytes> {
     let expected_protocol = match kind {
-        ResponseBodyKind::Json => TOKEN_COUNT_PROTOCOL,
+        ResponseBodyKind::Json(protocol) => protocol,
         ResponseBodyKind::Opaque => PROVIDER_HTTP_PROTOCOL,
     };
     let mut body = BytesMut::new();
@@ -277,18 +365,23 @@ fn response_body(events: Vec<ProviderEvent>, kind: ResponseBodyKind) -> Option<B
             continue;
         };
         let raw = match kind {
-            ResponseBodyKind::Json => wire.into_raw_json_body(),
+            ResponseBodyKind::Json(_) => wire.into_raw_json_body(),
             ResponseBodyKind::Opaque => wire.into_raw_http_body(),
         }?;
         raw_body_events = raw_body_events.checked_add(1)?;
-        if matches!(kind, ResponseBodyKind::Json) && raw_body_events > 1 {
+        if matches!(kind, ResponseBodyKind::Json(_)) && raw_body_events > 1 {
             return None;
         }
         if matches!(kind, ResponseBodyKind::Opaque) && raw.len() > MAXIMUM_RAW_BODY_CHUNK_BYTES {
             return None;
         }
         let total = body.len().checked_add(raw.len())?;
-        if total > MAXIMUM_BODY_BYTES
+        let maximum = if matches!(kind, ResponseBodyKind::Json(SYSTEM_ONE_PROTOCOL)) {
+            SYSTEM_ONE_BODY_BYTES
+        } else {
+            MAXIMUM_BODY_BYTES
+        };
+        if total > maximum
             || empty_body_event
             || (raw.is_empty() && (raw_body_events > 1 || !body.is_empty()))
         {
@@ -303,7 +396,7 @@ fn response_body(events: Vec<ProviderEvent>, kind: ResponseBodyKind) -> Option<B
         return None;
     }
     let body = body.freeze();
-    if matches!(kind, ResponseBodyKind::Json)
+    if matches!(kind, ResponseBodyKind::Json(_))
         && serde_json::from_slice::<serde::de::IgnoredAny>(&body).is_err()
     {
         return None;
@@ -321,7 +414,7 @@ fn body_response(
     let mut response = Response::new(Body::from(body));
     *response.status_mut() = status;
     apply_safe_response_headers(&mut response, response_headers);
-    if matches!(kind, ResponseBodyKind::Json) {
+    if matches!(kind, ResponseBodyKind::Json(_)) {
         response.headers_mut().insert(
             header::CONTENT_TYPE,
             HeaderValue::from_static("application/json"),

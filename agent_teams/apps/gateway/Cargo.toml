@@ -25,6 +25,7 @@ gateway-store = { path = "../../crates/gateway-store" }
 provider-deepseek = { path = "../../crates/providers/deepseek" }
 provider-mimo = { path = "../../crates/providers/mimo" }
 provider-openai = { path = "../../crates/providers/openai" }
+provider-typesafe = { path = "../../crates/providers/typesafe" }
 provider-xai = { path = "../../crates/providers/xai" }
 serde = { version = "1.0.228", features = ["derive"] }
 thiserror = "2.0.18"

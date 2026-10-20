@@ -4911,3 +4911,268 @@ fn child_settings_recompute_key_scope_without_inheriting_parent_defaults() {
         );
     });
 }
+
+// 原生探测替身不发出 TextDelta，确保管理展示来自单份 wire 而非聊天事实
+struct StructuredProbeProvider {
+    payloads: Vec<(&'static str, Bytes)>,
+}
+
+#[async_trait]
+impl Provider for StructuredProbeProvider {
+    fn name(&self) -> &str {
+        "typesafe"
+    }
+    fn catalog_generation(&self) -> ProviderCatalogGeneration {
+        ProviderCatalogGeneration::default()
+    }
+    fn model_catalog_is_exhaustive(&self) -> bool {
+        false
+    }
+    fn supported_protocols(&self) -> Option<BTreeSet<String>> {
+        Some(BTreeSet::from(["typesafe-systemone".to_owned()]))
+    }
+    async fn query_model_capabilities(
+        &self,
+    ) -> Result<Vec<ProviderModelCapabilities>, ProviderError> {
+        Ok(vec![ProviderModelCapabilities::new(
+            UpstreamModelId::new("jev-latest").unwrap(),
+            ModelCapabilities::new(BTreeSet::from([OperationKind::StructuredInference]), None)
+                .with_protocols(["typesafe-systemone"]),
+        )])
+    }
+    async fn execute(
+        self: Arc<Self>,
+        request: ProviderRequest,
+        context: AttemptContext,
+    ) -> Result<ProviderStream, ProviderError> {
+        assert_eq!(
+            request.operation().kind(),
+            OperationKind::StructuredInference
+        );
+        if let Some(account) = context.required_account() {
+            assert_eq!(account.as_str(), "acct_probe");
+        }
+        assert_eq!(
+            request.candidate().upstream_model().unwrap().as_str(),
+            "jev-1.14.0"
+        );
+        let meta = ResponseMeta::new("structured-probe", "jev-1.14.0");
+        let mut events = vec![Ok(ProviderEvent::canonical(GatewayEvent::Started(
+            meta.clone(),
+        )))];
+        for (protocol, bytes) in &self.payloads {
+            events.push(Ok(ProviderEvent::wire(
+                ProtocolWireEvent::raw_json(*protocol, bytes.clone()).unwrap(),
+            )));
+        }
+        events.push(Ok(ProviderEvent::canonical(GatewayEvent::Completed(meta))));
+        Ok(ProviderStream::new(
+            ProviderCallMetadata::new(
+                request.candidate().provider().clone(),
+                request.candidate().upstream_model().unwrap().clone(),
+                ProviderAccountId::new("acct_probe").unwrap(),
+                UpstreamTransport::new("http_json").unwrap(),
+            ),
+            futures::stream::iter(events),
+            (),
+        ))
+    }
+}
+
+struct StructuredProbeSnapshotStore;
+
+impl gateway_core::routing::snapshot::SnapshotStorePort for StructuredProbeSnapshotStore {
+    fn load_snapshot_facts(
+        &self,
+    ) -> BoxFuture<
+        '_,
+        Result<
+            gateway_core::routing::snapshot::SnapshotFacts,
+            gateway_core::routing::snapshot::SnapshotStoreError,
+        >,
+    > {
+        Box::pin(async {
+            use gateway_core::routing::snapshot::{SnapshotFacts, SnapshotProviderAccountFacts};
+            Ok(SnapshotFacts::new(
+                ConfigRevision::new(1).unwrap(),
+                ConfigRevision::new(1).unwrap(),
+                gateway_core::settings::SettingsValues::new(
+                    1,
+                    1,
+                    "smart",
+                    Default::default(),
+                    None,
+                    None,
+                ),
+                Vec::new(),
+                Vec::new(),
+                vec![SnapshotProviderAccountFacts::new(
+                    ProviderAccountId::new("acct_probe").unwrap(),
+                    "typesafe",
+                )],
+                Vec::new(),
+            ))
+        })
+    }
+    fn current_config_revision(
+        &self,
+    ) -> BoxFuture<'_, Result<ConfigRevision, gateway_core::routing::snapshot::SnapshotStoreError>>
+    {
+        Box::pin(async { Ok(ConfigRevision::new(1).unwrap()) })
+    }
+}
+
+fn structured_probe(
+    payloads: Vec<(&'static str, Bytes)>,
+) -> Result<
+    gateway_core::engine::probe::AccountProbeResult,
+    Box<gateway_core::engine::probe::AccountProbeError>,
+> {
+    use gateway_core::operation::StructuredInferenceRequest;
+    let provider = ProviderKind::new("typesafe").unwrap();
+    // 真实快照编译读取仅有别名的非穷尽目录，固定版本缺项仍可被诊断路由选中
+    let providers =
+        ProviderRegistry::new(
+            [Arc::new(StructuredProbeProvider { payloads }) as Arc<dyn Provider>],
+        )
+        .unwrap();
+    let snapshot = block_on(
+        gateway_core::routing::snapshot::RuntimeSnapshotCompiler::new(
+            Arc::new(StructuredProbeSnapshotStore),
+            Arc::new(providers.clone()),
+        )
+        .compile(),
+    )
+    .expect("compiled nonexhaustive structured catalog");
+    let service = DefaultExecutionService::new(
+        RuntimeSnapshotHandle::new(snapshot),
+        Arc::new(TrackingExecutionStore::default()),
+        providers,
+        Arc::new(UnusedAdmissions),
+        Arc::new(UnusedContinuation),
+        Arc::new(RecordingClientApiKeyUsage::default()),
+        Arc::new(crate::RecordingDiagnostics::default()),
+    );
+    block_on(
+        service.probe(
+            AccountProbeRequest {
+                account_id: ProviderAccountId::new("acct_probe").unwrap(),
+                provider_kind: provider,
+                upstream_model: UpstreamModelId::new("jev-1.14.0").unwrap(),
+                operation: Operation::StructuredInference(
+                    StructuredInferenceRequest::from_raw_json(
+                        RawJsonPayload::new(
+                            "typesafe-systemone",
+                            Bytes::from_static(
+                                br#"{"model":"jev-1.14.0","state":"ping","questions":{}}"#,
+                            ),
+                        )
+                        .unwrap(),
+                    ),
+                ),
+            },
+            None,
+        ),
+    )
+    .map_err(Box::new)
+}
+
+#[test]
+fn structured_connection_probe_displays_native_json_without_chat_deltas() {
+    let raw = Bytes::from_static(
+        br#"{ "model":"jev-1.14.0", "answers":{"check":{"type":"noul","noul":0.99}} }"#,
+    );
+    let result = structured_probe(vec![("typesafe-systemone", raw.clone())])
+        .expect("native structured probe");
+    assert_eq!(
+        result.text,
+        vec![std::str::from_utf8(&raw).unwrap().to_owned()]
+    );
+}
+
+#[test]
+fn structured_connection_probe_rejects_missing_duplicate_and_unpresentable_json() {
+    let valid = Bytes::from_static(b"{}");
+    for payloads in [
+        vec![],
+        vec![
+            ("typesafe-systemone", valid.clone()),
+            ("typesafe-systemone", valid.clone()),
+        ],
+        vec![("openai", valid)],
+        vec![("typesafe-systemone", Bytes::from_static(&[0xff]))],
+        vec![("typesafe-systemone", Bytes::from_static(b"   "))],
+        vec![(
+            "typesafe-systemone",
+            Bytes::from(vec![b'x'; 4 * 1024 * 1024 + 1]),
+        )],
+    ] {
+        let error = structured_probe(payloads)
+            .expect_err("Completed alone must not fake a displayable structured result");
+        assert_eq!(error.kind(), GatewayErrorKind::UpstreamUnavailable);
+        assert_eq!(error.source(), AccountProbeErrorSource::Upstream);
+        assert_eq!(error.send_state(), Some(UpstreamSendState::Sent));
+    }
+}
+
+#[test]
+fn structured_endpoint_records_bound_requested_model_without_parsing_wire() {
+    use gateway_core::operation::StructuredInferenceRequest;
+    let provider = ProviderKind::new("typesafe").unwrap();
+    let snapshot = RuntimeSnapshot::new(
+        ConfigRevision::new(1).unwrap(),
+        gateway_core::settings::SettingsValues::new(1, 1, "smart", Default::default(), None, None),
+        vec![provider.clone()],
+        Vec::new(),
+        vec![ClientPolicy::new(
+            ClientApiKeyId::new("key_usage_test").unwrap(),
+            PlaintextClientApiKey::new("sk_usage_test").unwrap(),
+            account_scope(&provider, "acct_probe"),
+            true,
+            RateLimits::unlimited(),
+        )],
+    )
+    .unwrap();
+    let store = Arc::new(TrackingExecutionStore::default());
+    let service = DefaultExecutionService::new(
+        RuntimeSnapshotHandle::new(snapshot),
+        store.clone(),
+        ProviderRegistry::new([Arc::new(StructuredProbeProvider {
+            payloads: vec![(
+                "typesafe-systemone",
+                Bytes::from_static(br#"{"model":"jev-1.14.0","answers":{}}"#),
+            )],
+        }) as Arc<dyn Provider>])
+        .unwrap(),
+        Arc::new(UnusedAdmissions),
+        Arc::new(UnusedContinuation),
+        Arc::new(RecordingClientApiKeyUsage::default()),
+        Arc::new(crate::RecordingDiagnostics::default()),
+    );
+    let mut started = block_on(service.start_provider_endpoint(StartProviderExecution {
+        client: service.authenticate("sk_usage_test").unwrap(),
+        provider,
+        upstream_model: Some(UpstreamModelId::new("jev-1.14.0").unwrap()),
+        // 请求正文不提供模型，证明观测事实取自显式绑定，而非 Core 解析 Provider 正文
+        operation: Operation::StructuredInference(StructuredInferenceRequest::from_raw_json(
+            RawJsonPayload::new("typesafe-systemone", Bytes::from_static(b"{}")).unwrap(),
+        )),
+        metadata: ExecutionRequestMetadata {
+            protocol: "typesafe-systemone".to_owned(),
+            endpoint: "/v1/systemone".to_owned(),
+            transport: ClientTransport::HttpJson,
+            stream: false,
+            client_ip: None,
+            user_agent: None,
+            previous_response_id: None,
+        },
+    }))
+    .expect("structured endpoint");
+    block_on(started.session.collect_uncommitted()).unwrap();
+    block_on(started.session.commit_downstream(Some(200))).unwrap();
+    assert_eq!(
+        store.requested_models(),
+        vec![Some("jev-1.14.0".to_owned())]
+    );
+    assert_eq!(store.upstream_models(), vec![Some("jev-1.14.0".to_owned())]);
+}

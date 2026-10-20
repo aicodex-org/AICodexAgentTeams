@@ -8,6 +8,7 @@ const PROVIDER_DISPLAY_NAMES = {
   xai: 'xAI',
   deepseek: 'DeepSeek',
   mimo: 'MiMo',
+  typesafe: 'Jev',
 } as const
 
 export const PROVIDER_IDS = Object.keys(PROVIDER_DISPLAY_NAMES) as Array<keyof typeof PROVIDER_DISPLAY_NAMES>

@@ -23,6 +23,7 @@ pub(super) const WORKSPACE_MEMBERS: &[&str] = &[
     "crates/providers/deepseek",
     "crates/providers/mimo",
     "crates/providers/openai",
+    "crates/providers/typesafe",
     "crates/providers/xai",
 ];
 
@@ -63,6 +64,7 @@ fn gateway_core_depends_on_no_http_db_redis_or_provider_crate() {
             "provider-deepseek",
             "provider-mimo",
             "provider-openai",
+            "provider-typesafe",
             "provider-xai",
         ],
     );
@@ -283,22 +285,18 @@ fn plugin_sdk_has_no_workspace_dependencies() {
 
 #[test]
 fn provider_crates_do_not_depend_on_each_other() {
-    assert_no_dependency(
-        "crates/providers/openai",
-        &["provider-xai", "provider-deepseek", "provider-mimo"],
-    );
-    assert_no_dependency(
-        "crates/providers/xai",
-        &["provider-openai", "provider-deepseek", "provider-mimo"],
-    );
-    assert_no_dependency(
-        "crates/providers/deepseek",
-        &["provider-openai", "provider-xai", "provider-mimo"],
-    );
-    assert_no_dependency(
-        "crates/providers/mimo",
-        &["provider-openai", "provider-xai", "provider-deepseek"],
-    );
+    for (name, member) in PACKAGE_TO_MEMBER {
+        if !name.starts_with("provider-") {
+            continue;
+        }
+        let forbidden = PACKAGE_TO_MEMBER
+            .iter()
+            .filter_map(|(other, _)| {
+                (other.starts_with("provider-") && other != name).then_some(*other)
+            })
+            .collect::<Vec<_>>();
+        assert_no_dependency(member, &forbidden);
+    }
 }
 
 #[test]
@@ -324,6 +322,7 @@ const PACKAGE_TO_MEMBER: &[(&str, &str)] = &[
     ("provider-deepseek", "crates/providers/deepseek"),
     ("provider-mimo", "crates/providers/mimo"),
     ("provider-openai", "crates/providers/openai"),
+    ("provider-typesafe", "crates/providers/typesafe"),
     ("provider-xai", "crates/providers/xai"),
 ];
 
@@ -357,6 +356,7 @@ const ADAPTER_PUBLIC_MODULES: &[(&str, &[&str])] = &[
     ("crates/providers/xai", &["transport"]),
     ("crates/providers/deepseek", &[]),
     ("crates/providers/mimo", &[]),
+    ("crates/providers/typesafe", &[]),
 ];
 
 /// 不对应单一生产模块、而是校验 crate/workspace 整体契约的根级测试场景
@@ -377,6 +377,7 @@ const ALLOWED_INTERNAL_EDGES: &[(&str, &str)] = &[
     ("aicodex-agent-teams", "provider-deepseek"),
     ("aicodex-agent-teams", "provider-mimo"),
     ("aicodex-agent-teams", "provider-openai"),
+    ("aicodex-agent-teams", "provider-typesafe"),
     ("aicodex-agent-teams", "provider-xai"),
     ("gateway-admin", "gateway-core"),
     ("gateway-api", "gateway-admin"),
@@ -400,6 +401,9 @@ const ALLOWED_INTERNAL_EDGES: &[(&str, &str)] = &[
     ("provider-openai", "gateway-admin"),
     ("provider-openai", "gateway-core"),
     ("provider-openai", "gateway-protocol"),
+    ("provider-typesafe", "gateway-admin"),
+    ("provider-typesafe", "gateway-core"),
+    ("provider-typesafe", "gateway-protocol"),
     ("provider-xai", "gateway-admin"),
     ("provider-xai", "gateway-core"),
     ("provider-xai", "gateway-protocol"),

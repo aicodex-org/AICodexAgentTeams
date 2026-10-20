@@ -13,6 +13,7 @@ members = [
     "crates/providers/deepseek",
     "crates/providers/mimo",
     "crates/providers/openai",
+    "crates/providers/typesafe",
     "crates/providers/xai",
 ]
 exclude = ["vendor/sign-in-with-chatgpt"]

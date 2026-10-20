@@ -19,8 +19,17 @@ function resolveRoleEntry(role: AuthSession['role']) {
 router.beforeEach(async (to) => {
   const authStore = useAuthStore()
 
-  // 登录页不依赖会话恢复；只使用当前已知身份决定是否跳转。
   if (to.meta.guestOnly) {
+    // 重新打开网站后内存身份为空，先通过持久化 Cookie 恢复服务端会话
+    if (!authStore.sessionChecked) {
+      try {
+        await authStore.checkAuth()
+      }
+      catch {
+        // 会话检查暂时失败仍允许打开登录表单，不将网络故障视为会话失效
+        return
+      }
+    }
     if (authStore.session)
       return resolveRoleEntry(authStore.session.role)
     return

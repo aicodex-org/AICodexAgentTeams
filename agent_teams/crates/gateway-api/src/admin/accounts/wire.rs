@@ -695,11 +695,12 @@ pub struct AccountTestQuery {
 impl AccountTestQuery {
     pub fn validate(&self) -> Result<(), WireValidationError> {
         require_account_id(&self.account_id, "accountId")?;
-        if self
-            .protocol
-            .as_deref()
-            .is_some_and(|value| !matches!(value, "openai" | "openai-chat" | "anthropic"))
-        {
+        if self.protocol.as_deref().is_some_and(|value| {
+            !matches!(
+                value,
+                "openai" | "openai-chat" | "anthropic" | "typesafe-systemone"
+            )
+        }) {
             return Err(WireValidationError::new("protocol"));
         }
         if self.model_id.trim().is_empty() || self.model_id.chars().any(char::is_control) {
@@ -1091,16 +1092,17 @@ impl From<(DomainConnectionTestEvent, crate::time::TimePresenter)> for AccountCo
             DomainConnectionTestEvent::Started { model } => serde_json::json!({
                 "type": "test_start",
                 "model": model,
-                "text": "正在连接上游 Responses"
+                "text": "正在连接上游服务"
             }),
             DomainConnectionTestEvent::Request {
                 model,
                 input_text,
                 stream,
                 store,
+                native_payload,
             } => serde_json::json!({
                 "type": "request",
-                "payload": {
+                "payload": native_payload.unwrap_or_else(|| serde_json::json!({
                     "model": model,
                     "input": [{
                         "role": "user",
@@ -1108,7 +1110,7 @@ impl From<(DomainConnectionTestEvent, crate::time::TimePresenter)> for AccountCo
                     }],
                     "stream": stream,
                     "store": store
-                }
+                }))
             }),
             DomainConnectionTestEvent::Content { text } => {
                 serde_json::json!({ "type": "content", "text": text })

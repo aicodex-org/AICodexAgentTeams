@@ -1013,8 +1013,15 @@ impl AccountsService for DefaultAccountsService {
             AccountConnectionTestEvent::Request {
                 model,
                 input_text: CONNECTION_TEST_INPUT.to_owned(),
-                stream: true,
+                stream: matches!(operation, gateway_core::operation::Operation::Generate(_)),
                 store: false,
+                native_payload: match &operation {
+                    gateway_core::operation::Operation::StructuredInference(request) => Some(
+                        serde_json::from_slice(request.payload().body())
+                            .map_err(|_| AdminError::bad_gateway("Provider 连接测试请求无效"))?,
+                    ),
+                    _ => None,
+                },
             },
         ];
         let probe = Arc::clone(&self.probe);

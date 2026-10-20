@@ -304,6 +304,14 @@ fn operation_projection(operation: &Operation) -> Result<OperationProjection<'_>
                 context: payload.context(),
             }
         }
+        Operation::StructuredInference(request) => {
+            let payload = request.payload();
+            OperationProjection {
+                protocol: payload.protocol(),
+                body: OperationBody::Raw(payload.body().as_ref()),
+                context: payload.context(),
+            }
+        }
         Operation::CountTokens(request) => {
             let payload = request.payload();
             OperationProjection {

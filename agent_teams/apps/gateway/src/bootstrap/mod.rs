@@ -34,6 +34,8 @@ pub enum BootstrapError {
     #[error(transparent)]
     MiMo(#[from] provider_mimo::MiMoInitializeError),
     #[error(transparent)]
+    TypeSafe(#[from] provider_typesafe::TypeSafeInitializeError),
+    #[error(transparent)]
     Xai(#[from] provider_xai::XaiInitializeError),
     #[error(transparent)]
     Registry(#[from] gateway_core::engine::provider::RegistryError),
@@ -77,6 +79,7 @@ impl BootstrapError {
             Self::OpenAi(_) => "provider_openai",
             Self::DeepSeek(_) => "provider_deepseek",
             Self::MiMo(_) => "provider_mimo",
+            Self::TypeSafe(_) => "provider_typesafe",
             Self::Xai(_) => "provider_xai",
             Self::Registry(_) => "provider_registry",
             Self::Core(_) => "core",

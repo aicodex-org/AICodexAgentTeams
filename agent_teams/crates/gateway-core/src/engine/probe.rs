@@ -8,7 +8,14 @@ use futures::future::BoxFuture;
 use crate::error::{ClientVisibleUpstreamResponse, GatewayError, GatewayErrorKind};
 use crate::identity::ProviderKind;
 use crate::routing::UpstreamModelId;
-use crate::{account::ProviderAccountId, operation::Operation, upstream::UpstreamSendState};
+use crate::{
+    account::ProviderAccountId,
+    engine::EngineError,
+    error::{ProviderError, ProviderErrorKind},
+    event::{GatewayEvent, ProviderEvent},
+    operation::{Operation, OperationKind},
+    upstream::UpstreamSendState,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct AccountProbeRequest {
@@ -21,6 +28,56 @@ pub struct AccountProbeRequest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AccountProbeResult {
     pub text: Vec<String>,
+}
+
+impl AccountProbeResult {
+    pub(crate) fn from_events(
+        operation: OperationKind,
+        protocol: &str,
+        events: Vec<ProviderEvent>,
+    ) -> Result<Self, EngineError> {
+        if operation != OperationKind::StructuredInference {
+            return Ok(Self {
+                text: events
+                    .into_iter()
+                    .flat_map(|event| event.into_parts().0)
+                    .filter_map(|fact| match fact {
+                        GatewayEvent::TextDelta(delta) => Some(delta.text),
+                        _ => None,
+                    })
+                    .collect(),
+            });
+        }
+        // 结构化探测展示原生正文，不解析 Provider schema，也不合成聊天事实
+        // 在下游提交前拒绝缺失、重复或无法安全展示的载荷
+        const MAXIMUM_JSON_BYTES: usize = 4 * 1024 * 1024;
+        let invalid = || {
+            EngineError::Provider(
+                ProviderError::new(ProviderErrorKind::Protocol, UpstreamSendState::Sent)
+                    .with_retry_prohibited(),
+            )
+        };
+        let mut text = None;
+        for event in events {
+            let (_, wire) = event.into_parts();
+            let Some(wire) = wire else { continue };
+            if text.is_some() || wire.protocol() != protocol {
+                return Err(invalid());
+            }
+            let bytes = wire.into_raw_json_body().ok_or_else(invalid)?;
+            if bytes.len() > MAXIMUM_JSON_BYTES {
+                return Err(invalid());
+            }
+            let raw = std::str::from_utf8(&bytes).map_err(|_| invalid())?;
+            if raw.trim().is_empty() {
+                return Err(invalid());
+            }
+            text = Some(raw.to_owned());
+        }
+        Ok(Self {
+            text: vec![text.ok_or_else(invalid)?],
+        })
+    }
 }
 
 /// 仅供当前管理端连接测试展示的原始上游失败响应

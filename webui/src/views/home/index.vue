@@ -31,7 +31,7 @@ function retry() {
       </RouterLink>
       <nav aria-label="主导航">
         <LoginThemeToggle />
-        <RouterLink :to="{ name: 'login', query: { redirect: '/dashboard' } }" class="console-link">
+        <RouterLink to="/dashboard" class="console-link">
           进入控制台 <ArrowRight :size="16" />
         </RouterLink>
       </nav>

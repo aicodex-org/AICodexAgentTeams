@@ -75,6 +75,9 @@ function connectionLogClass(tone: string) {
             <span class="text-cp-sm font-heavy text-cp-text-quaternary">测试协议</span>
             <ZSelect v-model="protocol" aria-label="测试协议" :options="protocolOptions" :disabled="status === 'running'" />
           </template>
+          <p v-if="account.provider === 'typesafe'" class="m-0 text-cp-sm text-cp-text-secondary">
+            SystemOne 原生决策测试
+          </p>
           <div class="flex min-h-8 items-center justify-between gap-3">
             <span class="text-cp-sm font-heavy text-cp-text-quaternary">
               测试模型

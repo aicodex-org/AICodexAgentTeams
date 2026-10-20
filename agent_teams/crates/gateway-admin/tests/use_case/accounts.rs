@@ -327,6 +327,18 @@ impl ProviderAdmin for FakeProviderAdmin {
         model: &gateway_core::routing::UpstreamModelId,
         input: &str,
     ) -> Result<gateway_core::operation::Operation, ProviderAdminError> {
+        if self.kind.as_str() == "typesafe" {
+            let payload = gateway_core::operation::RawJsonPayload::new(
+                "typesafe-systemone",
+                bytes::Bytes::from(serde_json::to_vec(&json!({
+                    "model": model.as_str(), "state": input,
+                    "questions": {"connection_test": {"type": "noul", "instructions": "Is this a test?"}}
+                })).unwrap()),
+            ).unwrap();
+            return Ok(Operation::StructuredInference(
+                gateway_core::operation::StructuredInferenceRequest::from_raw_json(payload),
+            ));
+        }
         let payload = ProtocolPayload::json_object(
             "openai",
             Map::from_iter([
@@ -1278,6 +1290,35 @@ fn provider_registry_should_reject_duplicate_kind() {
     assert!(matches!(
         result,
         Err(error) if error.kind() == ProviderAdminErrorKind::Conflict
+    ));
+}
+
+#[tokio::test]
+async fn structured_connection_test_should_report_non_streaming_request() {
+    let provider = FakeProviderAdmin::new("typesafe", events());
+    let store = FakeAccountStore::with_account(account_record("typesafe"), events());
+    let services =
+        accounts_service_with_probe(provider, store, Arc::new(SuccessfulAccountProbe)).await;
+    let events = services
+        .accounts()
+        .test_connection(
+            ProviderAccountId::new("acct_test").unwrap(),
+            gateway_core::routing::UpstreamModelId::new("jev-latest").unwrap(),
+        )
+        .await
+        .unwrap()
+        .collect::<Vec<_>>()
+        .await;
+    assert!(events.iter().any(|event| matches!(
+        event,
+        AccountConnectionTestEvent::Request { stream: false, native_payload: Some(payload), .. }
+            if payload["model"] == "jev-latest"
+                && payload["questions"]["connection_test"]["type"] == "noul"
+                && payload.get("input").is_none()
+    )));
+    assert!(matches!(
+        events.last(),
+        Some(AccountConnectionTestEvent::Completed)
     ));
 }
 

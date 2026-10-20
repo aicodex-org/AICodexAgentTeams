@@ -64,7 +64,7 @@ export function useAccountOnboarding(options: {
         return
       const provider = accountCreateProvider(form)
       if (mode === 'api_key') {
-        if (!['openai', 'deepseek', 'mimo'].includes(requireImportProvider(provider)))
+        if (!['openai', 'deepseek', 'mimo', 'typesafe'].includes(requireImportProvider(provider)))
           throw new Error('当前平台不支持 API Key 账号')
         const error = apiKeyAccountError(form.apiKey)
         if (error)

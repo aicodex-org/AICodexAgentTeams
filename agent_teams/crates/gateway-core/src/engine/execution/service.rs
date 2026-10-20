@@ -56,7 +56,6 @@ use crate::{
         provider::ProviderRegistry,
     },
     error::{GatewayError, GatewayErrorKind},
-    event::GatewayEvent,
     identity::ProviderKind,
     lifecycle::{CancellationToken, Deadline, REQUEST_LEASE_TTL},
     operation::{Operation, OperationKind},
@@ -835,6 +834,21 @@ impl DefaultExecutionService {
                 "插件子模型请求已继承父请求身份与 deadline"
             );
         }
+        // 原生结构化端点的模型由 API 显式绑定，Core 不再解析协议正文或依赖 Provider 重复投影
+        let requested_model = match &target {
+            ExecutionTarget::ProviderEndpoint {
+                upstream_model: Some(model),
+                ..
+            } if operation.kind() == OperationKind::StructuredInference => Some(
+                PublicModelId::from_client_wire(model.as_str().to_owned()).map_err(|_| {
+                    GatewayError::new(
+                        GatewayErrorKind::InvalidRequest,
+                        "requested model is invalid",
+                    )
+                })?,
+            ),
+            _ => None,
+        };
         let new_request = NewModelRequest {
             model_mapping: plan.model_mapping().cloned(),
             id: request_id.clone(),
@@ -846,7 +860,10 @@ impl DefaultExecutionService {
             operation: operation.kind(),
             endpoint: metadata.endpoint,
             client_transport: metadata.transport.as_str().to_owned(),
-            requested_model: target.into_public_model().or(observation.requested_model),
+            requested_model: target
+                .into_public_model()
+                .or(requested_model)
+                .or(observation.requested_model),
             client_ip: metadata.client_ip,
             user_agent: metadata.user_agent,
             reasoning_effort: observation.reasoning_effort,
@@ -1401,6 +1418,8 @@ impl DefaultExecutionService {
             started_at,
             deadline_at: deadline_at.into(),
         };
+        let probe_operation = operation.kind();
+        let probe_protocol = operation.protocol().to_owned();
         let providers = self.providers.clone();
         let transient: Arc<dyn ExecutionStore> = Arc::new(TransientExecutionStore);
         let coordinator = AttemptCoordinator::new(GatewayEngine::new(transient, providers));
@@ -1431,21 +1450,22 @@ impl DefaultExecutionService {
                     .await);
             }
         };
+        let result = match AccountProbeResult::from_events(probe_operation, &probe_protocol, events)
+        {
+            Ok(result) => result,
+            Err(error) => {
+                let _ = session.cancel_and_finalize().await;
+                return Err(self
+                    .observe_probe_failure(&observed, started_at, &error)
+                    .await);
+            }
+        };
         if let Err(error) = session.commit_downstream(Some(200)).await {
             return Err(self
                 .observe_probe_failure(&observed, started_at, &error)
                 .await);
         }
-        Ok(AccountProbeResult {
-            text: events
-                .into_iter()
-                .flat_map(|event| event.into_parts().0)
-                .filter_map(|fact| match fact {
-                    GatewayEvent::TextDelta(delta) => Some(delta.text),
-                    _ => None,
-                })
-                .collect(),
-        })
+        Ok(result)
     }
 
     /// 探测失败先记录脱敏分类事实，再把请求局部的原始上游响应交给认证管理端

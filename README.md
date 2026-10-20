@@ -15,7 +15,7 @@
 </div>
 
 > [!NOTE]
-> 本项目提供 Responses API，不支持 `/v1/chat/completions`，接入前请确认客户端支持 Responses 协议
+> 各平台支持的协议不同；Codex 使用 Responses，TypeSafe Jev 使用独立的结构化推理接口，接入前请核对 [API 参考](docs/api.md#3-模型数据面与模型目录)
 
 ## 快速预览
 
@@ -99,6 +99,8 @@ API Key 持有者可在登录页切换身份，查看自己的用量与额度，
 curl http://127.0.0.1:9699/v1/models \
   -H 'Authorization: Bearer <client-api-key>'
 ```
+
+**TypeSafe Jev 客户端**：先导入 TypeSafe API Key，再使用网关客户端密钥调用 `/v1/systemone`，请求示例与限制见 [Jev 结构化推理](docs/api.md#typesafe-jev-结构化推理)
 
 ## 文档
 

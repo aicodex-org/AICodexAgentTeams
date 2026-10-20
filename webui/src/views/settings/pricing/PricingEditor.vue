@@ -31,7 +31,7 @@ const priceMode = computed({
 })
 const bandOptions = computed(() => bands
   .filter((band) => {
-    if (props.provider === 'mimo')
+    if (props.provider === 'mimo' || props.provider === 'typesafe')
       return band.value === 'standard'
     if (props.provider === 'deepseek')
       return ['standard', 'off_peak'].includes(band.value)
@@ -49,7 +49,7 @@ watch(open, (value) => {
   model.value = props.row?.model ?? ''
   multiplier.value = String((props.row?.custom?.multiplierBps ?? 10_000) / 10_000)
   draft.value = JSON.parse(JSON.stringify(props.row?.custom?.bands ?? {}))
-  selectedBand.value = props.provider !== 'mimo' && props.row?.effective.bands.image ? 'image' : 'standard'
+  selectedBand.value = props.provider !== 'mimo' && props.provider !== 'typesafe' && props.row?.effective.bands.image ? 'image' : 'standard'
   if (!props.row)
     toggleBand(true)
   validation.value = ''

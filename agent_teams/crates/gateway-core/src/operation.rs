@@ -41,6 +41,8 @@ pub enum OperationKind {
     GenerateImage,
     /// Provider 原生 standalone search
     Search,
+    /// Provider 原生结构化推理，结果由对应协议解释
+    StructuredInference,
     /// 使用目标模型的真实 tokenizer 计数，不允许 Core 估算
     CountTokens,
     /// Provider 声明并映射到固定上游目标的账号认证 HTTP 操作
@@ -55,6 +57,7 @@ impl OperationKind {
             Self::Generate => "generate",
             Self::GenerateImage => "generate_image",
             Self::Search => "search",
+            Self::StructuredInference => "structured_inference",
             Self::CountTokens => "count_tokens",
             Self::ProviderHttp => "provider_http",
         }
@@ -720,6 +723,33 @@ impl fmt::Debug for StandaloneSearchRequest {
     }
 }
 
+/// 使用目标模型的 Provider 原生结构化推理请求
+#[derive(Clone, PartialEq, Eq)]
+pub struct StructuredInferenceRequest {
+    payload: RawJsonPayload,
+}
+
+impl StructuredInferenceRequest {
+    #[must_use]
+    pub const fn from_raw_json(payload: RawJsonPayload) -> Self {
+        Self { payload }
+    }
+
+    #[must_use]
+    pub const fn payload(&self) -> &RawJsonPayload {
+        &self.payload
+    }
+}
+
+impl fmt::Debug for StructuredInferenceRequest {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("StructuredInferenceRequest")
+            .field("payload", &"<not included in Debug>")
+            .finish()
+    }
+}
+
 /// 使用目标模型的 Provider 原生 Token 计数请求
 #[derive(Clone, PartialEq, Eq)]
 pub struct TokenCountRequest {
@@ -918,6 +948,8 @@ pub enum Operation {
     GenerateImage(ImageRequest),
     /// Provider 原生 standalone search
     Search(StandaloneSearchRequest),
+    /// Provider 原生结构化推理
+    StructuredInference(StructuredInferenceRequest),
     /// 使用目标模型进行真实 Token 计数
     CountTokens(TokenCountRequest),
     /// Provider 显式登记的账号认证 HTTP 操作
@@ -952,6 +984,7 @@ impl Operation {
                 }),
             Self::GenerateImage(request) => Ok(request.payload().body().clone()),
             Self::Search(request) => Ok(request.payload().body().clone()),
+            Self::StructuredInference(request) => Ok(request.payload().body().clone()),
             Self::CountTokens(request) => Ok(request.payload().body().clone()),
             Self::ProviderHttp(request) => Ok(request.payload().body().clone()),
         }
@@ -978,6 +1011,7 @@ impl Operation {
             Self::Generate(request) => request.protocol_payload().context().clone(),
             Self::GenerateImage(request) => request.payload().context().clone(),
             Self::Search(request) => request.payload().context().clone(),
+            Self::StructuredInference(request) => request.payload().context().clone(),
             Self::CountTokens(request) => request.payload().context().clone(),
             Self::ProviderHttp(request) => request.payload().context().clone(),
         };
@@ -1046,6 +1080,12 @@ impl Operation {
         target_protocol: impl Into<String>,
         body: Bytes,
     ) -> Result<Self, OperationError> {
+        // 结构化推理与聊天协议没有可互换语义，不能通过插件改名绕过能力与端点合同
+        if matches!(self, Self::StructuredInference(_)) {
+            return Err(OperationError::EmptyField {
+                field: "structured inference protocol translation",
+            });
+        }
         let target_protocol = target_protocol.into();
         validate_text(&target_protocol, 64, true, None).map_err(|_| {
             OperationError::EmptyField {
@@ -1061,6 +1101,7 @@ impl Operation {
             Self::Generate(request) => request.protocol_payload().context().clone(),
             Self::GenerateImage(request) => request.payload().context().clone(),
             Self::Search(request) => request.payload().context().clone(),
+            Self::StructuredInference(request) => request.payload().context().clone(),
             Self::CountTokens(request) => request.payload().context().clone(),
             Self::ProviderHttp(request) => request.payload().context().clone(),
         };
@@ -1072,6 +1113,7 @@ impl Operation {
             Self::Generate(request) => request.payload.source_requirements.is_some(),
             Self::GenerateImage(request) => request.payload().translated,
             Self::Search(request) => request.payload().translated,
+            Self::StructuredInference(request) => request.payload().translated,
             Self::CountTokens(request) => request.payload().translated,
             Self::ProviderHttp(request) => request.payload().translated,
         }
@@ -1136,6 +1178,17 @@ impl Operation {
                     },
                 }))
             }
+            Self::StructuredInference(request) => {
+                let payload = request.payload;
+                Ok(Self::StructuredInference(StructuredInferenceRequest {
+                    payload: RawJsonPayload {
+                        protocol: target_protocol.unwrap_or(payload.protocol),
+                        body: body.unwrap_or(payload.body),
+                        context,
+                        translated: payload.translated || translating,
+                    },
+                }))
+            }
             Self::CountTokens(request) => {
                 let payload = request.payload;
                 Ok(Self::CountTokens(TokenCountRequest {
@@ -1172,6 +1225,7 @@ impl Operation {
             Self::Generate(request) => request.protocol_payload().protocol(),
             Self::GenerateImage(request) => request.payload().protocol(),
             Self::Search(request) => request.payload().protocol(),
+            Self::StructuredInference(request) => request.payload().protocol(),
             Self::CountTokens(request) => request.payload().protocol(),
             Self::ProviderHttp(request) => request.payload().protocol(),
         }
@@ -1200,6 +1254,7 @@ impl Operation {
             Self::Generate(_) => OperationKind::Generate,
             Self::GenerateImage(_) => OperationKind::GenerateImage,
             Self::Search(_) => OperationKind::Search,
+            Self::StructuredInference(_) => OperationKind::StructuredInference,
             Self::CountTokens(_) => OperationKind::CountTokens,
             Self::ProviderHttp(_) => OperationKind::ProviderHttp,
         }
@@ -1212,6 +1267,9 @@ impl Operation {
             Self::Generate(request) => request.requirements(),
             Self::GenerateImage(_) => CapabilityRequirements::new(OperationKind::GenerateImage),
             Self::Search(_) => CapabilityRequirements::new(OperationKind::Search),
+            Self::StructuredInference(_) => {
+                CapabilityRequirements::new(OperationKind::StructuredInference)
+            }
             Self::CountTokens(_) => CapabilityRequirements::new(OperationKind::CountTokens),
             Self::ProviderHttp(_) => CapabilityRequirements::new(OperationKind::ProviderHttp),
         }
@@ -1223,7 +1281,10 @@ impl Operation {
         match self {
             Self::Generate(request) => request.image_generation_requested(),
             Self::GenerateImage(_) => true,
-            Self::Search(_) | Self::CountTokens(_) | Self::ProviderHttp(_) => false,
+            Self::StructuredInference(_)
+            | Self::Search(_)
+            | Self::CountTokens(_)
+            | Self::ProviderHttp(_) => false,
         }
     }
 
@@ -1234,6 +1295,7 @@ impl Operation {
             Self::Generate(request) => request.provider_session_state(provider),
             Self::GenerateImage(_)
             | Self::Search(_)
+            | Self::StructuredInference(_)
             | Self::CountTokens(_)
             | Self::ProviderHttp(_) => None,
         }

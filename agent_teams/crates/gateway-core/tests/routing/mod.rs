@@ -960,3 +960,111 @@ fn model_protocol_qualification_does_not_change_legacy_capabilities() {
     assert!(restricted.supports_protocol("anthropic"));
     assert!(!restricted.supports_protocol("plugin-protocol"));
 }
+
+#[test]
+fn structured_inference_endpoint_requires_model_capability_and_account_permission() {
+    use gateway_core::account::{AccountModelAccess, AccountModelAccessMode};
+    use gateway_core::error::RoutingError;
+    use gateway_core::operation::StructuredInferenceRequest;
+
+    let provider = ProviderKind::new("typesafe").expect("provider");
+    let model = UpstreamModelId::new("jev-1.14.0").expect("model");
+    let operation = Operation::StructuredInference(StructuredInferenceRequest::from_raw_json(
+        RawJsonPayload::new(
+            "typesafe-systemone",
+            Bytes::from_static(br#"{"model":"jev-1.14.0","questions":[]}"#),
+        )
+        .expect("structured payload"),
+    ));
+    let directory = |denied| {
+        Arc::new(RuntimeAccountDirectory::new(BTreeMap::from([(
+            ProviderAccountId::new("acct_typesafe").expect("account"),
+            RuntimeAccount::new(provider.clone(), BTreeSet::new()).with_model_access(if denied {
+                AccountModelAccess::new(
+                    AccountModelAccessMode::Denylist,
+                    vec![model.as_str().to_owned()],
+                )
+                .expect("model policy")
+            } else {
+                AccountModelAccess::all()
+            }),
+        )])))
+    };
+    let snapshot = RuntimeSnapshot::new(
+        ConfigRevision::new(1).expect("revision"),
+        settings(),
+        vec![provider.clone()],
+        vec![ProviderModel::new(
+            provider.clone(),
+            model.clone(),
+            ModelCapabilities::new(BTreeSet::from([OperationKind::StructuredInference]), None)
+                .with_protocols(["typesafe-systemone"]),
+        )],
+        Vec::new(),
+    )
+    .expect("snapshot")
+    .with_account_directory(directory(false));
+    let plan = snapshot
+        .plan_provider_endpoint(
+            &provider,
+            Some(&model),
+            &operation,
+            snapshot.all_account_scope(),
+            &RoutingContext::default(),
+        )
+        .expect("structured plan");
+    assert_eq!(plan.operation(), OperationKind::StructuredInference);
+    assert_eq!(plan.candidates()[0].upstream_model(), Some(&model));
+    assert!(matches!(
+        snapshot.plan_provider_endpoint(
+            &provider,
+            None,
+            &operation,
+            snapshot.all_account_scope(),
+            &RoutingContext::default()
+        ),
+        Err(RoutingError::UnsupportedProviderEndpoint { .. })
+    ));
+    let denied_scope = Arc::new(FrozenAccountScope::new(
+        directory(true),
+        ClientRoutingScope::all_accounts(),
+    ));
+    assert!(matches!(
+        snapshot.plan_provider_endpoint(
+            &provider,
+            Some(&model),
+            &operation,
+            denied_scope,
+            &RoutingContext::default()
+        ),
+        Err(RoutingError::NoCapableProviderEndpoint { .. })
+    ));
+    assert!(
+        snapshot
+            .plan_provider_endpoint(
+                &provider,
+                Some(&model),
+                &operation,
+                account_scope(),
+                &RoutingContext::default()
+            )
+            .is_err(),
+        "other providers' accounts cannot serve this endpoint"
+    );
+    let generate = Operation::Generate(GenerateRequest::from_protocol_payload(
+        ProtocolPayload::json_object("typesafe-systemone", serde_json::Map::new())
+            .expect("payload"),
+    ));
+    assert!(
+        snapshot
+            .plan_provider_endpoint(
+                &provider,
+                Some(&model),
+                &generate,
+                snapshot.all_account_scope(),
+                &RoutingContext::default()
+            )
+            .is_err(),
+        "structured model cannot serve chat generation"
+    );
+}

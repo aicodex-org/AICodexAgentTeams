@@ -15,10 +15,10 @@
 
 AICodexAgentTeams 是单进程、单副本运行的多 Provider AI 网关，同时提供：
 
-- 面向客户端的 OpenAI Responses、Chat Completions、Anthropic Messages、Images、standalone Search 和模型目录协议
+- 面向客户端的 OpenAI Responses、Chat Completions、Anthropic Messages、Images、standalone Search、TypeSafe Jev 结构化推理和模型目录协议
 - 面向管理员的 `/api/admin/*` 控制面和 Vue 管理端
 - 面向 Key 持有者的 `/api/key-usage/*` 用量与客户端配置接口、独立 `/key-usage` 页面，以及复用数据面认证的 `/v1/usage` 额度查询
-- 固定的 OpenAI、xAI、DeepSeek 与 MiMo 编译期 Provider，以及插件提供的认证、中间件和管理扩展
+- 固定的 OpenAI、xAI、DeepSeek、MiMo 与 TypeSafe（Jev）编译期 Provider，以及插件提供的认证、中间件和管理扩展
 - PostgreSQL 持久化、Redis 协调状态以及 S3/R2 数据库备份
 
 系统不存在 Provider Instance 层，也不支持通过复制应用容器进行多副本
@@ -35,7 +35,7 @@ flowchart TB
   API --> Admin[gateway-admin<br/>管理用例]
   Core --> Registry[Provider Registry]
   Admin --> Registry
-  Registry --> Builtin[OpenAI / xAI / DeepSeek / MiMo]
+  Registry --> Builtin[OpenAI / xAI / DeepSeek / MiMo / TypeSafe]
   Registry --> Plugins[Plugin Runtime / 插件进程]
   Builtin --> Upstream[上游服务]
   Plugins --> Upstream
@@ -69,6 +69,7 @@ flowchart TB
 | `providers/xai` | xAI OAuth session、账号选择、目录、额度和 Grok/Responses 转换 |
 | `providers/deepseek` | 单账号 API Key、三协议原生 HTTP、账号选择、模型目录和货币余额 |
 | `providers/mimo` | 按量 API Key 与 Token Plan、三协议原生 HTTP、账号选择、模型目录和本地计价 |
+| `providers/typesafe` | TypeSafe API Key、Jev 结构化推理 JSON、账号选择、模型目录、概率校验和本地计价 |
 | `webui` | Vue 管理端与 Key 用量页，仅通过各自身份允许的控制面 API 访问状态 |
 | 独立仓库 `codex-proxy-ui` | 管理端与插件页面共用的 Vue 基础组件、纯主题算法和样式，不依赖宿主业务状态、路由或 API |
 | 独立仓库 `codex-proxy-plugins` | 官方维护综合示例，依赖公开 SDK，Rust 处理器和已构建页面合成一个可安装包，不随宿主构建发版 |
@@ -157,7 +158,7 @@ flowchart LR
   能力适配器将已确认的响应合同错误交给 RPC 会话统一停止进程和记录脱敏诊断，正常业务拒绝与上游错误不触发实例停止。
   故障绑定保留原有作用范围和拒绝／委托策略，入口认证故障不降级为其他认证方式；宿主配置存储与 revision 无法确认时仍停止新请求
 - **宿主持有业务事实**：插件返回能力结果，Core 继续决定账号资格、发送状态、标准用量与费用；账号变更由 Admin / Store
-  执行版本校验、事务和审计。Provider 由组合根静态注册为 OpenAI、xAI、DeepSeek 与 MiMo；插件停用不删除账号或历史记录，失败的观察回调不改变响应和账单
+  执行版本校验、事务和审计。Provider 由组合根静态注册为 OpenAI、xAI、DeepSeek、MiMo 与 TypeSafe；插件停用不删除账号或历史记录，失败的观察回调不改变响应和账单
 - **能力开放不承接插件业务**：宿主向插件提供独立、可组合的原生能力，负责类型校验、资源生命周期、事务与审计。
   插件自身的触发条件、跨资源业务关联、策略和流程编排归插件所有；宿主不能因某个插件的使用场景代为实现这些流程
 
@@ -470,11 +471,19 @@ xAI Provider 负责 Codex custom 工具与 Grok function 工具的双向转换�
 `call_id` 配对；超限或转换失败终止流。默认 `store: false` 的续接由现有会话 owner 重放完整历史；
 原生续接按上游约束处理 `instructions` 与 `previous_response_id`，不把协议差异交给 Core
 
+TypeSafe 使用独立的 `typesafe-systemone` 原生协议与 `StructuredInference` operation（记录值为
+`structured_inference`），API 提取模型并绑定
+Provider 端点，Core 统一执行账号范围、模型政策、租约、发送屏障、终态和结算。Provider 解释问题与概率结果，
+校验成功后保留原始 JSON，以 `Started`、用量、费用和 `Completed` 事实伴随 `raw_json` wire 交付，
+不伪造文本、工具事件或 continuation；API 在完整响应通过检查后提交下游。
+目录为非穷尽发现信息，未列出的固定模型不因缺项被宿主提前拒绝。请求字段和边界见
+[Jev 结构化推理](api.md#typesafe-jev-结构化推理)
+
 ### 后台账号导入
 
 Admin 拥有进程内导入任务、管理员归属、条目状态与有界队列，以 `account_import` Daemon 贡献给 Host。
 API 只校验任务信封、生成完整输入摘要并投影安全结果，不解释 Provider 文档；每个执行条目复用已有
-OpenAI / xAI / DeepSeek / MiMo 导入用例。并发槽位由单个 Worker 统一管理，条目状态是进度统计的唯一来源。
+OpenAI / xAI / DeepSeek / MiMo / TypeSafe 导入用例。并发槽位由单个 Worker 统一管理，条目状态是进度统计的唯一来源。
 停止只跳过待执行输入；Host 关闭时停止接收新任务并在关闭预算内等待已开始条目完成。
 完成或跳过即释放原始输入，终态记录有时限和数量上限，不写 PostgreSQL 或 Redis。
 前端通过当前管理员的任务列表恢复视图，轮询与任务执行互不拥有生命周期。接口、限额与重启语义见

@@ -162,6 +162,7 @@ pub async fn run() -> Result<(), BootstrapError> {
         plan.extend(providers.xai.take_worker_contributions());
         plan.extend(providers.deepseek.take_worker_contributions());
         plan.extend(providers.mimo.take_worker_contributions());
+        plan.extend(providers.typesafe.take_worker_contributions());
         plan.extend(admin.take_worker_contributions());
         plan.push(or_shutdown!(
             plugin_runtime,

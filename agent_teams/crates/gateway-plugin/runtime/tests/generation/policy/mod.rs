@@ -228,6 +228,63 @@ fn operation() -> Operation {
 }
 
 #[tokio::test]
+async fn model_router_preserves_structured_inference_protocol_and_raw_body() {
+    use gateway_core::operation::{RawJsonPayload, StructuredInferenceRequest};
+
+    let records = tempfile::tempdir().unwrap();
+    let marker = records.path().join("structured-route.jsonl");
+    let (cache, runtime) = setup(vec![InstanceFixture {
+        id: "structured-router",
+        configuration: serde_json::json!({
+            "route_marker": marker,
+            "route_decision": {"decision": "unhandled"},
+        }),
+        bindings: vec![binding(
+            MODEL_ROUTER_CONTRIBUTION,
+            "routing",
+            0,
+            PluginFailurePolicy::Reject,
+        )],
+    }])
+    .await;
+    let generation = prepare(&runtime).await;
+    let context = policy_context(&runtime, generation.clone(), "req_structured_route");
+    let body = br#"{ "model": "jev-latest", "state": {"value": 1e3}, "questions": {"yes": {"type": "noul", "instructions": "Ready?"}} }"#;
+    let operation = Operation::StructuredInference(StructuredInferenceRequest::from_raw_json(
+        RawJsonPayload::new("typesafe-systemone", Bytes::from_static(body))
+            .unwrap()
+            .with_context(
+                serde_json::json!({"opaque_request_headers": [["x-feature", "b24="]]})
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+            ),
+    ));
+    assert_eq!(
+        context
+            .route_model(
+                operation,
+                PublicModelId::new("jev-latest").unwrap(),
+                BTreeSet::from([ProviderKind::new("typesafe").unwrap()]),
+            )
+            .await
+            .unwrap(),
+        ModelRouteDecision::Unhandled
+    );
+    let lines = marker_lines(&marker, 1).await;
+    assert_eq!(lines[0]["request"]["operation"], "structured_inference");
+    assert_eq!(lines[0]["request"]["protocol"], "typesafe-systemone");
+    assert_eq!(lines[0]["body"].as_str().unwrap().as_bytes(), body);
+    assert_eq!(
+        lines[0]["request"]["headers"],
+        serde_json::json!([{ "name": "x-feature", "value_base64": "b24=" }])
+    );
+    drop(context);
+    drop(generation);
+    super::wait_until_empty(cache.path()).await;
+}
+
+#[tokio::test]
 async fn retry_policy_uses_ordered_delegation_and_rejects_disallowed_actions() {
     use gateway_core::{
         engine::policy::{RetryDecision, RetryFacts},

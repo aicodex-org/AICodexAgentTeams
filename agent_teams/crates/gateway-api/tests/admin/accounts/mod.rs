@@ -940,6 +940,17 @@ mod actions {
     }
 
     #[test]
+    fn connection_test_should_accept_system_one_and_reject_unknown_protocols() {
+        for (protocol, accepted) in [("typesafe-systemone", true), ("unknown-protocol", false)] {
+            let query: AccountTestQuery = serde_json::from_value(json!({
+                "accountId": "acct_test", "modelId": "jev-latest", "protocol": protocol
+            }))
+            .unwrap();
+            assert_eq!(query.validate().is_ok(), accepted);
+        }
+    }
+
+    #[test]
     fn connection_test_events_should_preserve_the_existing_frontend_contract() {
         let mut events = [
             DomainConnectionTestEvent::Started {
@@ -950,6 +961,7 @@ mod actions {
                 input_text: "Reply with exactly OK.".to_owned(),
                 stream: true,
                 store: false,
+                native_payload: None,
             },
             DomainConnectionTestEvent::Content {
                 text: "OK".to_owned(),
@@ -997,7 +1009,7 @@ mod actions {
         assert_eq!(
             events,
             [
-                json!({ "type": "test_start", "model": "grok-4.5", "text": "正在连接上游 Responses" }),
+                json!({ "type": "test_start", "model": "grok-4.5", "text": "正在连接上游服务" }),
                 json!({
                     "type": "request",
                     "payload": {
@@ -1029,6 +1041,29 @@ mod actions {
                 }),
             ]
         );
+    }
+
+    #[test]
+    fn structured_connection_test_should_present_native_payload_without_chat_fields() {
+        let payload = json!({
+            "model": "jev-latest", "state": "test",
+            "questions": {"connection_test": {"type": "noul", "instructions": "Is this a test?"}}
+        });
+        let event = AccountConnectionTestEvent::from((
+            DomainConnectionTestEvent::Request {
+                model: "jev-latest".to_owned(),
+                input_text: "test".to_owned(),
+                stream: false,
+                store: false,
+                native_payload: Some(payload.clone()),
+            },
+            gateway_api::TimePresenter::new(gateway_core::time::DeploymentTimeZone::default()),
+        ))
+        .data;
+        assert_eq!(event["type"], "request");
+        assert_eq!(event["payload"], payload);
+        assert!(event["payload"].get("input").is_none());
+        assert!(event["payload"].get("stream").is_none());
     }
 
     #[test]

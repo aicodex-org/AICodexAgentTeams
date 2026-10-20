@@ -193,6 +193,7 @@ WebSocket message 和 frame 不设置网关私有长度上限；协议可接受�
 | `GET` | `/v1/responses` | 通过 HTTP Upgrade 建立 Responses WebSocket |
 | `POST` | `/v1/chat/completions` | Chat Completions JSON；`stream=true` 返回 SSE |
 | `POST` | `/v1/messages` | Anthropic Messages JSON；`stream=true` 返回 SSE |
+| `POST` | `/v1/systemone` | TypeSafe Jev 原生结构化推理；仅 HTTP JSON，见下文 |
 | `POST` | `/v1/alpha/search` | Codex standalone web search；JSON 请求与响应正文原样转发 |
 | `POST` | `/v1/images/generations` | 通过 OpenAI Provider 发起图像生成；JSON 请求与响应正文原样转发 |
 | `POST` | `/v1/images/edits` | 通过 OpenAI Provider 发起图像编辑；JSON 请求与响应正文原样转发 |
@@ -226,6 +227,63 @@ WebSocket、原生服务端续接与后台执行不适用。Responses 的非 `nu
 上游使用所选账号的 Bearer 密钥；客户端鉴权不会发送到上游。正文保留原生工具与推理历史，
 不在三种协议之间转换。模型目录按账号和凭据版本隔离，语音专用 ASR/TTS 模型不作为文本生成目标。
 接入方式、地区、凭据与额度边界见下文 MiMo 账号合同
+
+### TypeSafe Jev 结构化推理
+
+`POST /v1/systemone` 使用 Bearer Client Key，账号平台 ID 为 `typesafe`，协议 ID 为
+`typesafe-systemone`。请求固定发往所选 TypeSafe 账号，不作为 Responses、Chat 或 Messages 的后备平台，
+也不把 Jev 结果转换为文本或工具调用。Client Key 分组范围、账号模型政策、并发与费用限额仍生效
+
+请求为 JSON object，`model` 必须是非空字符串，`state` 必填，`questions` 必须是非空 object；问题 ID 由调用方指定。
+`state` 与每个问题的 `instructions` 可为字符串、object 或数组。请求最多 32 MiB，拒绝重复 JSON 键、
+非有限数值和过深嵌套。支持以下问题类型：
+
+| `type` | `criteria` | 结果 |
+| --- | --- | --- |
+| `noul` | 可省略；提供时为 object，可描述 `true` / `false` | `noul` 是 0～1 概率 |
+| `choice` | 1～255 个具名选项的 object，值为说明或 `null` | `choice`、`confidence` 与选项概率分布 |
+| `score` | 2～10 项说明组成的数组 | `score`、`confidence`、序号概率分布与 `legend` |
+
+```bash
+curl "${GATEWAY_URL}/v1/systemone" \
+  -H "Authorization: Bearer ${CLIENT_API_KEY}" \
+  -H 'Content-Type: application/json' \
+  --data '{
+    "model": "jev-latest",
+    "state": "The package arrived yesterday.",
+    "questions": {
+      "delivered": {"type": "noul", "instructions": "Has the package arrived?"},
+      "topic": {
+        "type": "choice", "instructions": "Choose the topic.",
+        "criteria": {"delivery": "Package delivery", "other": "Other topics"}
+      },
+      "urgency": {
+        "type": "score", "instructions": "Rate the urgency.",
+        "criteria": ["Routine", "Urgent"]
+      }
+    }
+  }'
+```
+
+先设置网关地址 `GATEWAY_URL` 与客户端密钥 `CLIENT_API_KEY`，不要在客户端使用上游 TypeSafe 密钥。
+成功响应最多 4 MiB，保留上游完整 JSON，包含 `model`、按问题 ID 对应的 `answers` 与可选 `usage`。
+网关检查答案类型、概率范围、分布归一及 Score 期望值；非法上游结果按协议错误结束，不归一化或补造答案。
+模型目录用于发现，未列出的固定版本仍可请求；模型选择应以 TypeSafe 当前提供的名称为准
+
+图片使用 JSON 顶层 `assets`，每项为 `{"type":"image","format":"png","data_base64":"<base64>"}`，
+也支持 `jpg` / `jpeg`。在 `state`、问题 `instructions` 或 `criteria` 的字符串值中引用对应的 asset 键，
+并发送唯一的 `TypeSafe-Danger-Zone-Images: true` 请求头；未启用时拒绝非空图片集合。
+Base64 不带 data URL 前缀，单个解码文件最大 16 MiB，整个 JSON 最大 32 MiB。
+网关校验封套、Base64、文件上限及引用，像素尺寸、动画和展开后的大小由上游按
+[官方图片合同](https://docs.typesafe.ai/images)校验；图片字节原样转发，图片能力仍属上游实验功能
+
+该入口不支持 multipart、SSE、WebSocket、工具、`previous_response_id`、`box` 与 Long Context。
+`TypeSafe-Danger-Zone-Long-Context` 除显式 `false` 外均被拒绝。
+`state` 是本次输入，不是网关保存的续接会话
+
+上游 HTTP 错误保留状态，正文使用固定的安全错误摘要，避免回显凭据或请求内容。
+429 保留可用的 `Retry-After`，终止网关自动换号重试，
+避免在同一组织的多个 API Key 间重复触发共享限流。客户端按上游提示退避后决定是否重新提交
 
 ### Provider 自有操作
 
@@ -984,6 +1042,7 @@ JSON 文件按 Provider 文档分项，不拆解内部代理引用或改变 Prov
 - xAI 从单账号 object 或 `accounts` 数组中提取 OAuth token；并发、优先级等字段不参与认证
 - xAI 批量导入逐条独立校验：失败条目跳过并记录日志，不中断其余条目，仅当没有任何条目成功时整个导入才报错
 - DeepSeek 与 MiMo 接受单账号 API Key object 或 `accounts` 数组；同一条目保存一份密钥和启用的协议集合
+- TypeSafe 接受单账号 API Key object 或 `accounts` 数组（1～1000 项），只支持 `typesafe-systemone` 协议
 - xAI API Key 不是受支持的账号 credential
 - OAuth 导入由目标 Provider 完成必要的 token exchange 或身份投影。API Key 导入校验凭据格式与地址，不调用 OAuth 或 ChatGPT 身份接口；可用性由模型目录和连接测试验证
 
@@ -1011,6 +1070,28 @@ HTTP 会明文传输 API Key 和请求内容，仅用于可信网络。
 目录用于模型发现，不作为能力白名单，未列出的模型仍交由上游判断。
 API Key 每次导入创建独立账号；更新已有账号使用 `/api/admin/accounts/update` 的 `connection` 字段。
 导出会显式包含密钥，沿用敏感导出的确认合同
+
+TypeSafe Jev 使用以下服务根地址合同，通过 `POST /api/admin/accounts/import` 导入：
+
+```json
+{
+  "provider": "typesafe",
+  "data": {
+    "name": "Jev 团队账号",
+    "api_key": "<typesafe-api-key>",
+    "base_url": "https://api.typesafe.ai",
+    "transport": "http",
+    "protocols": ["typesafe-systemone"]
+  }
+}
+```
+
+`base_url` 可省略，默认 `https://api.typesafe.ai`，追加 `/v1/systemone` 与 `/v1/models`；
+不要填写 `/v1` 或完整推理端点。地址支持可信网络内的 HTTP/HTTPS 自定义前缀，拒绝 URL 认证信息、
+查询串和 fragment；HTTP 会明文传输密钥和内容。`transport` 只能是 `http`，`protocols` 可省略，
+提供时必须仅含 `typesafe-systemone`。每次导入创建独立账号，轮换使用账号编辑，不重复导入同一密钥。
+账号不提供 OAuth、自动刷新、额度查询或订阅查询，模型目录和连接测试用于验证上游可用性。
+连接测试使用 Noul 问题，完整调用合同见 [Jev 结构化推理](#typesafe-jev-结构化推理)
 
 DeepSeek 导入使用独立的服务根地址合同：
 
@@ -1146,6 +1227,8 @@ DeepSeek 连接更新使用 `transport: "http"`，可额外提交 `protocols` �
 DeepSeek 详情的 `credentialConfiguration` 返回 `base_url`、`transport`、`protocols`、`pricing_schedule`
 MiMo 连接使用 `transport: "http"`，可提交 `accessMode`、`baseUrl`、`protocols` 与可选 `apiKey`；
 详情返回 `access_mode`、`base_url`、`protocols`、`transport`，不包含密钥
+TypeSafe 连接使用 `transport: "http"`，可提交 `baseUrl`、固定的 `protocols: ["typesafe-systemone"]` 与可选 `apiKey`；
+详情仅返回 `base_url`、`protocols`、`transport`
 连接设置不能修改账号 ID、Provider 或认证类型，也不接受通用凭据文档。
 凭据与设置在同一事务中保存，任一校验或持久化失败均不落库。
 `GET /api/admin/accounts/detail` 对 OpenAI API Key 账号额外返回 `credentialConfiguration: { base_url, transport }`；
@@ -1745,7 +1828,12 @@ MiMo 仅接受 `standard` 文本 Token 档位，内置 V2.6 Pro、Flash 与 Ultr
 `multiplierBps` 为 0～1000000 的整数，10000 表示 1 倍、0 表示本地估算为零，最大 100 倍。
 它作用于本地费用及对应明细，独立于服务档位；缺少计价依据的请求即使倍率为零仍然是费用未知
 
-`provider` 为内置 `openai`、`xai`、`deepseek` 或 `mimo`，对应价目由 `GET` 返回的 `defaults` 提供。
+TypeSafe 内置 `jev-latest`、`jev-preview`、`jev-1.13.0` 与 `jev-1.14.0` 的 `standard` USD 单价，
+每百万输入 Token 为 `0.042`、输出为 `0`，支持显式模型价格覆盖；未知型号或缺少计价所需用量时费用保持未知。
+输出单价为零时，缺少输出 Token 数不影响按已知输入用量估算费用，输出用量本身仍保留未知。
+模型别名的响应回显不改变本次请求冻结的计价模型，价格目录不作为可调用模型白名单
+
+`provider` 为内置 `openai`、`xai`、`deepseek`、`mimo` 或 `typesafe`，对应价目由 `GET` 返回的 `defaults` 提供。
 `models` 为 1～500 个模型 ID，每个 ID 为
 1～128 字节且不含空白、控制字符。`change` 为以下形式之一：
 
@@ -2155,7 +2243,7 @@ WebSocket 握手默认请求专项计时，客户端显式提供的开关保留�
 
 ### 费用与服务档位
 
-OpenAI、xAI、DeepSeek 与 MiMo 的本地费用估算按实际发送给上游的请求模型（`upstreamModel`）查价，结合响应中的实际
+OpenAI、xAI、DeepSeek、MiMo 与 TypeSafe 的本地费用估算按实际发送给上游的请求模型（`upstreamModel`）查价，结合响应中的实际
 用量计算；客户端请求 A、路由后发送 B 时按 B 计价，响应返回 C 不改变计价模型。实际发送模型缺少
 定价时不估算，也不借用响应模型的价格。Provider 明确上报的已计费金额仍优先于本地估算
 
