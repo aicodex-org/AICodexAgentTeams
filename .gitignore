@@ -33,6 +33,7 @@ Thumbs.db
 *~
 
 # Local tools and worktrees
+/.playwright-cli/
 /.codegraph/
 /.codex-ws-audit/
 /.reasonix/
