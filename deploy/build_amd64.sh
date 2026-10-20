@@ -10,6 +10,9 @@ usage() {
 固定平台：linux/amd64；构建完成后加载到本地 Docker
 
 可选环境变量：
+  AICODEX_AGENT_TEAMS_BUILD_PROXY 默认代理 http://127.0.0.1:7890，设为空可禁用默认值
+  HTTP_PROXY / HTTPS_PROXY / ALL_PROXY
+                                优先使用已有变量（兼容小写），包括显式空值
   AICODEX_AGENT_TEAMS_IMAGE       默认镜像名，可由位置参数覆盖
   AICODEX_AGENT_TEAMS_GIT_SHA     Git revision，默认读取当前仓库 HEAD
   AICODEX_AGENT_TEAMS_BUILD_TIME  构建时间，默认使用当前 UTC 时间
@@ -25,6 +28,14 @@ if [[ $# -gt 1 || ( $# -eq 1 && ( -z "$1" || "$1" == -* ) ) ]]; then
   usage >&2
   exit 2
 fi
+
+# Buildx 的认证请求在宿主机进程中发起，需要显式继承代理环境
+# 这里不传入容器 build-arg：容器内的 127.0.0.1 并不是宿主机代理
+# 使用不带冒号的默认值展开，保留调用者显式设置的空值以支持直连
+BUILD_PROXY="${AICODEX_AGENT_TEAMS_BUILD_PROXY-http://127.0.0.1:7890}"
+export HTTP_PROXY="${HTTP_PROXY-${http_proxy-$BUILD_PROXY}}"
+export HTTPS_PROXY="${HTTPS_PROXY-${https_proxy-$BUILD_PROXY}}"
+export ALL_PROXY="${ALL_PROXY-${all_proxy-$BUILD_PROXY}}"
 
 command -v docker >/dev/null 2>&1 || { printf '缺少命令：docker\n' >&2; exit 1; }
 docker buildx version >/dev/null

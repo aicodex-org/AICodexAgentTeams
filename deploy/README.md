@@ -584,6 +584,11 @@ docker compose -f deploy/compose.yaml up -d --no-build --wait
 默认将镜像加载为 `yangjianbo/aicodex-agent-teams:<release/version.yaml 中的版本号>`；位置参数可指定镜像名，
 编译版本仍取自 `release/version.yaml`。启动 Compose 时通过 `AICODEX_AGENT_TEAMS_IMAGE` 选择刚构建的镜像
 
+`build_amd64.sh` 默认通过 `http://127.0.0.1:7890` 代理访问 Buildx 认证服务，
+已有的 `HTTP_PROXY`、`HTTPS_PROXY`、`ALL_PROXY`（兼容小写）优先，显式空值保留。
+可用 `AICODEX_AGENT_TEAMS_BUILD_PROXY` 修改默认地址，设为空则禁用默认值。
+此配置只作用于脚本进程，不修改 Docker daemon 或构建容器的代理设置
+
 `deploy/docker-compose.yaml` 使用 Docker 命名卷，项目名为 `aicodex-agent-teams-volumes`；
 `deploy/compose.yaml` 使用宿主机 `.runtime` 目录。两者的数据独立，切换文件不会迁移已有数据。
 命名卷方案同样读取 `deploy/config.yaml`，默认端口相同，不能直接与目录挂载方案同时启动；
