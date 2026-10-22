@@ -24,6 +24,10 @@ pub(super) fn authentication_gateway_error(error: ClientAuthenticationError) -> 
 
 pub(super) fn map_routing_error(error: crate::validation::RoutingError) -> GatewayError {
     match error {
+        crate::validation::RoutingError::UnsupportedModelProtocol => GatewayError::new(
+            GatewayErrorKind::Unsupported,
+            "the requested model does not support this protocol; use the model's native API",
+        ),
         crate::validation::RoutingError::ModelMappingConflict => GatewayError::new(
             GatewayErrorKind::InvalidRequest,
             "the API key has conflicting group model mappings for this protocol and model",

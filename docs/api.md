@@ -234,6 +234,10 @@ WebSocket、原生服务端续接与后台执行不适用。Responses 的非 `nu
 `typesafe-systemone`。请求固定发往所选 TypeSafe 账号，不作为 Responses、Chat 或 Messages 的后备平台，
 也不把 Jev 结果转换为文本或工具调用。Client Key 分组范围、账号模型政策、并发与费用限额仍生效
 
+模型出现在 `/v1/models` 中不代表支持聊天协议。对授权范围内已知的 Jev 模型调用 Chat 或 Responses，
+且没有其他协议兼容候选时，返回 `400 unsupported_capability`；应改用 `/v1/systemone` 及其请求格式，
+刷新模型或更换 Key 不会增加协议支持
+
 请求为 JSON object，`model` 必须是非空字符串，`state` 必填，`questions` 必须是非空 object；问题 ID 由调用方指定。
 `state` 与每个问题的 `instructions` 可为字符串、object 或数组。请求最多 32 MiB，拒绝重复 JSON 键、
 非有限数值和过深嵌套。支持以下问题类型：

@@ -63,6 +63,9 @@ pub enum RoutingError {
     ModelMappingConflict,
     #[error("the mapped provider does not natively support the requested protocol")]
     ModelMappingProtocolMismatch,
+    /// 授权范围内已知模型不支持请求协议
+    #[error("the requested model does not support this protocol")]
+    UnsupportedModelProtocol,
 
     /// 请求设置无法编译
     #[error("runtime settings are invalid")]

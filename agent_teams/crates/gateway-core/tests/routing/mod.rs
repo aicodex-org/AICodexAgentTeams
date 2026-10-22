@@ -20,6 +20,7 @@ use gateway_core::routing::{
 
 mod group_mapping;
 mod privacy;
+mod protocol;
 mod request_settings;
 mod snapshot;
 

@@ -1519,6 +1519,8 @@ impl RuntimeSnapshot {
         let requirements = operation.capability_requirements();
         let mut candidates = Vec::new();
         let mut unlisted_candidates = Vec::new();
+        let mut model_protocol_mismatch = false;
+        let mut protocol_compatible_model = false;
 
         if context.required_provider.is_none() && account_scope.provider_kinds().is_empty() {
             return Err(RoutingError::EmptyAccountScope);
@@ -1552,9 +1554,6 @@ impl RuntimeSnapshot {
             {
                 continue;
             }
-            if !self.provider_supports_protocol(provider, operation.protocol()) {
-                continue;
-            }
             let requested_model = public_model.as_str();
             let mapped_model = model_mapping.as_ref().map_or_else(
                 || self.mapped_model(requested_model),
@@ -1583,11 +1582,17 @@ impl RuntimeSnapshot {
                 .provider_models
                 .get(provider)
                 .and_then(|models| models.get(&upstream_model));
+            if !self.provider_supports_protocol(provider, operation.protocol())
+                || capabilities.is_some_and(|caps| !caps.supports_protocol(operation.protocol()))
+            {
+                // 只用授权范围内的已知模型证明协议不匹配，不能泄露被策略排除的模型
+                model_protocol_mismatch |= capabilities.is_some();
+                continue;
+            }
+            protocol_compatible_model |=
+                capabilities.is_some() || !self.exhaustive_provider_catalogs.contains(provider);
             let emulated_features = match capabilities {
                 Some(capabilities) => {
-                    if !capabilities.supports_protocol(operation.protocol()) {
-                        continue;
-                    }
                     let Some(emulated) = capabilities.match_requirements(&requirements) else {
                         continue;
                     };
@@ -1617,6 +1622,10 @@ impl RuntimeSnapshot {
         candidates.extend(unlisted_candidates);
 
         if candidates.is_empty() {
+            // 有兼容协议的模型因其他能力被排除时，不能把失败归为协议不匹配
+            if model_protocol_mismatch && !protocol_compatible_model {
+                return Err(RoutingError::UnsupportedModelProtocol);
+            }
             if model_mapping.is_some() {
                 return Err(RoutingError::NoCapableProvider {
                     model: public_model.as_str().to_owned(),
